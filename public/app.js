@@ -1,6 +1,6 @@
 const CLIENT_ID = '78c1217f07404df7b95cceb3e7cc6657';
-// Asegurar URI limpia sin barra final para coincidencia exacta en Spotify
-const REDIRECT_URI = window.location.origin;
+// Asegurar URI limpia con slash final
+const REDIRECT_URI = window.location.origin + '/';
 
 let accessToken = null;
 let currentRange = 'short_term';
