@@ -1,21 +1,21 @@
 {
   "version": 2,
-  "rewrites": [
+  "routes": [
     {
-      "source": "/login",
-      "destination": "/api/index.js"
+      "src": "/login",
+      "dest": "/api/index.js"
     },
     {
-      "source": "/callback",
-      "destination": "/api/index.js"
+      "src": "/callback",
+      "dest": "/api/index.js"
     },
     {
-      "source": "/refresh_token",
-      "destination": "/api/index.js"
+      "src": "/refresh_token",
+      "dest": "/api/index.js"
     },
     {
-      "source": "/(.*)",
-      "destination": "/public/$1"
+      "src": "/(.*)",
+      "dest": "/public/$1"
     }
   ]
 }
