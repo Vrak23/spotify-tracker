@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Stats - Mis Estadísticas</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        .bg-spotify {
+            background-color: #1ed760;
+            color: #000000;
+        }
+        .btn-spotify {
+            background-color: #1ed760;
+            color: #000000;
+            font-weight: 600;
+            border-radius: 50px;
+            padding: 10px 24px;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .btn-spotify:hover {
+            background-color: #1fdf64;
+            transform: scale(1.03);
+            color: #000000;
+        }
+        .card-item {
+            background-color: #181818;
+            border: 1px solid #282828;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+        .card-item:hover {
+            background-color: #282828;
+        }
+        .img-avatar {
+            width: 48px;
+            height: 48px;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+        .img-thumb {
+            width: 54px;
+            height: 54px;
+            object-fit: cover;
+            border-radius: 6px;
+        }
+        .nav-pills .nav-link {
+            color: #b3b3b3;
+            border-radius: 20px;
+            padding: 6px 16px;
+            font-size: 0.9rem;
+        }
+        .nav-pills .nav-link.active {
+            background-color: #ffffff;
+            color: #000000;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header / Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary border-opacity-25 py-3">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="#">
+                <i class="fa-brands fa-spotify text-success fs-3"></i>
+                <span>Spotify Stats</span>
+            </a>
+
+            <!-- User Profile (Hidden by default) -->
+            <div id="user-profile" class="d-none d-flex align-items-center gap-3">
+                <img id="user-img" src="" alt="Avatar" class="img-avatar border border-success">
+                <div>
+                    <div id="user-name" class="fw-bold fs-6 lead mb-0"></div>
+                    <small id="user-followers" class="text-secondary"></small>
+                </div>
+                <button id="btn-logout" class="btn btn-outline-secondary btn-sm ms-2">Cerrar Sesión</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+
+        <!-- Login Screen -->
+        <div id="login-view" class="text-center py-5 my-5">
+            <i class="fa-brands fa-spotify text-success display-1 mb-4"></i>
+            <h1 class="fw-bold mb-3">Tus Estadísticas de Spotify</h1>
+            <p class="text-secondary fs-5 mb-4">Descubre tus artistas y canciones más escuchadas de forma simple y rápida.</p>
+            <a href="/login" class="btn btn-spotify btn-lg shadow">
+                <i class="fa-brands fa-spotify me-2"></i> Iniciar sesión con Spotify
+            </a>
+        </div>
+
+        <!-- Dashboard Screen (Hidden by default) -->
+        <div id="dashboard-view" class="d-none">
+
+            <!-- Currently Playing Bar -->
+            <div id="currently-playing-container" class="mb-4"></div>
+
+            <!-- Time Range Tabs -->
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+                <ul class="nav nav-pills" id="time-range-tabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-range="short_term">Últimas 4 Semanas</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-range="medium_term">Últimos 6 Meses</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-range="long_term">Histórico Total</button>
+                    </li>
+                </ul>
+
+                <!-- Content Toggle (Tracks / Artists) -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="contentType" id="typeTracks" value="tracks" checked>
+                    <label class="btn btn-outline-light" for="typeTracks"><i class="fa-solid fa-music me-1"></i> Canciones</label>
+
+                    <input type="radio" class="btn-check" name="contentType" id="typeArtists" value="artists">
+                    <label class="btn btn-outline-light" for="typeArtists"><i class="fa-solid fa-user-group me-1"></i> Artistas</label>
+                </div>
+            </div>
+
+            <!-- Loader -->
+            <div id="loader" class="text-center py-5 d-none">
+                <div class="spinner-border text-success" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+            </div>
+
+            <!-- Stats Grid / List -->
+            <div id="stats-list" class="row g-3">
+                <!-- Dynamically filled by JS -->
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- App JS -->
+    <script src="app.js"></script>
+</body>
+</html>
