@@ -1,11 +1,9 @@
-// Configuración de Client ID de Spotify (Safe to expose on client-side)
 const CLIENT_ID = '78c1217f07404df7b95cceb3e7cc6657';
 const REDIRECT_URI = window.location.origin + '/';
 
-// Estado global
 let accessToken = null;
-let currentRange = 'short_term'; // short_term, medium_term, long_term
-let currentType = 'tracks';     // tracks, artists
+let currentRange = 'short_term';
+let currentType = 'tracks';
 
 // Elementos DOM
 const loginView = document.getElementById('login-view');
@@ -20,35 +18,100 @@ const statsList = document.getElementById('stats-list');
 const loader = document.getElementById('loader');
 const currentlyPlayingContainer = document.getElementById('currently-playing-container');
 
+// Generar PKCE verifier y challenge aleatorios (Estándar oficial de Spotify)
+function generateRandomString(length) {
+    let text = '';
+    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    for (let i = 0; i < length; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
+
+async function generateCodeChallenge(codeVerifier) {
+    const data = new TextEncoder().encode(codeVerifier);
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+}
+
+// Redirigir a Spotify con PKCE Flow
+async function redirectToSpotifyLogin() {
+    const verifier = generateRandomString(128);
+    const challenge = await generateCodeChallenge(verifier);
+    localStorage.setItem('code_verifier', verifier);
+
+    const scope = 'user-read-private user-read-email user-top-read user-read-currently-playing user-read-recently-played';
+    const params = new URLSearchParams({
+        client_id: CLIENT_ID,
+        response_type: 'code',
+        redirect_uri: REDIRECT_URI,
+        scope: scope,
+        code_challenge_method: 'S256',
+        code_challenge: challenge
+    });
+
+    document.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
+}
+
+// Intercambiar código devuelto por Access Token mediante PKCE
+async function fetchAccessToken(code) {
+    const verifier = localStorage.getItem('code_verifier');
+
+    const params = new URLSearchParams({
+        client_id: CLIENT_ID,
+        grant_type: 'authorization_code',
+        code: code,
+        redirect_uri: REDIRECT_URI,
+        code_verifier: verifier
+    });
+
+    try {
+        const response = await fetch('https://accounts.spotify.com/api/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: params
+        });
+
+        const data = await response.json();
+        if (data.access_token) {
+            accessToken = data.access_token;
+            localStorage.setItem('spotify_access_token', accessToken);
+            window.history.replaceState({}, document.title, "/");
+            showDashboard();
+        } else {
+            console.error('Error al obtener token PKCE:', data);
+            showLogin();
+        }
+    } catch (err) {
+        console.error('Error:', err);
+        showLogin();
+    }
+}
+
 // Inicializar app
-document.addEventListener('DOMContentLoaded', () => {
-    // Extraer token del hash de la URL (Implicit Grant Flow)
-    const hash = window.location.hash.substring(1);
-    const params = new URLSearchParams(hash);
-    
-    if (params.has('access_token')) {
-        accessToken = params.get('access_token');
-        localStorage.setItem('spotify_access_token', accessToken);
-        window.location.hash = ''; // Limpiar hash de la URL
+document.addEventListener('DOMContentLoaded', async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+
+    if (code) {
+        // Viene el código en la URL de Spotify
+        await fetchAccessToken(code);
     } else {
         accessToken = localStorage.getItem('spotify_access_token');
-    }
-
-    if (accessToken) {
-        showDashboard();
-    } else {
-        showLogin();
+        if (accessToken) {
+            showDashboard();
+        } else {
+            showLogin();
+        }
     }
 
     setupEventListeners();
 });
-
-// Generar URL de autorización cliente
-function redirectToSpotifyLogin() {
-    const scope = 'user-read-private user-read-email user-top-read user-read-currently-playing user-read-recently-played';
-    const authUrl = `https://accounts.spotify.com/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scope)}&response_type=token&show_dialog=true`;
-    window.location.href = authUrl;
-}
 
 // Event Listeners
 function setupEventListeners() {
@@ -58,11 +121,11 @@ function setupEventListeners() {
 
     btnLogout.addEventListener('click', () => {
         localStorage.removeItem('spotify_access_token');
+        localStorage.removeItem('code_verifier');
         accessToken = null;
         showLogin();
     });
 
-    // Pestañas de rango de tiempo
     document.querySelectorAll('#time-range-tabs .nav-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('#time-range-tabs .nav-link').forEach(b => b.classList.remove('active'));
@@ -72,7 +135,6 @@ function setupEventListeners() {
         });
     });
 
-    // Radios Canciones / Artistas
     document.querySelectorAll('input[name="contentType"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             currentType = e.target.value;
@@ -97,7 +159,6 @@ async function showDashboard() {
     loadStats();
 }
 
-// Peticiones a API de Spotify
 async function spotifyFetch(endpoint) {
     try {
         const res = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
@@ -107,7 +168,6 @@ async function spotifyFetch(endpoint) {
         });
 
         if (res.status === 401) {
-            // Token expirado
             localStorage.removeItem('spotify_access_token');
             showLogin();
             return null;
@@ -121,7 +181,6 @@ async function spotifyFetch(endpoint) {
     }
 }
 
-// Cargar perfil del usuario
 async function fetchUserProfile() {
     const data = await spotifyFetch('me');
     if (!data) return;
@@ -136,7 +195,6 @@ async function fetchUserProfile() {
     }
 }
 
-// Cargar canción reproduciéndose en tiempo real
 async function fetchCurrentlyPlaying() {
     const data = await spotifyFetch('me/player/currently-playing');
     
@@ -161,7 +219,6 @@ async function fetchCurrentlyPlaying() {
     }
 }
 
-// Cargar estadísticas principales
 async function loadStats() {
     statsList.innerHTML = '';
     loader.classList.remove('d-none');
@@ -182,7 +239,6 @@ async function loadStats() {
     }
 }
 
-// Renderizar Top Canciones
 function renderTracks(tracks) {
     tracks.forEach((track, index) => {
         const col = document.createElement('div');
@@ -203,7 +259,6 @@ function renderTracks(tracks) {
     });
 }
 
-// Renderizar Top Artistas
 function renderArtists(artists) {
     artists.forEach((artist, index) => {
         const col = document.createElement('div');
