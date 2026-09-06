@@ -1,3 +1,7 @@
+// Configuración de Client ID de Spotify (Safe to expose on client-side)
+const CLIENT_ID = '78c1217f07404df7b95cceb3e7cc6657';
+const REDIRECT_URI = window.location.origin + '/';
+
 // Estado global
 let accessToken = null;
 let currentRange = 'short_term'; // short_term, medium_term, long_term
@@ -10,6 +14,7 @@ const userProfile = document.getElementById('user-profile');
 const userName = document.getElementById('user-name');
 const userImg = document.getElementById('user-img');
 const userFollowers = document.getElementById('user-followers');
+const btnLogin = document.getElementById('btn-login');
 const btnLogout = document.getElementById('btn-logout');
 const statsList = document.getElementById('stats-list');
 const loader = document.getElementById('loader');
@@ -17,7 +22,7 @@ const currentlyPlayingContainer = document.getElementById('currently-playing-con
 
 // Inicializar app
 document.addEventListener('DOMContentLoaded', () => {
-    // Extraer tokens del hash de la URL
+    // Extraer token del hash de la URL (Implicit Grant Flow)
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
     
@@ -38,8 +43,19 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
 });
 
+// Generar URL de autorización cliente
+function redirectToSpotifyLogin() {
+    const scope = 'user-read-private user-read-email user-top-read user-read-currently-playing user-read-recently-played';
+    const authUrl = `https://accounts.spotify.com/authorize?client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(scope)}&response_type=token&show_dialog=true`;
+    window.location.href = authUrl;
+}
+
 // Event Listeners
 function setupEventListeners() {
+    if (btnLogin) {
+        btnLogin.addEventListener('click', redirectToSpotifyLogin);
+    }
+
     btnLogout.addEventListener('click', () => {
         localStorage.removeItem('spotify_access_token');
         accessToken = null;
@@ -97,7 +113,7 @@ async function spotifyFetch(endpoint) {
             return null;
         }
 
-        if (res.status === 204) return null; // No Content (ej. nada reproduciéndose)
+        if (res.status === 204) return null;
         return await res.json();
     } catch (err) {
         console.error('Error en llamada API:', err);

@@ -1,21 +1,3 @@
 {
-  "version": 2,
-  "rewrites": [
-    {
-      "source": "/login",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/callback",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/refresh_token",
-      "destination": "/api/index"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/public/$1"
-    }
-  ]
+  "cleanUrls": true
 }
