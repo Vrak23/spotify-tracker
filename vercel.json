@@ -1,15 +1,21 @@
 {
   "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "server.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
+      "source": "/login",
+      "destination": "/api/index.js"
+    },
     {
-      "src": "/(.*)",
-      "dest": "server.js"
+      "source": "/callback",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/refresh_token",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/public/$1"
     }
   ]
 }
