@@ -1,5 +1,6 @@
 const CLIENT_ID = '78c1217f07404df7b95cceb3e7cc6657';
-const REDIRECT_URI = window.location.origin + '/';
+// Asegurar URI limpia sin barra final para coincidencia exacta en Spotify
+const REDIRECT_URI = window.location.origin;
 
 let accessToken = null;
 let currentRange = 'short_term';
@@ -18,7 +19,6 @@ const statsList = document.getElementById('stats-list');
 const loader = document.getElementById('loader');
 const currentlyPlayingContainer = document.getElementById('currently-playing-container');
 
-// Generar PKCE verifier y challenge aleatorios (Estándar oficial de Spotify)
 function generateRandomString(length) {
     let text = '';
     const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -37,7 +37,6 @@ async function generateCodeChallenge(codeVerifier) {
         .replace(/=+$/, '');
 }
 
-// Redirigir a Spotify con PKCE Flow
 async function redirectToSpotifyLogin() {
     const verifier = generateRandomString(128);
     const challenge = await generateCodeChallenge(verifier);
@@ -56,7 +55,6 @@ async function redirectToSpotifyLogin() {
     document.location = `https://accounts.spotify.com/authorize?${params.toString()}`;
 }
 
-// Intercambiar código devuelto por Access Token mediante PKCE
 async function fetchAccessToken(code) {
     const verifier = localStorage.getItem('code_verifier');
 
@@ -93,13 +91,11 @@ async function fetchAccessToken(code) {
     }
 }
 
-// Inicializar app
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
 
     if (code) {
-        // Viene el código en la URL de Spotify
         await fetchAccessToken(code);
     } else {
         accessToken = localStorage.getItem('spotify_access_token');
@@ -113,7 +109,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
 });
 
-// Event Listeners
 function setupEventListeners() {
     if (btnLogin) {
         btnLogin.addEventListener('click', redirectToSpotifyLogin);
