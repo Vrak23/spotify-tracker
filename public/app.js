@@ -1,6 +1,6 @@
 const CLIENT_ID = '78c1217f07404df7b95cceb3e7cc6657';
-// Asegurar URI limpia con slash final
-const REDIRECT_URI = window.location.origin + '/';
+// Usar ruta explícita /callback
+const REDIRECT_URI = window.location.origin + '/callback';
 
 let accessToken = null;
 let currentRange = 'short_term';
