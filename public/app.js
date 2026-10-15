@@ -94,8 +94,13 @@ async function fetchAccessToken(code) {
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
+    const error = urlParams.get('error');
 
-    if (code) {
+    if (error) {
+        console.error('Error de autorización de Spotify:', error);
+        window.history.replaceState({}, document.title, "/");
+        showLogin();
+    } else if (code) {
         await fetchAccessToken(code);
     } else {
         accessToken = localStorage.getItem('spotify_access_token');
