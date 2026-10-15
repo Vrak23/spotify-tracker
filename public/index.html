@@ -289,21 +289,59 @@
         <!-- Dashboard View -->
         <div id="dashboard-view" class="d-none">
 
+            <!-- PWA Update Available Banner -->
+            <div id="update-toast" class="d-none align-items-center justify-content-between p-2 px-3 mb-2 rounded border border-info border-opacity-25" style="background-color: rgba(6, 182, 212, 0.12); font-size: 0.8rem;">
+                <span class="text-info">
+                    <i class="fa-solid fa-arrows-rotate fa-spin me-2 text-info"></i>¡Nueva versión lista para instalar!
+                </span>
+                <button id="btn-apply-update" class="btn btn-sm btn-info py-0 px-2 fw-semibold" style="font-size: 0.74rem;">Actualizar ahora</button>
+            </div>
+
             <!-- Currently Playing Bar -->
             <div id="currently-playing-container" class="mb-3"></div>
 
-            <!-- Last.fm Sync Banner (If connected) -->
-            <div id="lastfm-banner" class="d-none align-items-center justify-content-between p-2 px-3 mb-2 rounded border border-danger border-opacity-25" style="background-color: rgba(220, 38, 38, 0.08); font-size: 0.78rem;">
-                <span class="text-danger fw-semibold">
-                    <i class="fa-brands fa-lastfm me-1"></i> Conectado con Last.fm: <span id="lastfm-banner-user" class="text-white"></span>
-                </span>
-                <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">Streams Activos</span>
+            <!-- Last.fm Sync Banner & Global Stats Overview (If connected) -->
+            <div id="lastfm-stats-overview" class="d-none mb-3 p-2.5 rounded border border-danger border-opacity-25" style="background-color: var(--bg-surface);">
+                <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom border-secondary border-opacity-10">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-brands fa-lastfm text-danger fs-6"></i>
+                        <span class="fw-bold" style="font-size: 0.82rem;">Estadísticas Globales de Escucha</span>
+                    </div>
+                    <span id="lastfm-overview-user" class="badge bg-danger bg-opacity-20 text-danger border border-danger border-opacity-25" style="font-size: 0.7rem;"></span>
+                </div>
+                <div class="row g-2 text-center">
+                    <div class="col-3">
+                        <div class="p-1.5 rounded bg-black bg-opacity-40">
+                            <div class="fw-bold text-white fs-6" id="lf-stat-playcount">0</div>
+                            <div class="text-secondary text-uppercase" style="font-size: 0.65rem; font-weight: 600;">Scrobbles</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="p-1.5 rounded bg-black bg-opacity-40">
+                            <div class="fw-bold text-white fs-6" id="lf-stat-artists">0</div>
+                            <div class="text-secondary text-uppercase" style="font-size: 0.65rem; font-weight: 600;">Artistas</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="p-1.5 rounded bg-black bg-opacity-40">
+                            <div class="fw-bold text-white fs-6" id="lf-stat-albums">0</div>
+                            <div class="text-secondary text-uppercase" style="font-size: 0.65rem; font-weight: 600;">Álbumes</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="p-1.5 rounded bg-black bg-opacity-40">
+                            <div class="fw-bold text-white fs-6" id="lf-stat-tracks">0</div>
+                            <div class="text-secondary text-uppercase" style="font-size: 0.65rem; font-weight: 600;">Temas</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <!-- 1. Segmented Primary Content Tabs (Clean 3 views) -->
+            <!-- 1. Segmented Primary Content Tabs (Clean 4 views) -->
             <div class="segmented-tabs mb-2" id="content-type-tabs">
                 <button class="segmented-tab active" data-type="tracks"><i class="fa-solid fa-music me-1"></i> Canciones</button>
                 <button class="segmented-tab" data-type="artists"><i class="fa-solid fa-user-group me-1"></i> Artistas</button>
+                <button class="segmented-tab" data-type="albums"><i class="fa-solid fa-compact-disc me-1"></i> Álbumes</button>
                 <button class="segmented-tab" data-type="recent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</button>
             </div>
 
@@ -402,6 +440,14 @@
                     <div>
                         <div>Descargar App Web (PWA)</div>
                         <small class="text-secondary d-block" style="font-size: 0.75rem;">Instalar acceso directo en tu celular o PC</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-force-update">
+                    <i class="fa-solid fa-arrows-rotate text-info fs-5"></i>
+                    <div>
+                        <div class="text-info">Actualizar App / Limpiar Caché</div>
+                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Fuerza la descarga de la última versión en tu celular</small>
                     </div>
                 </button>
             </div>
