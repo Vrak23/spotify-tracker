@@ -34,6 +34,16 @@
             --text-muted: #94a3b8;
         }
 
+        html, body {
+            max-width: 100vw;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             background-color: #000000;
             color: var(--text-primary);
@@ -42,14 +52,17 @@
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
+            width: 100%;
         }
 
-        /* Responsive max-width container (More compact & orderly) */
+        /* Responsive max-width container (Strictly contained) */
         .app-container {
-            max-width: 680px;
+            max-width: 580px;
             margin: 0 auto;
             width: 100%;
-            padding: 0 12px;
+            padding: 0 10px;
+            box-sizing: border-box;
+            overflow-x: hidden;
         }
 
         /* Branding Buttons */
@@ -125,18 +138,21 @@
             gap: 2px;
         }
         .segmented-tab {
-            flex: 1;
+            flex: 1 1 0;
+            min-width: 0;
             text-align: center;
             border: none;
             background: transparent;
             color: var(--text-muted);
             font-size: 0.8rem;
             font-weight: 500;
-            padding: 7px 4px;
+            padding: 7px 2px;
             border-radius: 10px;
             transition: all 0.15s ease;
             cursor: pointer;
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .segmented-tab:hover {
             color: #ffffff;
@@ -169,12 +185,16 @@
             background-color: var(--bg-surface);
             border: 1px solid var(--border-subtle);
             border-radius: 12px;
-            padding: 7px 12px;
-            min-height: 58px;
+            padding: 7px 10px;
+            min-height: 56px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             transition: all 0.15s ease;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
         }
         .card-uniform:hover {
             background-color: var(--bg-surface-hover);
@@ -183,7 +203,7 @@
         }
 
         .card-rank {
-            width: 22px;
+            width: 20px;
             text-align: center;
             font-size: 0.78rem;
             font-weight: 700;
@@ -195,12 +215,12 @@
         }
 
         .img-thumb {
-            width: 42px;
-            height: 42px;
+            width: 40px;
+            height: 40px;
             object-fit: cover;
             border-radius: 8px;
             flex-shrink: 0;
-            background-color: #1a1625;
+            background-color: #121215;
         }
         .img-thumb.rounded-circle {
             border-radius: 50% !important;
@@ -210,14 +230,82 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            padding: 2px 8px;
+            padding: 2px 7px;
             border-radius: 20px;
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             font-weight: 600;
             color: #d8b4fe;
             background: rgba(168, 85, 247, 0.12);
             border: 1px solid rgba(168, 85, 247, 0.25);
             flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        .btn-card-action {
+            width: 28px;
+            height: 28px;
+            min-width: 28px;
+            min-height: 28px;
+            max-width: 28px;
+            max-height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50% !important;
+            background-color: var(--bg-surface-hover);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            flex-shrink: 0;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .btn-card-action:hover {
+            border-color: #1ed760;
+            background-color: rgba(30, 215, 96, 0.15);
+            color: #ffffff;
+        }
+
+        @media (max-width: 480px) {
+            .app-container {
+                padding: 0 8px;
+            }
+            .segmented-tab {
+                font-size: 0.72rem;
+                padding: 6px 1px;
+            }
+            .segmented-tab i {
+                display: none;
+            }
+            .card-uniform {
+                padding: 5px 7px;
+                gap: 6px;
+                min-height: 50px;
+            }
+            .img-thumb {
+                width: 36px;
+                height: 36px;
+            }
+            .badge-scrobble {
+                padding: 2px 5px;
+                font-size: 0.62rem;
+                gap: 2px;
+            }
+            .badge-scrobble i {
+                font-size: 0.58rem;
+            }
+            .card-rank {
+                width: 18px;
+                font-size: 0.7rem;
+            }
+            .btn-card-action {
+                width: 26px;
+                height: 26px;
+                min-width: 26px;
+                min-height: 26px;
+            }
+            .btn-card-action i {
+                font-size: 0.78rem !important;
+            }
         }
 
         /* Currently Playing Compact Bar */
@@ -370,8 +458,8 @@
             </div>
 
             <!-- 2. Sub-Filters Bar: Native Last.fm Periods & Limits -->
-            <div id="time-range-container" class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <div class="d-flex gap-1.5 overflow-auto py-1 flex-grow-1" id="time-range-tabs" style="scrollbar-width: none; -ms-overflow-style: none;">
+            <div id="time-range-container" class="d-flex align-items-center justify-content-between gap-1.5 mb-2" style="width: 100%; min-width: 0;">
+                <div class="d-flex gap-1 overflow-auto py-1 flex-grow-1" id="time-range-tabs" style="min-width: 0; flex: 1 1 0; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch;">
                     <button type="button" class="pill-btn" data-range="7day">7 Días</button>
                     <button type="button" class="pill-btn active" data-range="1month">1 Mes</button>
                     <button type="button" class="pill-btn" data-range="3month">3 Meses</button>
@@ -387,24 +475,26 @@
                 </div>
             </div>
 
-            <!-- 3. Custom Date Range Filter Box (Collapsible) -->
-            <div id="custom-date-box" class="d-none mb-2.5 p-2 rounded-3 border border-secondary border-opacity-15" style="background-color: var(--bg-surface);">
-                <div class="d-flex align-items-center justify-content-between mb-1.5 px-1">
+            <!-- 3. Custom Date Range Filter Box (Responsive Grid that never overflows) -->
+            <div id="custom-date-box" class="d-none mb-2.5 p-2.5 rounded-3 border border-secondary border-opacity-15" style="background-color: var(--bg-surface); width: 100%;">
+                <div class="d-flex align-items-center justify-content-between mb-2">
                     <small class="fw-semibold text-secondary" style="font-size: 0.72rem;"><i class="fa-solid fa-calendar-days text-info me-1"></i>Filtrar por rango exacto de fechas:</small>
                     <span id="custom-date-status" class="text-secondary" style="font-size: 0.68rem;"></span>
                 </div>
-                <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                    <div class="d-flex align-items-center gap-1 flex-grow-1">
-                        <small class="text-secondary" style="font-size: 0.7rem;">Desde:</small>
-                        <input type="date" id="custom-date-from" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-0 px-2" style="font-size: 0.75rem;">
+                <div class="row g-2 align-items-end">
+                    <div class="col-6">
+                        <small class="text-secondary d-block mb-1" style="font-size: 0.68rem;">Desde:</small>
+                        <input type="date" id="custom-date-from" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-1 px-2" style="font-size: 0.74rem; width: 100%;">
                     </div>
-                    <div class="d-flex align-items-center gap-1 flex-grow-1">
-                        <small class="text-secondary" style="font-size: 0.7rem;">Hasta:</small>
-                        <input type="date" id="custom-date-to" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-0 px-2" style="font-size: 0.75rem;">
+                    <div class="col-6">
+                        <small class="text-secondary d-block mb-1" style="font-size: 0.68rem;">Hasta:</small>
+                        <input type="date" id="custom-date-to" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-1 px-2" style="font-size: 0.74rem; width: 100%;">
                     </div>
-                    <button id="btn-apply-custom-date" class="btn btn-sm btn-brand py-0.5 px-3 rounded-pill ms-auto" style="font-size: 0.74rem;">
-                        Aplicar
-                    </button>
+                    <div class="col-12 mt-1">
+                        <button id="btn-apply-custom-date" class="btn btn-sm btn-brand w-100 py-1.5 rounded-pill" style="font-size: 0.76rem;">
+                            Aplicar Filtro
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -612,6 +702,6 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js"></script>
+    <script src="/app.js?v=6"></script>
 </body>
 </html>

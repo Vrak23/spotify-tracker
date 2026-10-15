@@ -485,8 +485,8 @@ async function fetchCurrentlyPlaying() {
                             <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;">${firstTrack.name}</div>
                             <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
                         </div>
-                        <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Escuchar en Spotify">
-                            <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
+                        <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Escuchar en Spotify">
+                            <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
                         </a>
                     </div>
                 `;
@@ -876,8 +876,8 @@ function renderTracks(tracks) {
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
             </div>
             <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${playcount}</span>
-            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Escuchar en Spotify">
-                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
+            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Escuchar en Spotify">
+                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
             </a>
         `;
         statsList.appendChild(item);
@@ -908,8 +908,8 @@ function renderArtists(artists) {
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">Artista</small>
             </div>
             <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${playcount}</span>
-            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Ver en Spotify">
-                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
+            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Ver en Spotify">
+                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
             </a>
         `;
         statsList.appendChild(item);
@@ -940,8 +940,8 @@ function renderAlbums(albums) {
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
             </div>
             <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${playcount}</span>
-            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Escuchar en Spotify">
-                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
+            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Escuchar en Spotify">
+                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
             </a>
         `;
         statsList.appendChild(item);
@@ -972,11 +972,11 @@ function renderRecent(tracks) {
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
             </div>
-            <span class="${isNowPlaying ? 'badge bg-primary bg-opacity-25 text-white border border-primary border-opacity-30' : 'text-secondary'}" style="font-size: 0.7rem; white-space: nowrap;">
+            <span class="${isNowPlaying ? 'badge bg-primary bg-opacity-25 text-white border border-primary border-opacity-30' : 'badge-scrobble'}" style="${isNowPlaying ? 'font-size: 0.65rem;' : ''}">
                 ${isNowPlaying ? '<i class="fa-solid fa-volume-high me-1 text-primary"></i>En vivo' : `<i class="fa-regular fa-clock me-1"></i>${playedAtStr}`}
             </span>
-            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Escuchar en Spotify">
-                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
+            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Escuchar en Spotify">
+                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
             </a>
         `;
         statsList.appendChild(item);
