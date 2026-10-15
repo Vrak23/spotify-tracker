@@ -474,12 +474,23 @@
                 </div>
             </div>
 
-            <!-- 3. Native Last.fm Annual Streams & Scrobbles Bar -->
-            <div id="years-filter-container" class="d-none align-items-center gap-1.5 mb-2.5 py-1 px-2 rounded-3 border border-secondary border-opacity-10 overflow-auto" style="background-color: rgba(255, 255, 255, 0.02); scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; width: 100%;">
-                <span class="text-secondary fw-semibold flex-shrink-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
-                    <i class="fa-regular fa-calendar-check text-warning"></i> Por Año:
-                </span>
-                <div id="years-pill-list" class="d-flex align-items-center gap-1 overflow-auto" style="min-width: 0; flex-grow: 1;"></div>
+            <!-- 3. Native Last.fm Annual & Monthly Filter Section -->
+            <div id="years-filter-container" class="d-none flex-column gap-1.5 mb-2.5 p-2 rounded-3 border border-secondary border-opacity-10" style="background-color: rgba(255, 255, 255, 0.02); width: 100%;">
+                <!-- Row 1: Años -->
+                <div class="d-flex align-items-center gap-1.5 overflow-auto" style="scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; width: 100%;">
+                    <span class="text-secondary fw-semibold flex-shrink-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                        <i class="fa-regular fa-calendar-check text-warning"></i> Año:
+                    </span>
+                    <div id="years-pill-list" class="d-flex align-items-center gap-1 overflow-auto" style="min-width: 0; flex-grow: 1;"></div>
+                </div>
+
+                <!-- Row 2: Meses dependientes del año seleccionado -->
+                <div id="months-filter-container" class="d-none align-items-center gap-1.5 overflow-auto pt-1.5 border-top border-secondary border-opacity-10" style="scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; width: 100%;">
+                    <span class="text-secondary fw-semibold flex-shrink-0 d-flex align-items-center gap-1" style="font-size: 0.7rem;">
+                        <i class="fa-regular fa-calendar text-info"></i> Mes:
+                    </span>
+                    <div id="months-pill-list" class="d-flex align-items-center gap-1 overflow-auto" style="min-width: 0; flex-grow: 1;"></div>
+                </div>
             </div>
 
             <!-- Loader -->
@@ -686,6 +697,6 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=7"></script>
+    <script src="/app.js?v=8"></script>
 </body>
 </html>

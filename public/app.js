@@ -62,9 +62,11 @@ const stripPlaycount = document.getElementById('strip-playcount');
 const stripArtists = document.getElementById('strip-artists');
 const stripAlbums = document.getElementById('strip-albums');
 
-// Years Filter DOM
+// Years & Months Filter DOM
 const yearsFilterContainer = document.getElementById('years-filter-container');
 const yearsPillList = document.getElementById('years-pill-list');
+const monthsFilterContainer = document.getElementById('months-filter-container');
+const monthsPillList = document.getElementById('months-pill-list');
 
 // PWA Update DOM
 const updateToast = document.getElementById('update-toast');
@@ -148,7 +150,19 @@ function formatDate(timestampUTS) {
     return `${date.toLocaleDateString([], { day: '2-digit', month: 'short' })}, ${time}`;
 }
 
+const MONTH_NAMES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+];
+const MONTH_SHORT_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
 function getRangeLabel(range) {
+    if (range && range.startsWith('month-')) {
+        const parts = range.split('-'); // ['month', '2026', '9']
+        const year = parts[1];
+        const monthNum = parseInt(parts[2], 10);
+        return `${MONTH_NAMES[monthNum - 1]} ${year}`;
+    }
     if (range && range.startsWith('year-')) return `Año ${range.replace('year-', '')}`;
     if (range === '7day') return 'Últimos 7 Días';
     if (range === '1month') return 'Último Mes';
@@ -198,6 +212,11 @@ function setupEventListeners() {
             const range = e.currentTarget.getAttribute('data-range');
             document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.year-pill-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.month-pill-btn').forEach(b => b.classList.remove('active'));
+            if (monthsFilterContainer) {
+                monthsFilterContainer.classList.add('d-none');
+                monthsFilterContainer.classList.remove('d-flex');
+            }
             e.currentTarget.classList.add('active');
             currentRange = range;
             loadStats();
@@ -523,8 +542,10 @@ async function fetchLastFmGlobalStats() {
 
             const regUTS = parseInt(data.user.registered?.unixtime || data.user.registered?.['#text'] || 0, 10);
             if (regUTS) {
-                const regYear = new Date(regUTS * 1000).getFullYear();
-                renderYearsFilter(regYear);
+                const regDate = new Date(regUTS * 1000);
+                const regYear = regDate.getFullYear();
+                const regMonth = regDate.getMonth() + 1;
+                renderYearsFilter(regYear, regMonth);
             }
         }
     } catch (e) {
@@ -556,10 +577,23 @@ async function loadStats() {
     }
 
     try {
+        // Filtro por mes específico (ej: month-2026-9)
+        if (currentRange.startsWith('month-')) {
+            const parts = currentRange.split('-');
+            const year = parseInt(parts[1], 10);
+            const month = parseInt(parts[2], 10);
+            const fromUTS = Math.floor(new Date(Date.UTC(year, month - 1, 1, 0, 0, 0)).getTime() / 1000);
+            const toUTS = Math.floor(new Date(Date.UTC(year, month, 0, 23, 59, 59)).getTime() / 1000);
+            await loadTimestampRangeStats(user, key, fromUTS, toUTS, `${MONTH_NAMES[month - 1]} de ${year}`);
+            return;
+        }
+
         // Filtro por año específico (ej: year-2026, year-2025)
         if (currentRange.startsWith('year-')) {
-            const year = currentRange.replace('year-', '');
-            await loadYearStats(user, key, year);
+            const year = parseInt(currentRange.replace('year-', ''), 10);
+            const fromUTS = Math.floor(new Date(Date.UTC(year, 0, 1, 0, 0, 0)).getTime() / 1000);
+            const toUTS = Math.floor(new Date(Date.UTC(year, 11, 31, 23, 59, 59)).getTime() / 1000);
+            await loadTimestampRangeStats(user, key, fromUTS, toUTS, `el año ${year}`);
             return;
         }
 
@@ -630,9 +664,14 @@ async function loadStats() {
 }
 
 // ----------------------------------------------------
-// FILTRO POR AÑOS ESPECÍFICOS DE USO DE LAST.FM
+// FILTRO POR AÑOS Y MESES ESPECÍFICOS DE USO DE LAST.FM
 // ----------------------------------------------------
-function renderYearsFilter(regYear) {
+let userRegYear = null;
+let userRegMonth = null;
+
+function renderYearsFilter(regYear, regMonth) {
+    userRegYear = regYear;
+    userRegMonth = regMonth;
     if (!yearsFilterContainer || !yearsPillList) return;
     const currentYear = new Date().getFullYear();
     yearsPillList.innerHTML = '';
@@ -654,7 +693,8 @@ function renderYearsFilter(regYear) {
     years.forEach(year => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = `pill-btn year-pill-btn ${currentRange === `year-${year}` ? 'active' : ''}`;
+        const isYearActive = currentRange.startsWith(`year-${year}`) || currentRange.startsWith(`month-${year}-`);
+        btn.className = `pill-btn year-pill-btn ${isYearActive ? 'active' : ''}`;
         btn.setAttribute('data-year', year);
         btn.textContent = year;
 
@@ -665,7 +705,9 @@ function renderYearsFilter(regYear) {
             document.querySelectorAll('.year-pill-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
+            // Renderizar los meses para este año
             currentRange = `year-${year}`;
+            renderMonthsFilter(year, userRegYear, userRegMonth);
             loadStats();
         });
 
@@ -673,19 +715,63 @@ function renderYearsFilter(regYear) {
     });
 }
 
-async function loadYearStats(user, key, year) {
-    const fromUTS = Math.floor(new Date(`${year}-01-01T00:00:00Z`).getTime() / 1000);
-    const toUTS = Math.floor(new Date(`${year}-12-31T23:59:59Z`).getTime() / 1000);
+function renderMonthsFilter(year, regYear, regMonth) {
+    if (!monthsFilterContainer || !monthsPillList) return;
+    monthsPillList.innerHTML = '';
 
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1; // 1-12
+
+    const startMonth = (year === regYear) ? (regMonth || 1) : 1;
+    const endMonth = (year === currentYear) ? currentMonth : 12;
+
+    monthsFilterContainer.classList.remove('d-none');
+    monthsFilterContainer.classList.add('d-flex');
+
+    // Botón "Todo el año"
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = `pill-btn month-pill-btn ${currentRange === `year-${year}` ? 'active' : ''}`;
+    allBtn.textContent = 'Todo el año';
+    allBtn.addEventListener('click', () => {
+        document.querySelectorAll('.month-pill-btn').forEach(b => b.classList.remove('active'));
+        allBtn.classList.add('active');
+        currentRange = `year-${year}`;
+        loadStats();
+    });
+    monthsPillList.appendChild(allBtn);
+
+    // Botones de cada mes disponible para ese año
+    for (let m = startMonth; m <= endMonth; m++) {
+        const mBtn = document.createElement('button');
+        mBtn.type = 'button';
+        mBtn.className = `pill-btn month-pill-btn ${currentRange === `month-${year}-${m}` ? 'active' : ''}`;
+        mBtn.textContent = MONTH_SHORT_NAMES[m - 1];
+        mBtn.setAttribute('title', `${MONTH_NAMES[m - 1]} ${year}`);
+
+        mBtn.addEventListener('click', () => {
+            document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.month-pill-btn').forEach(b => b.classList.remove('active'));
+            mBtn.classList.add('active');
+
+            currentRange = `month-${year}-${m}`;
+            loadStats();
+        });
+
+        monthsPillList.appendChild(mBtn);
+    }
+}
+
+async function loadTimestampRangeStats(user, key, fromUTS, toUTS, emptyLabel) {
     try {
-        // 1. TOP CANCIONES DEL AÑO (user.getweeklytrackchart)
+        // 1. TOP CANCIONES (user.getweeklytrackchart)
         if (currentType === 'tracks') {
             const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getweeklytrackchart&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&api_key=${encodeURIComponent(key)}&format=json`);
             const data = await res.json();
             loader.classList.add('d-none');
             const tracks = data?.weeklytrackchart?.track || [];
             if (tracks.length === 0) {
-                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron canciones registradas para el año ${year}.</div>`;
+                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron canciones registradas para ${emptyLabel}.</div>`;
                 return;
             }
             const sliced = tracks.slice(0, currentLimit);
@@ -694,14 +780,14 @@ async function loadYearStats(user, key, year) {
             return;
         }
 
-        // 2. TOP ARTISTAS DEL AÑO (user.getweeklyartistchart)
+        // 2. TOP ARTISTAS (user.getweeklyartistchart)
         if (currentType === 'artists') {
             const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getweeklyartistchart&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&api_key=${encodeURIComponent(key)}&format=json`);
             const data = await res.json();
             loader.classList.add('d-none');
             const artists = data?.weeklyartistchart?.artist || [];
             if (artists.length === 0) {
-                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron artistas registrados para el año ${year}.</div>`;
+                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron artistas registrados para ${emptyLabel}.</div>`;
                 return;
             }
             const sliced = artists.slice(0, currentLimit);
@@ -710,14 +796,14 @@ async function loadYearStats(user, key, year) {
             return;
         }
 
-        // 3. TOP ÁLBUMES DEL AÑO (user.getweeklyalbumchart)
+        // 3. TOP ÁLBUMES (user.getweeklyalbumchart)
         if (currentType === 'albums') {
             const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getweeklyalbumchart&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&api_key=${encodeURIComponent(key)}&format=json`);
             const data = await res.json();
             loader.classList.add('d-none');
             const albums = data?.weeklyalbumchart?.album || [];
             if (albums.length === 0) {
-                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron álbumes registrados para el año ${year}.</div>`;
+                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron álbumes registrados para ${emptyLabel}.</div>`;
                 return;
             }
             const sliced = albums.slice(0, currentLimit);
@@ -726,14 +812,14 @@ async function loadYearStats(user, key, year) {
             return;
         }
 
-        // 4. HISTORIAL RECIENTE DEL AÑO (user.getrecenttracks con from y to)
+        // 4. HISTORIAL RECIENTE (user.getrecenttracks con from y to)
         if (currentType === 'recent') {
             const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&limit=${currentLimit}&api_key=${encodeURIComponent(key)}&format=json`);
             const data = await res.json();
             loader.classList.add('d-none');
             const tracks = data?.recenttracks?.track || [];
             if (tracks.length === 0) {
-                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron reproducciones registradas en el año ${year}.</div>`;
+                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron reproducciones registradas en ${emptyLabel}.</div>`;
                 return;
             }
             currentLoadedItems = tracks;
@@ -741,9 +827,9 @@ async function loadYearStats(user, key, year) {
             return;
         }
     } catch (err) {
-        console.error('Error al cargar stats anuales:', err);
+        console.error('Error al cargar stats por rango:', err);
         loader.classList.add('d-none');
-        statsList.innerHTML = `<div class="text-center text-danger py-5">Error al consultar datos del año ${year} en Last.fm.</div>`;
+        statsList.innerHTML = `<div class="text-center text-danger py-5">Error al consultar datos de ${emptyLabel} en Last.fm.</div>`;
     }
 }
 
@@ -1031,6 +1117,7 @@ function handleDisconnectLastFm() {
     localStorage.removeItem('lastfm_key');
     if (statStrip) statStrip.classList.add('d-none');
     if (yearsFilterContainer) yearsFilterContainer.classList.add('d-none');
+    if (monthsFilterContainer) monthsFilterContainer.classList.add('d-none');
     initLastFmState();
 
     const modal = bootstrap.Modal.getInstance(lastFmModalEl);
