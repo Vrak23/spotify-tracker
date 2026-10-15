@@ -2,177 +2,421 @@
 <html lang="es" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotify Stats - Mis Estadísticas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Spotify Tracker - Estadísticas, ADN Musical & Géneros</title>
+
+    <!-- PWA & Mobile Meta Tags -->
+    <meta name="theme-color" content="#a855f7">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SpotiTracker">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="/logo.png">
+    <link rel="apple-touch-icon" href="/logo.png">
+
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- FontAwesome Icons -->
+    <!-- FontAwesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js & html2canvas -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <style>
-        body {
-            background-color: #121212;
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        :root {
+            --bg-base: #0c0a12;
+            --bg-surface: #14101e;
+            --bg-surface-hover: #1c162b;
+            --border-subtle: #261c39;
+            --brand-primary: #a855f7;
+            --brand-primary-hover: #9333ea;
+            --brand-glow: rgba(168, 85, 247, 0.35);
+            --text-primary: #f8fafc;
+            --text-muted: #94a3b8;
         }
-        .btn-spotify {
-            background-color: #1ed760;
-            color: #000000;
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Branding Buttons & Badges */
+        .btn-brand {
+            background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
+            color: #ffffff;
             font-weight: 600;
             border-radius: 50px;
             padding: 10px 24px;
             border: none;
+            box-shadow: 0 4px 20px var(--brand-glow);
             transition: all 0.2s ease;
         }
-        .btn-spotify:hover {
-            background-color: #1fdf64;
-            transform: scale(1.03);
-            color: #000000;
+        .btn-brand:hover, .btn-brand:focus {
+            background: linear-gradient(135deg, #c084fc 0%, #9333ea 100%);
+            color: #ffffff;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(168, 85, 247, 0.5);
         }
-        .card-item {
-            background-color: #181818;
-            border: 1px solid #282828;
+
+        .btn-outline-brand {
+            border: 1px solid var(--border-subtle);
+            background-color: var(--bg-surface);
+            color: var(--text-muted);
             border-radius: 8px;
-            transition: background-color 0.2s ease;
+            font-weight: 500;
+            transition: all 0.2s ease;
         }
-        .card-item:hover {
-            background-color: #282828;
+        .btn-outline-brand:hover, .btn-outline-brand.active {
+            border-color: var(--brand-primary);
+            color: #ffffff;
+            background-color: rgba(168, 85, 247, 0.15);
         }
-        .img-avatar {
-            width: 48px;
-            height: 48px;
-            object-fit: cover;
-            border-radius: 50%;
+
+        /* Nav & Brand */
+        .navbar-brand img {
+            height: 38px;
+            width: 38px;
+            object-fit: contain;
+            border-radius: 8px;
+            filter: drop-shadow(0 0 8px var(--brand-glow));
         }
+
+        /* Uniform Card Styles */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 12px;
+        }
+
+        .card-uniform {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 10px 14px;
+            transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+            height: 84px;
+            display: flex;
+            align-items: center;
+        }
+        .card-uniform:hover {
+            background-color: var(--bg-surface-hover);
+            border-color: rgba(168, 85, 247, 0.4);
+            transform: translateY(-2px);
+        }
+
         .img-thumb {
-            width: 54px;
-            height: 54px;
+            width: 52px;
+            height: 52px;
             object-fit: cover;
             border-radius: 6px;
+            flex-shrink: 0;
+            background-color: #201a2e;
         }
-        .nav-pills .nav-link {
-            color: #b3b3b3;
+        .img-thumb.rounded-circle {
+            border-radius: 50% !important;
+        }
+
+        /* Horizontal Scrollable Tabs for Mobile */
+        .scroll-pills-container {
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            padding-bottom: 4px;
+        }
+        .scroll-pills-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .nav-pills-brand .nav-link {
+            color: var(--text-muted);
+            background: transparent;
+            border: 1px solid transparent;
             border-radius: 20px;
             padding: 6px 16px;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
+            font-weight: 500;
+            transition: all 0.15s ease;
         }
-        .nav-pills .nav-link.active {
+        .nav-pills-brand .nav-link.active {
             background-color: #ffffff;
             color: #000000;
             font-weight: 600;
+        }
+        .nav-pills-brand .nav-link:hover:not(.active) {
+            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+
+        /* Currently Playing Compact Bar */
+        .now-playing-bar {
+            background: linear-gradient(90deg, rgba(20, 16, 30, 0.95) 0%, rgba(38, 22, 60, 0.85) 100%);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 12px;
+            padding: 10px 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Share Card Preview */
+        #share-card-canvas-wrapper {
+            background: linear-gradient(145deg, #120d1e 0%, #0a0710 100%);
+            border: 1px solid #33224d;
+            border-radius: 16px;
+            padding: 24px;
+            color: #ffffff;
+            width: 360px;
+            margin: 0 auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Responsive tweaks */
+        @media (max-width: 576px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .card-uniform {
+                height: 80px;
+                padding: 8px 12px;
+            }
+            .img-thumb {
+                width: 48px;
+                height: 48px;
+            }
         }
     </style>
 </head>
 <body>
 
     <!-- Header / Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-black border-bottom border-secondary border-opacity-25 py-3">
-        <div class="container">
-            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="#">
-                <i class="fa-brands fa-spotify text-success fs-3"></i>
-                <span>Spotify Stats</span>
+    <nav class="navbar navbar-expand-lg border-bottom border-secondary border-opacity-10 py-2 sticky-top" style="background-color: rgba(12, 10, 18, 0.9); backdrop-filter: blur(12px);">
+        <div class="container-xl d-flex align-items-center justify-content-between">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold text-white text-decoration-none" href="#">
+                <img src="/logo.png" alt="SpotiTracker Logo">
+                <span class="fs-5 tracking-wide">Spotify<span style="color: var(--brand-primary);">Tracker</span></span>
             </a>
 
-            <!-- User Profile (Hidden by default) -->
-            <div id="user-profile" class="d-none d-flex align-items-center gap-3">
-                <img id="user-img" src="" alt="Avatar" class="img-avatar border border-success">
-                <div>
-                    <div id="user-name" class="fw-bold fs-6 lead mb-0"></div>
-                    <small id="user-followers" class="text-secondary"></small>
+            <!-- User Profile (Visible when logged in) -->
+            <div id="user-profile" class="d-none d-flex align-items-center gap-2">
+                <img id="user-img" src="" alt="Avatar" class="img-avatar rounded-circle border" style="width: 36px; height: 36px; object-fit: cover; border-color: var(--brand-primary) !important;">
+                <div class="d-none d-sm-block text-start leading-tight">
+                    <div id="user-name" class="fw-bold small text-truncate" style="max-width: 140px;"></div>
+                    <small id="user-followers" class="text-secondary" style="font-size: 0.72rem;"></small>
                 </div>
-                <button id="btn-logout" class="btn btn-outline-secondary btn-sm ms-2">Cerrar Sesión</button>
+                <button id="btn-logout" class="btn btn-outline-secondary btn-sm py-1 px-2 ms-2 rounded-pill" style="font-size: 0.75rem;">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </button>
             </div>
         </div>
     </nav>
 
-    <div class="container py-4">
+    <!-- Main Container -->
+    <div class="container-xl py-3 flex-grow-1">
 
-        <!-- Login Screen -->
-        <div id="login-view" class="text-center py-5 my-5">
-            <i class="fa-brands fa-spotify text-success display-1 mb-4"></i>
-            <h1 class="fw-bold mb-3">Tus Estadísticas de Spotify</h1>
-            <p class="text-secondary fs-5 mb-4">Descubre tus artistas y canciones más escuchadas de forma simple y rápida.</p>
-            <button id="btn-login" class="btn btn-spotify btn-lg shadow">
+        <!-- Login View -->
+        <div id="login-view" class="text-center py-5 my-auto">
+            <div class="mb-4">
+                <img src="/logo.png" alt="Logo" style="width: 110px; height: 110px; filter: drop-shadow(0 0 25px var(--brand-glow));" class="rounded-4">
+            </div>
+            <h1 class="fw-bold mb-2 display-6">Tus Estadísticas & ADN Musical</h1>
+            <p class="text-secondary fs-6 mb-4 mx-auto" style="max-width: 440px;">
+                Descubre tus tops, analiza el ADN emocional de tu música, desglose de géneros y genera playlists automáticas.
+            </p>
+            <button id="btn-login" class="btn btn-brand btn-lg shadow">
                 <i class="fa-brands fa-spotify me-2"></i> Iniciar sesión con Spotify
             </button>
         </div>
 
-        <!-- Dashboard Screen (Hidden by default) -->
+        <!-- Dashboard View -->
         <div id="dashboard-view" class="d-none">
 
             <!-- Currently Playing Bar -->
-            <div id="currently-playing-container" class="mb-4"></div>
+            <div id="currently-playing-container" class="mb-3"></div>
 
-            <!-- Main Controls Bar -->
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
-                <!-- Content Toggle (Tracks / Artists / Recent) -->
-                <div class="btn-group btn-group-sm" role="group">
-                    <input type="radio" class="btn-check" name="contentType" id="typeTracks" value="tracks" checked>
-                    <label class="btn btn-outline-light" for="typeTracks"><i class="fa-solid fa-music me-1"></i> Canciones</label>
+            <!-- Top Action & Navigation Controls -->
+            <div class="d-flex flex-column gap-3 mb-3">
 
-                    <input type="radio" class="btn-check" name="contentType" id="typeArtists" value="artists">
-                    <label class="btn btn-outline-light" for="typeArtists"><i class="fa-solid fa-user-group me-1"></i> Artistas</label>
+                <!-- Primary Content Selector Pills (Scrollable on mobile) -->
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="scroll-pills-container flex-grow-1">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="contentType" id="typeTracks" value="tracks" checked>
+                            <label class="btn btn-outline-brand" for="typeTracks"><i class="fa-solid fa-music me-1"></i> Canciones</label>
 
-                    <input type="radio" class="btn-check" name="contentType" id="typeRecent" value="recent">
-                    <label class="btn btn-outline-light" for="typeRecent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</label>
-                </div>
+                            <input type="radio" class="btn-check" name="contentType" id="typeArtists" value="artists">
+                            <label class="btn btn-outline-brand" for="typeArtists"><i class="fa-solid fa-user-group me-1"></i> Artistas</label>
 
-                <!-- Limit Selector (Top 20 / Top 50) -->
-                <div class="d-flex align-items-center gap-2" id="limit-container">
-                    <small class="text-secondary">Límite:</small>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <input type="radio" class="btn-check" name="limitCount" id="limit20" value="20">
-                        <label class="btn btn-outline-secondary" for="limit20">Top 20</label>
+                            <input type="radio" class="btn-check" name="contentType" id="typeRecent" value="recent">
+                            <label class="btn btn-outline-brand" for="typeRecent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</label>
 
-                        <input type="radio" class="btn-check" name="limitCount" id="limit50" value="50" checked>
-                        <label class="btn btn-outline-secondary" for="limit50">Top 50</label>
+                            <input type="radio" class="btn-check" name="contentType" id="typeDNA" value="dna">
+                            <label class="btn btn-outline-brand" for="typeDNA"><i class="fa-solid fa-dna me-1 text-warning"></i> ADN Musical</label>
+
+                            <input type="radio" class="btn-check" name="contentType" id="typeGenres" value="genres">
+                            <label class="btn btn-outline-brand" for="typeGenres"><i class="fa-solid fa-chart-pie me-1" style="color: var(--brand-primary);"></i> Géneros</label>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons: Save Playlist & Share Card -->
+                    <div class="d-flex align-items-center gap-2 ms-auto">
+                        <button id="btn-save-playlist" class="btn btn-sm btn-outline-success text-nowrap" title="Guardar lista en tu Spotify">
+                            <i class="fa-solid fa-plus me-1"></i> Guardar Playlist
+                        </button>
+                        <button id="btn-open-share-modal" class="btn btn-sm text-nowrap text-white" style="background-color: var(--brand-primary);" title="Crear imagen para compartir">
+                            <i class="fa-solid fa-share-nodes me-1"></i> Tarjeta
+                        </button>
                     </div>
                 </div>
-            </div>
 
-            <!-- Time Range Tabs (for Tracks and Artists) -->
-            <div id="time-range-container" class="mb-4">
-                <ul class="nav nav-pills" id="time-range-tabs">
-                    <li class="nav-item">
-                        <button class="nav-link active" data-range="short_term">Últimas 4 Semanas</button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link" data-range="medium_term">Últimos 6 Meses</button>
-                    </li>
-                    <li class="nav-item">
-                        <button class="nav-link" data-range="long_term">Histórico Total</button>
-                    </li>
-                </ul>
-            </div>
+                <!-- Sub-bar: Time Range & Limit Toggle (Tracks, Artists, DNA, Genres) -->
+                <div id="time-range-container" class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="scroll-pills-container">
+                        <ul class="nav nav-pills nav-pills-brand" id="time-range-tabs">
+                            <li class="nav-item">
+                                <button class="nav-link active" data-range="short_term">4 Semanas</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-range="medium_term">6 Meses</button>
+                            </li>
+                            <li class="nav-item">
+                                <button class="nav-link" data-range="long_term">Histórico</button>
+                            </li>
+                        </ul>
+                    </div>
 
-            <!-- Date Filter Bar (Only for Recent History) -->
-            <div id="recent-date-filter" class="d-none d-flex align-items-center gap-2 flex-wrap mb-4 p-2 px-3 bg-dark bg-opacity-50 rounded border border-secondary border-opacity-25">
-                <small class="text-secondary fw-bold"><i class="fa-solid fa-calendar me-1"></i> Fecha:</small>
-                <button class="btn btn-sm btn-outline-light active date-filter-btn" data-filter="all">Todas</button>
-                <button class="btn btn-sm btn-outline-light date-filter-btn" data-filter="today">Hoy</button>
-                <button class="btn btn-sm btn-outline-light date-filter-btn" data-filter="yesterday">Ayer</button>
-                <div class="d-flex align-items-center ms-auto gap-2">
-                    <small class="text-secondary">Específica:</small>
-                    <input type="date" id="recent-date-picker" class="form-control form-control-sm bg-black text-white border-secondary" style="width: auto;">
+                    <div id="limit-container" class="d-flex align-items-center gap-2">
+                        <small class="text-secondary" style="font-size: 0.78rem;">Mostrar:</small>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="limitCount" id="limit20" value="20">
+                            <label class="btn btn-outline-secondary py-0 px-2" for="limit20" style="font-size: 0.75rem;">Top 20</label>
+
+                            <input type="radio" class="btn-check" name="limitCount" id="limit50" value="50" checked>
+                            <label class="btn btn-outline-secondary py-0 px-2" for="limit50" style="font-size: 0.75rem;">Top 50</label>
+                        </div>
+                    </div>
                 </div>
+
+                <!-- Sub-bar: Date Filter (Only for Recent History) -->
+                <div id="recent-date-filter" class="d-none d-flex align-items-center gap-2 flex-wrap p-2 px-3 rounded border border-secondary border-opacity-10" style="background-color: var(--bg-surface);">
+                    <small class="text-secondary fw-semibold"><i class="fa-solid fa-calendar me-1"></i> Filtrar fecha:</small>
+                    <button class="btn btn-sm btn-outline-brand active date-filter-btn py-0 px-2" data-filter="all">Todas</button>
+                    <button class="btn btn-sm btn-outline-brand date-filter-btn py-0 px-2" data-filter="today">Hoy</button>
+                    <button class="btn btn-sm btn-outline-brand date-filter-btn py-0 px-2" data-filter="yesterday">Ayer</button>
+                    <div class="d-flex align-items-center ms-auto gap-2">
+                        <small class="text-secondary" style="font-size: 0.75rem;">Día:</small>
+                        <input type="date" id="recent-date-picker" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-0" style="font-size: 0.78rem; width: auto;">
+                    </div>
+                </div>
+
             </div>
 
             <!-- Loader -->
             <div id="loader" class="text-center py-5 d-none">
-                <div class="spinner-border text-success" role="status">
-                    <span class="visually-hidden">Cargando...</span>
+                <div class="spinner-border text-primary" style="color: var(--brand-primary) !important;" role="status">
+                    <span class="visually-hidden">Cargando datos...</span>
                 </div>
             </div>
 
-            <!-- Stats Grid / List -->
-            <div id="stats-list" class="row g-3">
-                <!-- Dynamically filled by JS -->
+            <!-- Stats List / Grid Container (For Tracks, Artists, Recent) -->
+            <div id="stats-list" class="stats-grid"></div>
+
+            <!-- DNA View Container (Hidden by default) -->
+            <div id="dna-container" class="d-none">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 rounded-3 border border-secondary border-opacity-10 h-100" style="background-color: var(--bg-surface);">
+                            <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color: var(--brand-primary);">
+                                <i class="fa-solid fa-dna"></i> Radar de Emociones & Audio
+                            </h6>
+                            <div style="position: relative; height: 280px; width: 100%;">
+                                <canvas id="dnaRadarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 rounded-3 border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-between" style="background-color: var(--bg-surface);">
+                            <div>
+                                <h6 class="fw-bold mb-3"><i class="fa-solid fa-chart-simple text-warning me-2"></i>Métricas Promedio de tu Top</h6>
+                                <div id="dna-bars" class="d-flex flex-column gap-3"></div>
+                            </div>
+                            <div id="dna-summary" class="mt-3 p-2 px-3 rounded text-secondary" style="background-color: rgba(168, 85, 247, 0.08); font-size: 0.82rem;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Genres View Container (Hidden by default) -->
+            <div id="genres-container" class="d-none">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 rounded-3 border border-secondary border-opacity-10 h-100 text-center" style="background-color: var(--bg-surface);">
+                            <h6 class="fw-bold mb-3 text-start"><i class="fa-solid fa-pie-chart text-info me-2"></i>Distribución de Géneros</h6>
+                            <div style="position: relative; height: 280px; width: 100%;">
+                                <canvas id="genresDoughnutChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div class="p-3 rounded-3 border border-secondary border-opacity-10 h-100" style="background-color: var(--bg-surface);">
+                            <h6 class="fw-bold mb-3"><i class="fa-solid fa-list-ol text-success me-2"></i>Tus Géneros Dominantes</h6>
+                            <div id="genres-list" class="d-flex flex-column gap-2"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
         </div>
 
     </div>
 
-    <!-- App JS -->
-    <script src="app.js"></script>
+    <!-- Modal: Share Card -->
+    <div class="modal fade" id="shareCardModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-secondary border-opacity-25" style="background-color: var(--bg-surface);">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2">
+                    <h6 class="modal-title fw-bold"><i class="fa-solid fa-image me-2" style="color: var(--brand-primary);"></i>Tarjeta para Compartir</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3 text-center">
+                    <!-- Target to Capture as Image -->
+                    <div id="share-card-canvas-wrapper">
+                        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="/logo.png" style="width: 30px; height: 30px; object-fit: contain;">
+                                <div class="text-start leading-tight">
+                                    <div class="fw-bold small" style="color: var(--brand-primary);">SpotifyTracker</div>
+                                    <small id="card-period-label" class="text-secondary" style="font-size: 0.68rem;">Últimas 4 Semanas</small>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <div id="card-user-name" class="fw-bold small text-truncate" style="max-width: 120px;">Usuario</div>
+                                <small id="card-date" class="text-secondary" style="font-size: 0.65rem;"></small>
+                            </div>
+                        </div>
+                        <div id="card-items-list" class="text-start d-flex flex-column gap-2 mb-3"></div>
+                        <div class="border-top border-secondary border-opacity-25 pt-2 d-flex justify-content-between align-items-center text-secondary" style="font-size: 0.7rem;">
+                            <span>spotify-tracker-delta.vercel.app</span>
+                            <span class="badge" style="background: var(--brand-primary);">Top 5</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 justify-content-between">
+                    <small class="text-secondary" style="font-size: 0.75rem;">Lista para historias o estados</small>
+                    <button id="btn-download-card" class="btn btn-sm btn-brand">
+                        <i class="fa-solid fa-download me-1"></i> Descargar Imagen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- App Logic -->
+    <script src="/app.js"></script>
 </body>
 </html>
