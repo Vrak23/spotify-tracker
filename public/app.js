@@ -5,6 +5,9 @@ const REDIRECT_URI = window.location.origin + '/callback';
 let accessToken = null;
 let currentRange = 'short_term';
 let currentType = 'tracks';
+let currentLimit = 50;
+let rawRecentItems = [];
+let currentDateFilter = 'all';
 
 // Elementos DOM
 const loginView = document.getElementById('login-view');
@@ -18,6 +21,10 @@ const btnLogout = document.getElementById('btn-logout');
 const statsList = document.getElementById('stats-list');
 const loader = document.getElementById('loader');
 const currentlyPlayingContainer = document.getElementById('currently-playing-container');
+const timeRangeContainer = document.getElementById('time-range-container');
+const limitContainer = document.getElementById('limit-container');
+const recentDateFilter = document.getElementById('recent-date-filter');
+const recentDatePicker = document.getElementById('recent-date-picker');
 
 function generateRandomString(length) {
     let text = '';
@@ -114,6 +121,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
 });
 
+function formatDuration(ms) {
+    if (!ms) return '0:00';
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+}
+
+function formatDate(isoString) {
+    const date = new Date(isoString);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+
+    const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (isToday) return `Hoy a las ${time}`;
+    if (isYesterday) return `Ayer a las ${time}`;
+    return `${date.toLocaleDateString([], { day: '2-digit', month: 'short' })} a las ${time}`;
+}
+
+function formatNumber(num) {
+    if (!num) return '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+    return num.toLocaleString();
+}
+
 function setupEventListeners() {
     if (btnLogin) {
         btnLogin.addEventListener('click', redirectToSpotifyLogin);
@@ -138,9 +173,47 @@ function setupEventListeners() {
     document.querySelectorAll('input[name="contentType"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
             currentType = e.target.value;
+            if (currentType === 'recent') {
+                timeRangeContainer?.classList.add('d-none');
+                limitContainer?.classList.add('d-none');
+                recentDateFilter?.classList.remove('d-none');
+            } else {
+                timeRangeContainer?.classList.remove('d-none');
+                limitContainer?.classList.remove('d-none');
+                recentDateFilter?.classList.add('d-none');
+            }
             loadStats();
         });
     });
+
+    document.querySelectorAll('input[name="limitCount"]').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            currentLimit = parseInt(e.target.value, 10);
+            if (currentType !== 'recent') {
+                loadStats();
+            }
+        });
+    });
+
+    document.querySelectorAll('.date-filter-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.date-filter-btn').forEach(b => b.classList.remove('active'));
+            e.target.classList.add('active');
+            if (recentDatePicker) recentDatePicker.value = '';
+            currentDateFilter = e.target.getAttribute('data-filter');
+            applyRecentFilter();
+        });
+    });
+
+    if (recentDatePicker) {
+        recentDatePicker.addEventListener('change', (e) => {
+            if (e.target.value) {
+                document.querySelectorAll('.date-filter-btn').forEach(b => b.classList.remove('active'));
+                currentDateFilter = e.target.value;
+                applyRecentFilter();
+            }
+        });
+    }
 }
 
 function showLogin() {
@@ -223,7 +296,19 @@ async function loadStats() {
     statsList.innerHTML = '';
     loader.classList.remove('d-none');
 
-    const endpoint = `me/top/${currentType}?time_range=${currentRange}&limit=20`;
+    if (currentType === 'recent') {
+        const data = await spotifyFetch('me/player/recently-played?limit=50');
+        loader.classList.add('d-none');
+        if (!data || !data.items || data.items.length === 0) {
+            statsList.innerHTML = '<div class="col-12 text-center text-secondary py-4">No se encontraron reproducciones recientes.</div>';
+            return;
+        }
+        rawRecentItems = data.items;
+        applyRecentFilter();
+        return;
+    }
+
+    const endpoint = `me/top/${currentType}?time_range=${currentRange}&limit=${currentLimit}`;
     const data = await spotifyFetch(endpoint);
 
     loader.classList.add('d-none');
@@ -239,18 +324,62 @@ async function loadStats() {
     }
 }
 
+function applyRecentFilter() {
+    if (!rawRecentItems || rawRecentItems.length === 0) {
+        statsList.innerHTML = '<div class="col-12 text-center text-secondary py-4">No hay canciones recientes.</div>';
+        return;
+    }
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    let filtered = rawRecentItems;
+    if (currentDateFilter === 'today') {
+        filtered = rawRecentItems.filter(item => item.played_at.startsWith(todayStr));
+    } else if (currentDateFilter === 'yesterday') {
+        filtered = rawRecentItems.filter(item => item.played_at.startsWith(yesterdayStr));
+    } else if (currentDateFilter !== 'all') {
+        filtered = rawRecentItems.filter(item => item.played_at.startsWith(currentDateFilter));
+    }
+
+    renderRecent(filtered);
+}
+
 function renderTracks(tracks) {
+    statsList.innerHTML = '';
     tracks.forEach((track, index) => {
         const col = document.createElement('div');
         col.className = 'col-12 col-md-6';
+        const duration = formatDuration(track.duration_ms);
+        const popularity = track.popularity !== undefined ? track.popularity : null;
+        const spotifyUrl = track.external_urls?.spotify || '#';
+        const albumYear = track.album?.release_date ? track.album.release_date.substring(0, 4) : '';
+
         col.innerHTML = `
             <div class="card card-item p-2 h-100">
                 <div class="d-flex align-items-center gap-3">
-                    <span class="fw-bold text-secondary ps-2" style="width: 25px;">#${index + 1}</span>
-                    <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/54'}" class="img-thumb" alt="Album Art">
-                    <div class="overflow-hidden">
-                        <div class="fw-bold text-truncate">${track.name}</div>
+                    <span class="fw-bold text-secondary ps-2" style="width: 28px;">#${index + 1}</span>
+                    <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/54'}" class="img-thumb shadow-sm" alt="Album Art">
+                    <div class="overflow-hidden flex-grow-1">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="fw-bold text-truncate">${track.name}</div>
+                            <span class="badge bg-secondary bg-opacity-25 text-white-50 text-nowrap" style="font-size: 0.75rem;">
+                                <i class="fa-regular fa-clock me-1"></i>${duration}
+                            </span>
+                        </div>
                         <small class="text-secondary text-truncate d-block">${track.artists.map(a => a.name).join(', ')}</small>
+                        <div class="d-flex align-items-center justify-content-between mt-1 pt-1 border-top border-secondary border-opacity-10">
+                            <small class="text-secondary" style="font-size: 0.75rem;">
+                                ${albumYear ? `<span class="me-2 text-muted">${albumYear}</span>` : ''}
+                                ${popularity !== null ? `<span title="Popularidad en Spotify (0-100)"><i class="fa-solid fa-fire text-danger me-1"></i>${popularity}%</span>` : ''}
+                            </small>
+                            <a href="${spotifyUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-success btn-sm py-0 px-2 text-decoration-none" style="font-size: 0.75rem;" title="Escuchar en Spotify">
+                                <i class="fa-brands fa-spotify me-1"></i>Abrir
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -260,17 +389,78 @@ function renderTracks(tracks) {
 }
 
 function renderArtists(artists) {
+    statsList.innerHTML = '';
     artists.forEach((artist, index) => {
+        const col = document.createElement('div');
+        col.className = 'col-12 col-md-6';
+        const followers = artist.followers ? formatNumber(artist.followers.total) : '0';
+        const popularity = artist.popularity !== undefined ? artist.popularity : null;
+        const genres = artist.genres?.slice(0, 2).join(', ') || 'Artista';
+        const spotifyUrl = artist.external_urls?.spotify || '#';
+
+        col.innerHTML = `
+            <div class="card card-item p-2 h-100">
+                <div class="d-flex align-items-center gap-3">
+                    <span class="fw-bold text-secondary ps-2" style="width: 28px;">#${index + 1}</span>
+                    <img src="${artist.images[0]?.url || 'https://via.placeholder.com/54'}" class="img-thumb rounded-circle shadow-sm" alt="Artist">
+                    <div class="overflow-hidden flex-grow-1">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="fw-bold text-truncate">${artist.name}</div>
+                            ${popularity !== null ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25 text-nowrap" style="font-size: 0.75rem;" title="Popularidad en Spotify"><i class="fa-solid fa-fire me-1"></i>${popularity}%</span>` : ''}
+                        </div>
+                        <small class="text-secondary text-capitalize text-truncate d-block">${genres}</small>
+                        <div class="d-flex align-items-center justify-content-between mt-1 pt-1 border-top border-secondary border-opacity-10">
+                            <small class="text-secondary" style="font-size: 0.75rem;">
+                                <i class="fa-solid fa-users me-1"></i>${followers} seguidores
+                            </small>
+                            <a href="${spotifyUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-success btn-sm py-0 px-2 text-decoration-none" style="font-size: 0.75rem;" title="Ver en Spotify">
+                                <i class="fa-brands fa-spotify me-1"></i>Abrir
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        statsList.appendChild(col);
+    });
+}
+
+function renderRecent(items) {
+    statsList.innerHTML = '';
+    if (!items || items.length === 0) {
+        statsList.innerHTML = '<div class="col-12 text-center text-secondary py-4">No se encontraron reproducciones para este filtro de fecha.</div>';
+        return;
+    }
+
+    items.forEach((item, index) => {
+        const track = item.track;
+        const playedAt = formatDate(item.played_at);
+        const duration = formatDuration(track.duration_ms);
+        const spotifyUrl = track.external_urls?.spotify || '#';
+
         const col = document.createElement('div');
         col.className = 'col-12 col-md-6';
         col.innerHTML = `
             <div class="card card-item p-2 h-100">
                 <div class="d-flex align-items-center gap-3">
-                    <span class="fw-bold text-secondary ps-2" style="width: 25px;">#${index + 1}</span>
-                    <img src="${artist.images[0]?.url || 'https://via.placeholder.com/54'}" class="img-thumb rounded-circle" alt="Artist">
-                    <div class="overflow-hidden">
-                        <div class="fw-bold text-truncate">${artist.name}</div>
-                        <small class="text-secondary text-capitalize d-block">${artist.genres.slice(0, 2).join(', ') || 'Artista'}</small>
+                    <span class="fw-bold text-secondary ps-2" style="width: 28px;">#${index + 1}</span>
+                    <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/54'}" class="img-thumb shadow-sm" alt="Cover">
+                    <div class="overflow-hidden flex-grow-1">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <div class="fw-bold text-truncate">${track.name}</div>
+                            <span class="badge bg-secondary bg-opacity-25 text-white-50 text-nowrap" style="font-size: 0.75rem;">
+                                <i class="fa-regular fa-clock me-1"></i>${duration}
+                            </span>
+                        </div>
+                        <small class="text-secondary text-truncate d-block">${track.artists.map(a => a.name).join(', ')}</small>
+                        <div class="d-flex align-items-center justify-content-between mt-1 pt-1 border-top border-secondary border-opacity-10">
+                            <small class="text-success text-opacity-75" style="font-size: 0.75rem;">
+                                <i class="fa-regular fa-calendar-check me-1"></i>${playedAt}
+                            </small>
+                            <a href="${spotifyUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-success btn-sm py-0 px-2 text-decoration-none" style="font-size: 0.75rem;">
+                                <i class="fa-brands fa-spotify me-1"></i>Abrir
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>

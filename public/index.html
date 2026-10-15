@@ -102,8 +102,35 @@
             <!-- Currently Playing Bar -->
             <div id="currently-playing-container" class="mb-4"></div>
 
-            <!-- Time Range Tabs -->
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+            <!-- Main Controls Bar -->
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-3">
+                <!-- Content Toggle (Tracks / Artists / Recent) -->
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="contentType" id="typeTracks" value="tracks" checked>
+                    <label class="btn btn-outline-light" for="typeTracks"><i class="fa-solid fa-music me-1"></i> Canciones</label>
+
+                    <input type="radio" class="btn-check" name="contentType" id="typeArtists" value="artists">
+                    <label class="btn btn-outline-light" for="typeArtists"><i class="fa-solid fa-user-group me-1"></i> Artistas</label>
+
+                    <input type="radio" class="btn-check" name="contentType" id="typeRecent" value="recent">
+                    <label class="btn btn-outline-light" for="typeRecent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</label>
+                </div>
+
+                <!-- Limit Selector (Top 20 / Top 50) -->
+                <div class="d-flex align-items-center gap-2" id="limit-container">
+                    <small class="text-secondary">Límite:</small>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <input type="radio" class="btn-check" name="limitCount" id="limit20" value="20">
+                        <label class="btn btn-outline-secondary" for="limit20">Top 20</label>
+
+                        <input type="radio" class="btn-check" name="limitCount" id="limit50" value="50" checked>
+                        <label class="btn btn-outline-secondary" for="limit50">Top 50</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Time Range Tabs (for Tracks and Artists) -->
+            <div id="time-range-container" class="mb-4">
                 <ul class="nav nav-pills" id="time-range-tabs">
                     <li class="nav-item">
                         <button class="nav-link active" data-range="short_term">Últimas 4 Semanas</button>
@@ -115,14 +142,17 @@
                         <button class="nav-link" data-range="long_term">Histórico Total</button>
                     </li>
                 </ul>
+            </div>
 
-                <!-- Content Toggle (Tracks / Artists) -->
-                <div class="btn-group btn-group-sm" role="group">
-                    <input type="radio" class="btn-check" name="contentType" id="typeTracks" value="tracks" checked>
-                    <label class="btn btn-outline-light" for="typeTracks"><i class="fa-solid fa-music me-1"></i> Canciones</label>
-
-                    <input type="radio" class="btn-check" name="contentType" id="typeArtists" value="artists">
-                    <label class="btn btn-outline-light" for="typeArtists"><i class="fa-solid fa-user-group me-1"></i> Artistas</label>
+            <!-- Date Filter Bar (Only for Recent History) -->
+            <div id="recent-date-filter" class="d-none d-flex align-items-center gap-2 flex-wrap mb-4 p-2 px-3 bg-dark bg-opacity-50 rounded border border-secondary border-opacity-25">
+                <small class="text-secondary fw-bold"><i class="fa-solid fa-calendar me-1"></i> Fecha:</small>
+                <button class="btn btn-sm btn-outline-light active date-filter-btn" data-filter="all">Todas</button>
+                <button class="btn btn-sm btn-outline-light date-filter-btn" data-filter="today">Hoy</button>
+                <button class="btn btn-sm btn-outline-light date-filter-btn" data-filter="yesterday">Ayer</button>
+                <div class="d-flex align-items-center ms-auto gap-2">
+                    <small class="text-secondary">Específica:</small>
+                    <input type="date" id="recent-date-picker" class="form-control form-control-sm bg-black text-white border-secondary" style="width: auto;">
                 </div>
             </div>
 
