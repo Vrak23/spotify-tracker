@@ -46,10 +46,10 @@
 
         /* Responsive max-width container (More compact & orderly) */
         .app-container {
-            max-width: 820px;
+            max-width: 680px;
             margin: 0 auto;
             width: 100%;
-            padding: 0 14px;
+            padding: 0 12px;
         }
 
         /* Branding Buttons */
@@ -90,14 +90,39 @@
             font-weight: 600;
         }
 
+        /* Minimalist Pill Filter Buttons */
+        .pill-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-muted);
+            border-radius: 20px;
+            padding: 4px 11px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .pill-btn:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(168, 85, 247, 0.3);
+        }
+        .pill-btn.active {
+            background: rgba(168, 85, 247, 0.2);
+            border-color: var(--brand-primary);
+            color: #ffffff;
+            font-weight: 600;
+        }
+
         /* Segmented Top Tabs */
         .segmented-tabs {
             display: flex;
-            background-color: var(--bg-surface);
+            background: rgba(255, 255, 255, 0.03);
             border: 1px solid var(--border-subtle);
-            border-radius: 12px;
-            padding: 4px;
-            gap: 4px;
+            border-radius: 14px;
+            padding: 3px;
+            gap: 2px;
         }
         .segmented-tab {
             flex: 1;
@@ -105,10 +130,10 @@
             border: none;
             background: transparent;
             color: var(--text-muted);
-            font-size: 0.86rem;
+            font-size: 0.8rem;
             font-weight: 500;
-            padding: 8px 12px;
-            border-radius: 8px;
+            padding: 7px 4px;
+            border-radius: 10px;
             transition: all 0.15s ease;
             cursor: pointer;
             white-space: nowrap;
@@ -137,35 +162,62 @@
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 8px;
+            gap: 6px;
         }
 
         .card-uniform {
             background-color: var(--bg-surface);
             border: 1px solid var(--border-subtle);
-            border-radius: 10px;
-            padding: 8px 12px;
-            transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-            height: 72px;
+            border-radius: 12px;
+            padding: 7px 12px;
+            min-height: 58px;
             display: flex;
             align-items: center;
+            gap: 10px;
+            transition: all 0.15s ease;
         }
         .card-uniform:hover {
             background-color: var(--bg-surface-hover);
-            border-color: rgba(168, 85, 247, 0.4);
+            border-color: rgba(168, 85, 247, 0.35);
             transform: translateY(-1px);
         }
 
-        .img-thumb {
-            width: 48px;
-            height: 48px;
-            object-fit: cover;
-            border-radius: 6px;
+        .card-rank {
+            width: 22px;
+            text-align: center;
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: #64748b;
             flex-shrink: 0;
-            background-color: #201a2e;
+        }
+        .card-rank.top-3 {
+            color: #c084fc;
+        }
+
+        .img-thumb {
+            width: 42px;
+            height: 42px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+            background-color: #1a1625;
         }
         .img-thumb.rounded-circle {
             border-radius: 50% !important;
+        }
+
+        .badge-scrobble {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #d8b4fe;
+            background: rgba(168, 85, 247, 0.12);
+            border: 1px solid rgba(168, 85, 247, 0.25);
+            flex-shrink: 0;
         }
 
         /* Currently Playing Compact Bar */
@@ -298,43 +350,15 @@
             </div>
 
             <!-- Currently Playing Bar -->
-            <div id="currently-playing-container" class="mb-3"></div>
+            <div id="currently-playing-container" class="mb-2"></div>
 
-            <!-- Last.fm Sync Banner & Global Stats Overview (If connected) -->
-            <div id="lastfm-stats-overview" class="d-none mb-3 p-2.5 rounded border border-danger border-opacity-25" style="background-color: var(--bg-surface);">
-                <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom border-secondary border-opacity-10">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="fa-brands fa-lastfm text-danger fs-6"></i>
-                        <span class="fw-bold" style="font-size: 0.82rem;">Estadísticas Globales de Escucha</span>
-                    </div>
-                    <span id="lastfm-overview-user" class="badge bg-danger bg-opacity-20 text-danger border border-danger border-opacity-25" style="font-size: 0.7rem;"></span>
-                </div>
-                <div class="row g-2 text-center">
-                    <div class="col-3">
-                        <div class="p-1.5 rounded bg-black bg-opacity-40">
-                            <div class="fw-bold text-white fs-6" id="lf-stat-playcount">0</div>
-                            <div class="text-secondary text-uppercase" style="font-size: 0.65rem; font-weight: 600;">Scrobbles</div>
-                        </div>
-                    </div>
-                    <div class="col-3">
-                        <div class="p-1.5 rounded bg-black bg-opacity-40">
-                            <div class="fw-bold text-white fs-6" id="lf-stat-artists">0</div>
-                            <div class="text-secondary text-uppercase" style="font-size: 0.65rem; font-weight: 600;">Artistas</div>
-                        </div>
-                    </div>
-                    <div class="col-3">
-                        <div class="p-1.5 rounded bg-black bg-opacity-40">
-                            <div class="fw-bold text-white fs-6" id="lf-stat-albums">0</div>
-                            <div class="text-secondary text-uppercase" style="font-size: 0.65rem; font-weight: 600;">Álbumes</div>
-                        </div>
-                    </div>
-                    <div class="col-3">
-                        <div class="p-1.5 rounded bg-black bg-opacity-40">
-                            <div class="fw-bold text-white fs-6" id="lf-stat-tracks">0</div>
-                            <div class="text-secondary text-uppercase" style="font-size: 0.65rem; font-weight: 600;">Temas</div>
-                        </div>
-                    </div>
-                </div>
+            <!-- Sleek Minimalist Stat Strip -->
+            <div id="stat-strip" class="d-none align-items-center justify-content-center gap-2.5 py-1 px-3 mb-2.5 rounded-pill border border-secondary border-opacity-10" style="background-color: rgba(255, 255, 255, 0.02); font-size: 0.74rem;">
+                <span class="text-secondary"><strong id="strip-playcount" class="text-white">0</strong> scrobbles</span>
+                <span class="text-muted opacity-50">•</span>
+                <span class="text-secondary"><strong id="strip-artists" class="text-white">0</strong> artistas</span>
+                <span class="text-muted opacity-50">•</span>
+                <span class="text-secondary"><strong id="strip-albums" class="text-white">0</strong> álbumes</span>
             </div>
 
             <!-- 1. Segmented Primary Content Tabs (Clean 4 views) -->
@@ -345,29 +369,42 @@
                 <button class="segmented-tab" data-type="recent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</button>
             </div>
 
-            <!-- 2. Sub-Filters Bar: Ranges & Limits (Clean single row) -->
-            <div id="time-range-container" class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                <div class="btn-group btn-group-sm" id="time-range-tabs" role="group">
-                    <button type="button" class="btn btn-outline-brand active py-1 px-2.5 range-btn" data-range="short_term">4 Semanas</button>
-                    <button type="button" class="btn btn-outline-brand py-1 px-2.5 range-btn" data-range="medium_term">6 Meses</button>
-                    <button type="button" class="btn btn-outline-brand py-1 px-2.5 range-btn" data-range="long_term">Histórico</button>
+            <!-- 2. Sub-Filters Bar: Native Last.fm Periods & Limits -->
+            <div id="time-range-container" class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <div class="d-flex gap-1.5 overflow-auto py-1 flex-grow-1" id="time-range-tabs" style="scrollbar-width: none; -ms-overflow-style: none;">
+                    <button type="button" class="pill-btn" data-range="7day">7 Días</button>
+                    <button type="button" class="pill-btn active" data-range="1month">1 Mes</button>
+                    <button type="button" class="pill-btn" data-range="3month">3 Meses</button>
+                    <button type="button" class="pill-btn" data-range="6month">6 Meses</button>
+                    <button type="button" class="pill-btn" data-range="12month">1 Año</button>
+                    <button type="button" class="pill-btn" data-range="overall">Todo</button>
+                    <button type="button" class="pill-btn" data-range="custom" id="btn-toggle-custom-date"><i class="fa-regular fa-calendar me-1"></i>Fechas</button>
                 </div>
 
-                <div id="limit-container" class="btn-group btn-group-sm" role="group">
-                    <button type="button" class="btn btn-outline-brand py-1 px-2.5 limit-btn" data-limit="20">Top 20</button>
-                    <button type="button" class="btn btn-outline-brand py-1 px-2.5 active limit-btn" data-limit="50">Top 50</button>
+                <div id="limit-container" class="btn-group btn-group-sm flex-shrink-0" role="group">
+                    <button type="button" class="btn btn-outline-brand py-0.5 px-2 limit-btn" data-limit="20">20</button>
+                    <button type="button" class="btn btn-outline-brand py-0.5 px-2 active limit-btn" data-limit="50">50</button>
                 </div>
             </div>
 
-            <!-- 3. Date Filter (Only for Recientes) -->
-            <div id="recent-date-filter" class="d-none d-flex align-items-center gap-2 flex-wrap mb-3 p-2 px-3 rounded border border-secondary border-opacity-10" style="background-color: var(--bg-surface);">
-                <small class="text-secondary fw-semibold"><i class="fa-solid fa-calendar me-1"></i> Filtrar fecha:</small>
-                <button class="btn btn-sm btn-outline-brand active date-filter-btn py-0 px-2.5" data-filter="all">Todas</button>
-                <button class="btn btn-sm btn-outline-brand date-filter-btn py-0 px-2.5" data-filter="today">Hoy</button>
-                <button class="btn btn-sm btn-outline-brand date-filter-btn py-0 px-2.5" data-filter="yesterday">Ayer</button>
-                <div class="d-flex align-items-center ms-auto gap-2">
-                    <small class="text-secondary" style="font-size: 0.75rem;">Día:</small>
-                    <input type="date" id="recent-date-picker" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-0" style="font-size: 0.78rem; width: auto;">
+            <!-- 3. Custom Date Range Filter Box (Collapsible) -->
+            <div id="custom-date-box" class="d-none mb-2.5 p-2 rounded-3 border border-secondary border-opacity-15" style="background-color: var(--bg-surface);">
+                <div class="d-flex align-items-center justify-content-between mb-1.5 px-1">
+                    <small class="fw-semibold text-secondary" style="font-size: 0.72rem;"><i class="fa-solid fa-calendar-days text-info me-1"></i>Filtrar por rango exacto de fechas:</small>
+                    <span id="custom-date-status" class="text-secondary" style="font-size: 0.68rem;"></span>
+                </div>
+                <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                    <div class="d-flex align-items-center gap-1 flex-grow-1">
+                        <small class="text-secondary" style="font-size: 0.7rem;">Desde:</small>
+                        <input type="date" id="custom-date-from" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-0 px-2" style="font-size: 0.75rem;">
+                    </div>
+                    <div class="d-flex align-items-center gap-1 flex-grow-1">
+                        <small class="text-secondary" style="font-size: 0.7rem;">Hasta:</small>
+                        <input type="date" id="custom-date-to" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-0 px-2" style="font-size: 0.75rem;">
+                    </div>
+                    <button id="btn-apply-custom-date" class="btn btn-sm btn-brand py-0.5 px-3 rounded-pill ms-auto" style="font-size: 0.74rem;">
+                        Aplicar
+                    </button>
                 </div>
             </div>
 

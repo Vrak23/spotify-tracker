@@ -1,19 +1,22 @@
 const CLIENT_ID = '78c1217f07404df7b95cceb3e7cc6657';
 const REDIRECT_URI = window.location.origin + '/callback';
 
-let accessToken = null;
-let currentRange = 'short_term';
-let currentType = 'tracks';
-let currentLimit = 50;
-let rawRecentItems = [];
-let currentDateFilter = 'all';
-let currentTracksCache = [];
-let currentArtistsCache = [];
-let userProfileData = null;
+// Credenciales por defecto de Last.fm (cuenta del usuario)
+const DEFAULT_LASTFM_USER = 'Vrak_23';
+const DEFAULT_LASTFM_KEY = '82a251af624ca33e3d59215313af74c2';
 
-// Last.fm Data Cache
-let lastFmTracksMap = {}; // key: `${track}::${artist}` -> playcount
-let lastFmArtistsMap = {}; // key: `${artist}` -> playcount
+function getLastFmCredentials() {
+    const user = localStorage.getItem('lastfm_user') || DEFAULT_LASTFM_USER;
+    const key = localStorage.getItem('lastfm_key') || DEFAULT_LASTFM_KEY;
+    return { user, key };
+}
+
+let accessToken = localStorage.getItem('spotify_access_token') || null;
+let currentRange = '1month'; // 7day, 1month, 3month, 6month, 12month, overall, custom
+let currentType = 'tracks';  // tracks, artists, albums, recent
+let currentLimit = 50;
+let userProfileData = null;
+let currentLoadedItems = []; // Para compartir en tarjeta
 
 // PWA: Registrar Service Worker con detección de actualizaciones
 if ('serviceWorker' in navigator) {
@@ -52,21 +55,27 @@ const statsList = document.getElementById('stats-list');
 const loader = document.getElementById('loader');
 const currentlyPlayingContainer = document.getElementById('currently-playing-container');
 const timeRangeContainer = document.getElementById('time-range-container');
-const recentDateFilter = document.getElementById('recent-date-filter');
-const recentDatePicker = document.getElementById('recent-date-picker');
+
+// Stat Strip DOM
+const statStrip = document.getElementById('stat-strip');
+const stripPlaycount = document.getElementById('strip-playcount');
+const stripArtists = document.getElementById('strip-artists');
+const stripAlbums = document.getElementById('strip-albums');
+
+// Custom Date Filter DOM
+const customDateBox = document.getElementById('custom-date-box');
+const customDateFrom = document.getElementById('custom-date-from');
+const customDateTo = document.getElementById('custom-date-to');
+const btnApplyCustomDate = document.getElementById('btn-apply-custom-date');
+const btnToggleCustomDate = document.getElementById('btn-toggle-custom-date');
+const customDateStatus = document.getElementById('custom-date-status');
 
 // PWA Update DOM
 const updateToast = document.getElementById('update-toast');
 const btnApplyUpdate = document.getElementById('btn-apply-update');
 const menuForceUpdate = document.getElementById('menu-force-update');
 
-// Last.fm DOM
-const lastFmStatsOverview = document.getElementById('lastfm-stats-overview');
-const lastFmOverviewUser = document.getElementById('lastfm-overview-user');
-const lfStatPlaycount = document.getElementById('lf-stat-playcount');
-const lfStatArtists = document.getElementById('lf-stat-artists');
-const lfStatAlbums = document.getElementById('lf-stat-albums');
-const lfStatTracks = document.getElementById('lf-stat-tracks');
+// Last.fm Modal & Drawer DOM
 const drawerLastFmStatus = document.getElementById('drawer-lastfm-status');
 const lastFmModalEl = document.getElementById('lastFmModal');
 const lastFmUsernameInput = document.getElementById('lastfm-username-input');
@@ -112,6 +121,240 @@ async function triggerInstallFlow() {
     }
 }
 
+// ----------------------------------------------------
+// UTILIDADES
+// ----------------------------------------------------
+function formatNumber(num) {
+    if (!num) return '0';
+    const n = parseInt(num, 10);
+    if (isNaN(n)) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return n.toLocaleString();
+}
+
+function normalizeKey(str) {
+    return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function formatDate(timestampUTS) {
+    if (!timestampUTS) return '';
+    const date = new Date(parseInt(timestampUTS, 10) * 1000);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+
+    const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (isToday) return `Hoy, ${time}`;
+    if (isYesterday) return `Ayer, ${time}`;
+    return `${date.toLocaleDateString([], { day: '2-digit', month: 'short' })}, ${time}`;
+}
+
+function getRangeLabel(range) {
+    if (range === '7day') return 'Últimos 7 Días';
+    if (range === '1month') return 'Último Mes';
+    if (range === '3month') return 'Últimos 3 Meses';
+    if (range === '6month') return 'Últimos 6 Meses';
+    if (range === '12month') return 'Último Año';
+    if (range === 'overall') return 'Histórico Total';
+    if (range === 'custom') return 'Rango Personalizado';
+    return range;
+}
+
+// ----------------------------------------------------
+// EVENT LISTENERS & INICIALIZACIÓN
+// ----------------------------------------------------
+document.addEventListener('DOMContentLoaded', async () => {
+    // Configurar fechas por defecto para el rango personalizado
+    const today = new Date().toISOString().split('T')[0];
+    const past14 = new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0];
+    if (customDateTo) customDateTo.value = today;
+    if (customDateFrom) customDateFrom.value = past14;
+
+    setupEventListeners();
+
+    // Procesar posible retorno de Spotify OAuth PKCE
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    if (code) {
+        await fetchAccessToken(code);
+    } else {
+        // La app se basa en Last.fm: Mostrar dashboard directamente
+        showDashboard();
+    }
+});
+
+function setupEventListeners() {
+    if (btnLogin) {
+        btnLogin.addEventListener('click', redirectToSpotifyLogin);
+    }
+
+    // Segmented Content Tabs (Canciones, Artistas, Álbumes, Recientes)
+    document.querySelectorAll('#content-type-tabs .segmented-tab').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('#content-type-tabs .segmented-tab').forEach(b => b.classList.remove('active'));
+            const target = e.currentTarget;
+            target.classList.add('active');
+            currentType = target.getAttribute('data-type');
+            loadStats();
+        });
+    });
+
+    // Pestañas de periodo (.pill-btn)
+    document.querySelectorAll('#time-range-tabs .pill-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const range = e.currentTarget.getAttribute('data-range');
+            if (range === 'custom') {
+                if (customDateBox) {
+                    customDateBox.classList.toggle('d-none');
+                }
+                document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                currentRange = 'custom';
+                return;
+            }
+
+            if (customDateBox) customDateBox.classList.add('d-none');
+            document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            currentRange = range;
+            loadStats();
+        });
+    });
+
+    // Botón para aplicar rango de fechas personalizado
+    if (btnApplyCustomDate) {
+        btnApplyCustomDate.addEventListener('click', () => {
+            currentRange = 'custom';
+            loadStats();
+        });
+    }
+
+    // Selector de límite (20 / 50)
+    document.querySelectorAll('#limit-container .limit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('#limit-container .limit-btn').forEach(b => b.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            currentLimit = parseInt(e.currentTarget.getAttribute('data-limit'), 10);
+            loadStats();
+        });
+    });
+
+    // Acciones de Actualización PWA / Forzar Limpieza
+    if (menuForceUpdate) {
+        menuForceUpdate.addEventListener('click', forceAppUpdate);
+    }
+    if (btnApplyUpdate) {
+        btnApplyUpdate.addEventListener('click', forceAppUpdate);
+    }
+
+    // Acciones del Menú Hamburguesa
+    if (menuSavePlaylist) {
+        menuSavePlaylist.addEventListener('click', handleSavePlaylist);
+    }
+    if (menuOpenShare) {
+        menuOpenShare.addEventListener('click', prepareShareCard);
+    }
+    if (menuLastFmConnect) {
+        menuLastFmConnect.addEventListener('click', openLastFmModal);
+    }
+    if (menuInstallApp) {
+        menuInstallApp.addEventListener('click', triggerInstallFlow);
+    }
+    if (menuLogout) {
+        menuLogout.addEventListener('click', handleLogout);
+    }
+
+    // Modal Last.fm
+    if (btnLastFmSave) {
+        btnLastFmSave.addEventListener('click', handleSaveLastFm);
+    }
+    if (btnLastFmDisconnect) {
+        btnLastFmDisconnect.addEventListener('click', handleDisconnectLastFm);
+    }
+
+    // Modal Descargar Tarjeta PNG
+    if (btnDownloadCard) {
+        btnDownloadCard.addEventListener('click', handleDownloadCard);
+    }
+
+    // Instalación PWA botones
+    if (btnInstallLogin) {
+        btnInstallLogin.addEventListener('click', triggerInstallFlow);
+    }
+    if (btnInstallFab) {
+        btnInstallFab.addEventListener('click', triggerInstallFlow);
+    }
+}
+
+async function forceAppUpdate() {
+    if (menuForceUpdate) {
+        menuForceUpdate.innerHTML = '<span class="spinner-border spinner-border-sm me-2 text-info"></span><span class="text-info">Actualizando...</span>';
+    }
+    try {
+        if ('caches' in window) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map(k => caches.delete(k)));
+        }
+        if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for (let r of regs) {
+                await r.unregister();
+            }
+        }
+    } catch (e) {
+        console.error('Error al limpiar caché:', e);
+    }
+    window.location.href = window.location.origin + '/?v=' + Date.now();
+}
+
+function handleLogout() {
+    localStorage.removeItem('spotify_access_token');
+    localStorage.removeItem('code_verifier');
+    localStorage.removeItem('lastfm_user');
+    localStorage.removeItem('lastfm_key');
+    accessToken = null;
+    window.location.reload();
+}
+
+// ----------------------------------------------------
+// MOSTRAR VISTAS
+// ----------------------------------------------------
+function showLogin() {
+    loginView.classList.remove('d-none');
+    dashboardView.classList.add('d-none');
+    navActions.classList.add('d-none');
+    if (btnInstallFab) btnInstallFab.classList.add('d-none');
+}
+
+async function showDashboard() {
+    loginView.classList.add('d-none');
+    dashboardView.classList.remove('d-none');
+    navActions.classList.remove('d-none');
+
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (!isStandalone && btnInstallFab) {
+        btnInstallFab.classList.remove('d-none');
+    } else if (btnInstallFab) {
+        btnInstallFab.classList.add('d-none');
+    }
+
+    initLastFmState();
+    fetchLastFmGlobalStats();
+    fetchCurrentlyPlaying();
+
+    if (accessToken) {
+        fetchUserProfile();
+    }
+
+    loadStats();
+}
+
+// ----------------------------------------------------
+// SPOTIFY AUTH (OPCIONAL / PARA GUARDAR PLAYLISTS)
+// ----------------------------------------------------
 function generateRandomString(length) {
     let text = '';
     const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -150,7 +393,6 @@ async function redirectToSpotifyLogin() {
 
 async function fetchAccessToken(code) {
     const verifier = localStorage.getItem('code_verifier');
-
     const params = new URLSearchParams({
         client_id: CLIENT_ID,
         grant_type: 'authorization_code',
@@ -162,12 +404,9 @@ async function fetchAccessToken(code) {
     try {
         const response = await fetch('https://accounts.spotify.com/api/token', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: params
         });
-
         const data = await response.json();
         if (data.access_token) {
             accessToken = data.access_token;
@@ -175,252 +414,15 @@ async function fetchAccessToken(code) {
             window.history.replaceState({}, document.title, "/");
             showDashboard();
         } else {
-            console.error('Error al obtener token PKCE:', data);
-            showLogin();
+            showDashboard();
         }
     } catch (err) {
-        console.error('Error:', err);
-        showLogin();
+        showDashboard();
     }
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
-
-    if (error) {
-        console.error('Error de autorización de Spotify:', error);
-        window.history.replaceState({}, document.title, "/");
-        showLogin();
-    } else if (code) {
-        await fetchAccessToken(code);
-    } else {
-        accessToken = localStorage.getItem('spotify_access_token');
-        if (accessToken) {
-            showDashboard();
-        } else {
-            showLogin();
-        }
-    }
-
-    setupEventListeners();
-    initLastFmState();
-});
-
-function formatDuration(ms) {
-    if (!ms) return '0:00';
-    const minutes = Math.floor(ms / 60000);
-    const seconds = Math.floor((ms % 60000) / 1000);
-    return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-}
-
-function formatDate(isoString) {
-    const date = new Date(isoString);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const isYesterday = date.toDateString() === yesterday.toDateString();
-
-    const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (isToday) return `Hoy, ${time}`;
-    if (isYesterday) return `Ayer, ${time}`;
-    return `${date.toLocaleDateString([], { day: '2-digit', month: 'short' })}, ${time}`;
-}
-
-function formatNumber(num) {
-    if (!num) return '0';
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toLocaleString();
-}
-
-function getRangeLabel(range) {
-    if (range === 'short_term') return 'Últimas 4 Semanas';
-    if (range === 'medium_term') return 'Últimos 6 Meses';
-    return 'Histórico Total';
-}
-
-function setupEventListeners() {
-    if (btnLogin) {
-        btnLogin.addEventListener('click', redirectToSpotifyLogin);
-    }
-
-    // Segmented Content Tabs (Canciones, Artistas, Recientes)
-    document.querySelectorAll('#content-type-tabs .segmented-tab').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('#content-type-tabs .segmented-tab').forEach(b => b.classList.remove('active'));
-            const target = e.currentTarget;
-            target.classList.add('active');
-            currentType = target.getAttribute('data-type');
-            switchContentTypeView();
-            loadStats();
-        });
-    });
-
-    // Pestañas de rango de tiempo (.range-btn)
-    document.querySelectorAll('#time-range-tabs .range-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('#time-range-tabs .range-btn').forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            currentRange = e.currentTarget.getAttribute('data-range');
-            loadStats();
-        });
-    });
-
-    // Selector de límite (.limit-btn)
-    document.querySelectorAll('#limit-container .limit-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('#limit-container .limit-btn').forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            currentLimit = parseInt(e.currentTarget.getAttribute('data-limit'), 10);
-            if (currentType === 'tracks' || currentType === 'artists') {
-                loadStats();
-            }
-        });
-    });
-
-    // Filtros de fecha de recientes
-    document.querySelectorAll('.date-filter-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.date-filter-btn').forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            if (recentDatePicker) recentDatePicker.value = '';
-            currentDateFilter = e.currentTarget.getAttribute('data-filter');
-            applyRecentFilter();
-        });
-    });
-
-    if (recentDatePicker) {
-        recentDatePicker.addEventListener('change', (e) => {
-            if (e.target.value) {
-                document.querySelectorAll('.date-filter-btn').forEach(b => b.classList.remove('active'));
-                currentDateFilter = e.target.value;
-                applyRecentFilter();
-            }
-        });
-    }
-
-    // Actualización de la App PWA / Limpiar Caché
-    if (menuForceUpdate) {
-        menuForceUpdate.addEventListener('click', forceAppUpdate);
-    }
-    if (btnApplyUpdate) {
-        btnApplyUpdate.addEventListener('click', forceAppUpdate);
-    }
-
-    // Acciones del Burger Menu
-    if (menuSavePlaylist) {
-        menuSavePlaylist.addEventListener('click', handleSavePlaylist);
-    }
-    if (menuOpenShare) {
-        menuOpenShare.addEventListener('click', prepareShareCard);
-    }
-    if (menuLastFmConnect) {
-        menuLastFmConnect.addEventListener('click', openLastFmModal);
-    }
-    if (menuInstallApp) {
-        menuInstallApp.addEventListener('click', triggerInstallFlow);
-    }
-    if (menuLogout) {
-        menuLogout.addEventListener('click', handleLogout);
-    }
-
-    // Modal Last.fm
-    if (btnLastFmSave) {
-        btnLastFmSave.addEventListener('click', handleSaveLastFm);
-    }
-    if (btnLastFmDisconnect) {
-        btnLastFmDisconnect.addEventListener('click', handleDisconnectLastFm);
-    }
-
-    // Descargar Tarjeta PNG
-    if (btnDownloadCard) {
-        btnDownloadCard.addEventListener('click', handleDownloadCard);
-    }
-
-    // Instalación PWA
-    if (btnInstallLogin) {
-        btnInstallLogin.addEventListener('click', triggerInstallFlow);
-    }
-    if (btnInstallFab) {
-        btnInstallFab.addEventListener('click', triggerInstallFlow);
-    }
-}
-
-async function forceAppUpdate() {
-    if (menuForceUpdate) {
-        menuForceUpdate.innerHTML = '<span class="spinner-border spinner-border-sm me-2 text-info"></span><span class="text-info">Actualizando...</span>';
-    }
-    try {
-        if ('caches' in window) {
-            const keys = await caches.keys();
-            await Promise.all(keys.map(k => caches.delete(k)));
-        }
-        if ('serviceWorker' in navigator) {
-            const regs = await navigator.serviceWorker.getRegistrations();
-            for (let r of regs) {
-                await r.unregister();
-            }
-        }
-    } catch (e) {
-        console.error('Error al limpiar caché:', e);
-    }
-    // Redirigir con timestamp para forzar refresh sin caché en móviles
-    window.location.href = window.location.origin + '/?v=' + Date.now();
-}
-
-function handleLogout() {
-    localStorage.removeItem('spotify_access_token');
-    localStorage.removeItem('code_verifier');
-    accessToken = null;
-    showLogin();
-}
-
-function switchContentTypeView() {
-    statsList.classList.remove('d-none');
-    recentDateFilter.classList.add('d-none');
-    timeRangeContainer.classList.remove('d-none');
-
-    if (currentType === 'recent') {
-        timeRangeContainer.classList.add('d-none');
-        recentDateFilter.classList.remove('d-none');
-    }
-}
-
-function showLogin() {
-    loginView.classList.remove('d-none');
-    dashboardView.classList.add('d-none');
-    navActions.classList.add('d-none');
-    if (btnInstallFab) btnInstallFab.classList.add('d-none');
-
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    if (isStandalone && btnInstallLogin) {
-        btnInstallLogin.classList.add('d-none');
-    }
-}
-
-async function showDashboard() {
-    loginView.classList.add('d-none');
-    dashboardView.classList.remove('d-none');
-    navActions.classList.remove('d-none');
-
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    if (!isStandalone && btnInstallFab) {
-        btnInstallFab.classList.remove('d-none');
-    } else if (btnInstallFab) {
-        btnInstallFab.classList.add('d-none');
-    }
-
-    await fetchUserProfile();
-    fetchCurrentlyPlaying();
-    initLastFmState();
-    switchContentTypeView();
-    loadStats();
 }
 
 async function spotifyFetch(endpoint, options = {}) {
+    if (!accessToken) return null;
     try {
         const res = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
             ...options,
@@ -430,17 +432,14 @@ async function spotifyFetch(endpoint, options = {}) {
                 ...(options.headers || {})
             }
         });
-
         if (res.status === 401) {
             localStorage.removeItem('spotify_access_token');
-            showLogin();
+            accessToken = null;
             return null;
         }
-
         if (res.status === 204) return null;
         return await res.json();
     } catch (err) {
-        console.error('Error en llamada API:', err);
         return null;
     }
 }
@@ -449,65 +448,45 @@ async function fetchUserProfile() {
     const data = await spotifyFetch('me');
     if (!data) return;
     userProfileData = data;
-
     if (drawerUserName) drawerUserName.textContent = data.display_name || 'Usuario';
-    if (drawerUserFollowers) drawerUserFollowers.textContent = `${data.followers ? data.followers.total : 0} seguidores`;
-    
-    const avatarUrl = data.images && data.images.length > 0 ? data.images[0].url : 'https://via.placeholder.com/34?text=U';
-    if (userImg) userImg.src = avatarUrl;
-    if (drawerUserImg) drawerUserImg.src = avatarUrl;
+    if (drawerUserFollowers) drawerUserFollowers.textContent = `${data.followers ? data.followers.total : 0} seguidores en Spotify`;
+    const avatarUrl = data.images && data.images.length > 0 ? data.images[0].url : null;
+    if (avatarUrl) {
+        if (userImg) userImg.src = avatarUrl;
+        if (drawerUserImg) drawerUserImg.src = avatarUrl;
+    }
 }
 
+// ----------------------------------------------------
+// EN VIVO: DETECCIÓN DE REPRODUCCIÓN ACTUAL
+// ----------------------------------------------------
 async function fetchCurrentlyPlaying() {
-    // 1. Probar primero con Spotify
-    const data = await spotifyFetch('me/player/currently-playing');
-    
-    if (data && data.is_playing && data.item) {
-        const track = data.item;
-        currentlyPlayingContainer.innerHTML = `
-            <div class="now-playing-bar d-flex align-items-center gap-3">
-                <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/44'}" class="img-thumb" style="width: 40px; height: 40px;" alt="Cover">
-                <div class="flex-grow-1 overflow-hidden" style="min-width: 0;">
-                    <div class="d-flex align-items-center gap-2">
-                        <small class="fw-bold text-uppercase tracking-wider" style="font-size: 0.65rem; color: var(--brand-primary);">
-                            <i class="fa-solid fa-volume-high me-1"></i> Escuchando ahora en Spotify
-                        </small>
-                    </div>
-                    <div class="fw-bold text-truncate" style="font-size: 0.85rem;">${track.name}</div>
-                    <small class="text-secondary text-truncate d-block" style="font-size: 0.73rem;">${track.artists.map(a => a.name).join(', ')}</small>
-                </div>
-                <a href="${track.external_urls?.spotify || '#'}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-brand rounded-pill py-0.5 px-2.5 d-none d-sm-inline-block text-nowrap" style="font-size: 0.72rem;">
-                    <i class="fa-brands fa-spotify me-1"></i> Abrir
-                </a>
-            </div>
-        `;
-        return;
-    }
-
-    // 2. Fallback a Last.fm en tiempo real (@attr.nowplaying)
-    const user = localStorage.getItem('lastfm_user');
-    const key = localStorage.getItem('lastfm_key');
+    // Probar con Last.fm en tiempo real (@attr.nowplaying)
+    const { user, key } = getLastFmCredentials();
     if (user && key) {
         try {
             const lfRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&limit=1&format=json`);
             const lfData = await lfRes.json();
             const firstTrack = lfData?.recenttracks?.track?.[0];
             if (firstTrack && firstTrack['@attr']?.nowplaying === 'true') {
-                const cover = firstTrack.image?.[1]?.['#text'] || 'https://via.placeholder.com/40';
+                const cover = firstTrack.image?.[1]?.['#text'] || 'https://via.placeholder.com/42';
+                const artistName = firstTrack.artist ? (firstTrack.artist['#text'] || firstTrack.artist.name) : '';
+                const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(firstTrack.name + ' ' + artistName)}`;
+
                 currentlyPlayingContainer.innerHTML = `
-                    <div class="now-playing-bar d-flex align-items-center gap-3 border-danger border-opacity-30">
-                        <img src="${cover}" class="img-thumb" style="width: 40px; height: 40px;" alt="Cover">
-                        <div class="flex-grow-1 overflow-hidden" style="min-width: 0;">
-                            <div class="d-flex align-items-center gap-2">
-                                <small class="fw-bold text-uppercase tracking-wider text-danger" style="font-size: 0.65rem;">
-                                    <i class="fa-solid fa-satellite-dish fa-beat me-1"></i> En vivo en Last.fm
-                                </small>
+                    <div class="card-uniform border-primary border-opacity-40" style="background: linear-gradient(90deg, rgba(20, 16, 30, 0.95) 0%, rgba(38, 22, 60, 0.85) 100%);">
+                        <img src="${cover}" class="img-thumb" alt="Cover" onerror="this.src='https://via.placeholder.com/42'">
+                        <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                            <div class="d-flex align-items-center gap-1.5">
+                                <span class="badge bg-primary bg-opacity-25 text-white border border-primary border-opacity-30" style="font-size: 0.65rem;">
+                                    <i class="fa-solid fa-volume-high me-1 text-primary"></i> En vivo
+                                </span>
                             </div>
-                            <div class="fw-bold text-truncate" style="font-size: 0.85rem;">${firstTrack.name}</div>
-                            <small class="text-secondary text-truncate d-block" style="font-size: 0.73rem;">${firstTrack.artist?.['#text']}</small>
+                            <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;">${firstTrack.name}</div>
+                            <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
                         </div>
-                        <a href="${firstTrack.url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-danger rounded-pill py-0.5 px-2.5 d-none d-sm-inline-block text-nowrap" style="font-size: 0.72rem;">
-                            <i class="fa-brands fa-lastfm me-1"></i> Ver
+                        <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Escuchar en Spotify">
+                            <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
                         </a>
                     </div>
                 `;
@@ -521,77 +500,294 @@ async function fetchCurrentlyPlaying() {
     currentlyPlayingContainer.innerHTML = '';
 }
 
+// ----------------------------------------------------
+// MOTOR PRINCIPAL DE DATOS: LAST.FM
+// ----------------------------------------------------
+function initLastFmState() {
+    const { user, key } = getLastFmCredentials();
+
+    if (user && key) {
+        if (drawerLastFmStatus) {
+            drawerLastFmStatus.textContent = `@${user}`;
+            drawerLastFmStatus.className = 'badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25';
+        }
+        if (btnLastFmDisconnect) btnLastFmDisconnect.classList.remove('d-none');
+    } else {
+        if (drawerLastFmStatus) {
+            drawerLastFmStatus.textContent = 'Opcional';
+            drawerLastFmStatus.className = 'badge bg-secondary bg-opacity-25';
+        }
+        if (btnLastFmDisconnect) btnLastFmDisconnect.classList.add('d-none');
+    }
+}
+
+async function fetchLastFmGlobalStats() {
+    const { user, key } = getLastFmCredentials();
+    if (!user || !key) return;
+
+    try {
+        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&format=json`);
+        const data = await res.json();
+        if (data && data.user) {
+            if (statStrip) {
+                statStrip.classList.remove('d-none');
+                statStrip.classList.add('d-flex');
+            }
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(data.user.playcount);
+            if (stripArtists) stripArtists.textContent = formatNumber(data.user.artist_count);
+            if (stripAlbums) stripAlbums.textContent = formatNumber(data.user.album_count);
+
+            const lfImg = data.user.image && data.user.image[1] && data.user.image[1]['#text'];
+            if (lfImg && !accessToken) {
+                if (userImg) userImg.src = lfImg;
+                if (drawerUserImg) drawerUserImg.src = lfImg;
+            }
+            if (drawerUserName && !accessToken) {
+                drawerUserName.textContent = data.user.name;
+            }
+            if (drawerUserFollowers && !accessToken) {
+                drawerUserFollowers.textContent = `${formatNumber(data.user.playcount)} scrobbles en Last.fm`;
+            }
+        }
+    } catch (e) {
+        console.warn(e);
+    }
+}
+
 async function loadStats() {
     statsList.innerHTML = '';
     loader.classList.remove('d-none');
 
-    // Cargar datos de Last.fm si está configurado para mostrar streams exactos
-    await fetchLastFmDataIfNeeded();
+    const { user, key } = getLastFmCredentials();
 
-    // 1. Historial Reciente
-    if (currentType === 'recent') {
-        const data = await spotifyFetch('me/player/recently-played?limit=50');
+    if (!user || !key) {
         loader.classList.add('d-none');
-        if (!data || !data.items || data.items.length === 0) {
-            statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron reproducciones recientes.</div>';
+        statsList.innerHTML = `
+            <div class="text-center py-5 p-4 rounded border border-danger border-opacity-25 my-3" style="background-color: var(--bg-surface);">
+                <i class="fa-brands fa-lastfm text-danger mb-3" style="font-size: 2.8rem;"></i>
+                <h5 class="fw-bold mb-2">Conecta tu cuenta de Last.fm</h5>
+                <p class="text-secondary small mx-auto mb-3" style="max-width: 420px;">
+                    Para ver tus tops de canciones, artistas y álbumes ordenados por streams y scrobbles reales, ingresa tus datos de Last.fm.
+                </p>
+                <button class="btn btn-sm btn-danger px-3 py-2 rounded-pill fw-semibold" onclick="openLastFmModal()">
+                    <i class="fa-brands fa-lastfm me-1"></i> Conectar con Last.fm
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    try {
+        // Rango de fechas personalizado
+        if (currentRange === 'custom') {
+            await loadCustomDateStats(user, key);
             return;
         }
-        rawRecentItems = data.items;
-        applyRecentFilter();
-        return;
-    }
 
-    // 2. Top Álbumes (Vía Last.fm)
-    if (currentType === 'albums') {
-        await loadTopAlbums();
-        return;
-    }
+        // 1. TOP CANCIONES (Ordenado por scrobbles)
+        if (currentType === 'tracks') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopTracks&user=${encodeURIComponent(user)}&period=${currentRange}&limit=${currentLimit}&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            loader.classList.add('d-none');
+            const tracks = data?.toptracks?.track || [];
+            if (tracks.length === 0) {
+                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron canciones registradas para este periodo.</div>';
+                return;
+            }
+            currentLoadedItems = tracks;
+            renderTracks(tracks);
+            return;
+        }
 
-    // 3. Canciones o Artistas
-    const endpoint = `me/top/${currentType}?time_range=${currentRange}&limit=${currentLimit}`;
-    const data = await spotifyFetch(endpoint);
+        // 2. TOP ARTISTAS (Ordenado por scrobbles)
+        if (currentType === 'artists') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopArtists&user=${encodeURIComponent(user)}&period=${currentRange}&limit=${currentLimit}&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            loader.classList.add('d-none');
+            const artists = data?.topartists?.artist || [];
+            if (artists.length === 0) {
+                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron artistas registrados para este periodo.</div>';
+                return;
+            }
+            currentLoadedItems = artists;
+            renderArtists(artists);
+            return;
+        }
 
-    loader.classList.add('d-none');
-    if (!data || !data.items || data.items.length === 0) {
-        statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron datos para este rango de fechas.</div>';
-        return;
-    }
+        // 3. TOP ÁLBUMES (Ordenado por scrobbles)
+        if (currentType === 'albums') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopAlbums&user=${encodeURIComponent(user)}&period=${currentRange}&limit=${currentLimit}&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            loader.classList.add('d-none');
+            const albums = data?.topalbums?.album || [];
+            if (albums.length === 0) {
+                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron álbumes registrados para este periodo.</div>';
+                return;
+            }
+            currentLoadedItems = albums;
+            renderAlbums(albums);
+            return;
+        }
 
-    if (currentType === 'tracks') {
-        currentTracksCache = data.items;
-        renderTracks(data.items);
-    } else {
-        currentArtistsCache = data.items;
-        renderArtists(data.items);
+        // 4. RECIENTES (Historial cronológico)
+        if (currentType === 'recent') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${encodeURIComponent(user)}&limit=${currentLimit}&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            loader.classList.add('d-none');
+            const tracks = data?.recenttracks?.track || [];
+            if (tracks.length === 0) {
+                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron reproducciones recientes.</div>';
+                return;
+            }
+            currentLoadedItems = tracks;
+            renderRecent(tracks);
+            return;
+        }
+    } catch (err) {
+        console.error('Error al cargar stats:', err);
+        loader.classList.add('d-none');
+        statsList.innerHTML = '<div class="text-center text-danger py-5">Error al cargar datos desde Last.fm.</div>';
     }
 }
 
-function applyRecentFilter() {
-    if (!rawRecentItems || rawRecentItems.length === 0) {
-        statsList.innerHTML = '<div class="text-center text-secondary py-5">No hay canciones recientes.</div>';
+// ----------------------------------------------------
+// FILTRO POR RANGO DE FECHAS PERSONALIZADO
+// ----------------------------------------------------
+async function loadCustomDateStats(user, key) {
+    const fromVal = customDateFrom ? customDateFrom.value : '';
+    const toVal = customDateTo ? customDateTo.value : '';
+
+    if (!fromVal || !toVal) {
+        loader.classList.add('d-none');
+        if (customDateBox) customDateBox.classList.remove('d-none');
+        statsList.innerHTML = '<div class="text-center text-secondary py-5">Selecciona una fecha de inicio y fin, luego haz clic en Aplicar.</div>';
         return;
     }
 
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const fromDate = new Date(`${fromVal}T00:00:00`);
+    const toDate = new Date(`${toVal}T23:59:59`);
+    const fromUTS = Math.floor(fromDate.getTime() / 1000);
+    const toUTS = Math.floor(toDate.getTime() / 1000);
 
-    let filtered = rawRecentItems;
-    if (currentDateFilter === 'today') {
-        filtered = rawRecentItems.filter(item => item.played_at.startsWith(todayStr));
-    } else if (currentDateFilter === 'yesterday') {
-        filtered = rawRecentItems.filter(item => item.played_at.startsWith(yesterdayStr));
-    } else if (currentDateFilter !== 'all') {
-        filtered = rawRecentItems.filter(item => item.played_at.startsWith(currentDateFilter));
+    if (customDateStatus) {
+        customDateStatus.textContent = 'Consultando historial...';
     }
 
-    renderRecent(filtered);
+    try {
+        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&limit=200&api_key=${encodeURIComponent(key)}&format=json`);
+        const data = await res.json();
+        loader.classList.add('d-none');
+
+        const tracks = data?.recenttracks?.track || [];
+        const total = data?.recenttracks?.['@attr']?.total || tracks.length;
+
+        if (customDateStatus) {
+            customDateStatus.textContent = `${total} scrobbles encontrados`;
+        }
+
+        if (tracks.length === 0) {
+            statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron reproducciones entre ${fromVal} y ${toVal}.</div>`;
+            return;
+        }
+
+        // 1. Recientes en ese rango
+        if (currentType === 'recent') {
+            currentLoadedItems = tracks;
+            renderRecent(tracks);
+            return;
+        }
+
+        // 2. Top Canciones agregadas en ese rango
+        if (currentType === 'tracks') {
+            const map = {};
+            tracks.forEach(t => {
+                const artistName = t.artist ? (t.artist['#text'] || t.artist.name) : 'Desconocido';
+                const k = `${normalizeKey(t.name)}:::${normalizeKey(artistName)}`;
+                if (!map[k]) {
+                    map[k] = {
+                        name: t.name,
+                        artist: { name: artistName },
+                        image: t.image,
+                        url: t.url,
+                        playcount: 0
+                    };
+                }
+                map[k].playcount++;
+            });
+            const sorted = Object.values(map).sort((a, b) => b.playcount - a.playcount).slice(0, currentLimit);
+            currentLoadedItems = sorted;
+            renderTracks(sorted);
+            return;
+        }
+
+        // 3. Top Artistas agregados en ese rango
+        if (currentType === 'artists') {
+            const map = {};
+            tracks.forEach(t => {
+                const artistName = t.artist ? (t.artist['#text'] || t.artist.name) : 'Desconocido';
+                const k = normalizeKey(artistName);
+                if (!map[k]) {
+                    map[k] = {
+                        name: artistName,
+                        image: t.image,
+                        url: t.artist?.url || `https://www.last.fm/music/${encodeURIComponent(artistName)}`,
+                        playcount: 0
+                    };
+                }
+                map[k].playcount++;
+            });
+            const sorted = Object.values(map).sort((a, b) => b.playcount - a.playcount).slice(0, currentLimit);
+            currentLoadedItems = sorted;
+            renderArtists(sorted);
+            return;
+        }
+
+        // 4. Top Álbumes agregados en ese rango
+        if (currentType === 'albums') {
+            const map = {};
+            tracks.forEach(t => {
+                const albName = t.album ? (t.album['#text'] || t.album.name) : '';
+                if (!albName) return;
+                const artistName = t.artist ? (t.artist['#text'] || t.artist.name) : 'Desconocido';
+                const k = `${normalizeKey(albName)}:::${normalizeKey(artistName)}`;
+                if (!map[k]) {
+                    map[k] = {
+                        name: albName,
+                        artist: { name: artistName },
+                        image: t.image,
+                        url: t.url,
+                        playcount: 0
+                    };
+                }
+                map[k].playcount++;
+            });
+            const sorted = Object.values(map).sort((a, b) => b.playcount - a.playcount).slice(0, currentLimit);
+            if (sorted.length === 0) {
+                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron álbumes etiquetados en este rango.</div>`;
+                return;
+            }
+            currentLoadedItems = sorted;
+            renderAlbums(sorted);
+            return;
+        }
+    } catch (err) {
+        console.error(err);
+        loader.classList.add('d-none');
+        statsList.innerHTML = '<div class="text-center text-danger py-5">Error al calcular tops del rango seleccionado.</div>';
+    }
 }
 
-function normalizeKey(str) {
-    return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+// ----------------------------------------------------
+// RENDERIZADO DE CARDS (RESPONSIVE, COMPACTAS Y LIMPIAS)
+// ----------------------------------------------------
+function getImageFromItem(item) {
+    if (!item || !item.image) return 'https://via.placeholder.com/42';
+    // Buscar imagen en tamaño grande (2) o mediano (1) o cualquiera con texto
+    if (Array.isArray(item.image)) {
+        const found = item.image[2]?.['#text'] || item.image[1]?.['#text'] || item.image[0]?.['#text'];
+        if (found) return found;
+    }
+    return 'https://via.placeholder.com/42';
 }
 
 function renderTracks(tracks) {
@@ -599,30 +795,21 @@ function renderTracks(tracks) {
     tracks.forEach((track, index) => {
         const item = document.createElement('div');
         item.className = 'card-uniform';
-        const duration = formatDuration(track.duration_ms);
-        const popularity = track.popularity !== undefined ? track.popularity : null;
-        const spotifyUrl = track.external_urls?.spotify || '#';
-        const albumYear = track.album?.release_date ? track.album.release_date.substring(0, 4) : '';
-
-        // Buscar playcount en Last.fm
-        const mainArtist = track.artists[0]?.name || '';
-        const searchKey = `${normalizeKey(track.name)}::${normalizeKey(mainArtist)}`;
-        const playcount = lastFmTracksMap[searchKey] || null;
+        const artistName = track.artist ? (track.artist.name || track.artist['#text']) : '';
+        const playcount = formatNumber(track.playcount);
+        const cover = getImageFromItem(track);
+        const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(track.name + ' ' + artistName)}`;
 
         item.innerHTML = `
-            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 22px; font-size: 0.8rem;">#${index + 1}</span>
-            <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/48'}" class="img-thumb me-2.5" alt="Cover">
-            <div class="overflow-hidden flex-grow-1 me-2" style="min-width: 0;">
-                <div class="fw-bold text-truncate" style="font-size: 0.85rem;" title="${track.name}">${track.name}</div>
-                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${track.artists.map(a => a.name).join(', ')}</small>
-                <div class="d-flex align-items-center gap-2 mt-0.5 text-secondary" style="font-size: 0.68rem;">
-                    <span><i class="fa-regular fa-clock me-1"></i>${duration}</span>
-                    ${playcount !== null ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25" style="font-size: 0.65rem;"><i class="fa-solid fa-headphones me-1"></i>${playcount} streams</span>` : (popularity !== null ? `<span>•</span><span style="color: var(--brand-primary);"><i class="fa-solid fa-fire me-1"></i>${popularity}%</span>` : '')}
-                    ${albumYear ? `<span>•</span><span>${albumYear}</span>` : ''}
-                </div>
+            <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
+            <img src="${cover}" class="img-thumb" alt="Cover" onerror="this.src='https://via.placeholder.com/42'">
+            <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
             </div>
-            <a href="${spotifyUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-1 px-2 rounded-circle flex-shrink-0" title="Escuchar en Spotify">
-                <i class="fa-brands fa-spotify" style="color: #1ed760;"></i>
+            <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${playcount}</span>
+            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Escuchar en Spotify">
+                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
             </a>
         `;
         statsList.appendChild(item);
@@ -634,119 +821,87 @@ function renderArtists(artists) {
     artists.forEach((artist, index) => {
         const item = document.createElement('div');
         item.className = 'card-uniform';
-        const followers = artist.followers ? formatNumber(artist.followers.total) : '0';
-        const popularity = artist.popularity !== undefined ? artist.popularity : null;
-        const genres = artist.genres?.slice(0, 2).join(', ') || 'Artista';
-        const spotifyUrl = artist.external_urls?.spotify || '#';
-
-        // Buscar playcount del artista en Last.fm
-        const artistKey = normalizeKey(artist.name);
-        const playcount = lastFmArtistsMap[artistKey] || null;
+        const artistName = artist.name || '';
+        const playcount = formatNumber(artist.playcount);
+        const cover = getImageFromItem(artist);
+        const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(artistName)}`;
 
         item.innerHTML = `
-            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 22px; font-size: 0.8rem;">#${index + 1}</span>
-            <img src="${artist.images[0]?.url || 'https://via.placeholder.com/48'}" class="img-thumb rounded-circle me-2.5" alt="Artist">
-            <div class="overflow-hidden flex-grow-1 me-2" style="min-width: 0;">
-                <div class="fw-bold text-truncate" style="font-size: 0.85rem;" title="${artist.name}">${artist.name}</div>
-                <small class="text-secondary text-capitalize text-truncate d-block" style="font-size: 0.72rem;">${genres}</small>
-                <div class="d-flex align-items-center gap-2 mt-0.5 text-secondary" style="font-size: 0.68rem;">
-                    <span><i class="fa-solid fa-users me-1"></i>${followers}</span>
-                    ${playcount !== null ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25" style="font-size: 0.65rem;"><i class="fa-solid fa-headphones me-1"></i>${playcount} scrobbles</span>` : (popularity !== null ? `<span>•</span><span style="color: var(--brand-primary);"><i class="fa-solid fa-fire me-1"></i>${popularity}%</span>` : '')}
-                </div>
+            <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
+            <img src="${cover}" class="img-thumb rounded-circle" alt="Artist" onerror="this.src='https://via.placeholder.com/42'">
+            <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${artistName}">${artistName}</div>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">Artista</small>
             </div>
-            <a href="${spotifyUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-1 px-2 rounded-circle flex-shrink-0" title="Ver en Spotify">
-                <i class="fa-brands fa-spotify" style="color: #1ed760;"></i>
+            <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${playcount}</span>
+            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Ver en Spotify">
+                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
             </a>
         `;
         statsList.appendChild(item);
     });
 }
 
-function renderRecent(items) {
+function renderAlbums(albums) {
     statsList.innerHTML = '';
-    if (!items || items.length === 0) {
-        statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron reproducciones para la fecha seleccionada.</div>';
-        return;
-    }
+    albums.forEach((album, index) => {
+        const item = document.createElement('div');
+        item.className = 'card-uniform';
+        const artistName = album.artist ? (album.artist.name || album.artist['#text']) : '';
+        const playcount = formatNumber(album.playcount);
+        const cover = getImageFromItem(album);
+        const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(album.name + ' ' + artistName)}`;
 
-    items.forEach((item, index) => {
-        const track = item.track;
-        const playedAt = formatDate(item.played_at);
-        const duration = formatDuration(track.duration_ms);
-        const spotifyUrl = track.external_urls?.spotify || '#';
-
-        const card = document.createElement('div');
-        card.className = 'card-uniform';
-        card.innerHTML = `
-            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 22px; font-size: 0.8rem;">#${index + 1}</span>
-            <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/48'}" class="img-thumb me-2.5" alt="Cover">
-            <div class="overflow-hidden flex-grow-1 me-2" style="min-width: 0;">
-                <div class="fw-bold text-truncate" style="font-size: 0.85rem;" title="${track.name}">${track.name}</div>
-                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${track.artists.map(a => a.name).join(', ')}</small>
-                <div class="d-flex align-items-center gap-2 mt-0.5 text-secondary" style="font-size: 0.68rem;">
-                    <span style="color: var(--brand-primary);"><i class="fa-regular fa-clock me-1"></i>${playedAt}</span>
-                    <span>•</span>
-                    <span>${duration}</span>
-                </div>
+        item.innerHTML = `
+            <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
+            <img src="${cover}" class="img-thumb" alt="Album" onerror="this.src='https://via.placeholder.com/42'">
+            <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${album.name}">${album.name}</div>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
             </div>
-            <a href="${spotifyUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-1 px-2 rounded-circle flex-shrink-0">
-                <i class="fa-brands fa-spotify" style="color: #1ed760;"></i>
+            <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${playcount}</span>
+            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Escuchar en Spotify">
+                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
             </a>
         `;
-        statsList.appendChild(card);
+        statsList.appendChild(item);
+    });
+}
+
+function renderRecent(tracks) {
+    statsList.innerHTML = '';
+    tracks.forEach((track, index) => {
+        const item = document.createElement('div');
+        item.className = 'card-uniform';
+        const artistName = track.artist ? (track.artist['#text'] || track.artist.name) : '';
+        const isNowPlaying = track['@attr']?.nowplaying === 'true';
+        const playedAtStr = isNowPlaying ? 'En vivo' : formatDate(track.date?.uts);
+        const cover = getImageFromItem(track);
+        const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(track.name + ' ' + artistName)}`;
+
+        item.innerHTML = `
+            <span class="card-rank">#${index + 1}</span>
+            <img src="${cover}" class="img-thumb" alt="Cover" onerror="this.src='https://via.placeholder.com/42'">
+            <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
+            </div>
+            <span class="${isNowPlaying ? 'badge bg-primary bg-opacity-25 text-white border border-primary border-opacity-30' : 'text-secondary'}" style="font-size: 0.7rem; white-space: nowrap;">
+                ${isNowPlaying ? '<i class="fa-solid fa-volume-high me-1 text-primary"></i>En vivo' : `<i class="fa-regular fa-clock me-1"></i>${playedAtStr}`}
+            </span>
+            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-0.5 px-2 rounded-circle flex-shrink-0" title="Escuchar en Spotify">
+                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.82rem;"></i>
+            </a>
+        `;
+        statsList.appendChild(item);
     });
 }
 
 // ----------------------------------------------------
-// LAST.FM INTEGRATION (STREAMS, SCROBBLES & ÁLBUMES)
+// MODAL LAST.FM CONFIGURACIÓN
 // ----------------------------------------------------
-function initLastFmState() {
-    const user = localStorage.getItem('lastfm_user');
-    const key = localStorage.getItem('lastfm_key');
-
-    if (user && key) {
-        if (drawerLastFmStatus) {
-            drawerLastFmStatus.textContent = `@${user}`;
-            drawerLastFmStatus.className = 'badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25';
-        }
-        if (btnLastFmDisconnect) btnLastFmDisconnect.classList.remove('d-none');
-        fetchLastFmGlobalStats();
-    } else {
-        if (lastFmStatsOverview) lastFmStatsOverview.classList.add('d-none');
-        if (drawerLastFmStatus) {
-            drawerLastFmStatus.textContent = 'Opcional';
-            drawerLastFmStatus.className = 'badge bg-secondary bg-opacity-25';
-        }
-        if (btnLastFmDisconnect) btnLastFmDisconnect.classList.add('d-none');
-    }
-}
-
-async function fetchLastFmGlobalStats() {
-    const user = localStorage.getItem('lastfm_user');
-    const key = localStorage.getItem('lastfm_key');
-    if (!user || !key) return;
-
-    try {
-        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&format=json`);
-        const data = await res.json();
-        if (data && data.user) {
-            if (lastFmStatsOverview) {
-                lastFmStatsOverview.classList.remove('d-none');
-            }
-            if (lastFmOverviewUser) lastFmOverviewUser.textContent = `@${data.user.name}`;
-            if (lfStatPlaycount) lfStatPlaycount.textContent = formatNumber(parseInt(data.user.playcount || 0));
-            if (lfStatArtists) lfStatArtists.textContent = formatNumber(parseInt(data.user.artist_count || 0));
-            if (lfStatAlbums) lfStatAlbums.textContent = formatNumber(parseInt(data.user.album_count || 0));
-            if (lfStatTracks) lfStatTracks.textContent = formatNumber(parseInt(data.user.track_count || 0));
-        }
-    } catch (e) {
-        console.warn('Error al cargar estadísticas globales de Last.fm:', e);
-    }
-}
-
 function openLastFmModal() {
-    const user = localStorage.getItem('lastfm_user') || 'Vrak_23';
-    const key = localStorage.getItem('lastfm_key') || '';
+    const { user, key } = getLastFmCredentials();
     if (lastFmUsernameInput) lastFmUsernameInput.value = user;
     if (lastFmApiKeyInput) lastFmApiKeyInput.value = key;
     if (lastFmError) lastFmError.classList.add('d-none');
@@ -771,11 +926,9 @@ async function handleSaveLastFm() {
     btnLastFmSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verificando...';
 
     try {
-        // Probar llamada a Last.fm con user.getinfo
         let testRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&format=json`);
         let testData = await testRes.json();
 
-        // Si Last.fm devuelve error 8 (transient / backend sync), reintentamos una vez
         if (testData.error === 8) {
             await new Promise(r => setTimeout(r, 1200));
             testRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&format=json`);
@@ -792,18 +945,16 @@ async function handleSaveLastFm() {
             return;
         }
 
-        // Guardar credenciales
         localStorage.setItem('lastfm_user', user);
         localStorage.setItem('lastfm_key', key);
         initLastFmState();
+        fetchLastFmGlobalStats();
 
         const modal = bootstrap.Modal.getInstance(lastFmModalEl);
         if (modal) modal.hide();
 
-        alert(`¡Conectado exitosamente con Last.fm (@${user})!\nAhora verás tus streams reales sincronizados.`);
         loadStats();
     } catch (e) {
-        console.error(e);
         if (lastFmError) {
             lastFmError.textContent = 'Error al conectar con los servidores de Last.fm.';
             lastFmError.classList.remove('d-none');
@@ -817,9 +968,7 @@ async function handleSaveLastFm() {
 function handleDisconnectLastFm() {
     localStorage.removeItem('lastfm_user');
     localStorage.removeItem('lastfm_key');
-    lastFmTracksMap = {};
-    lastFmArtistsMap = {};
-    if (lastFmStatsOverview) lastFmStatsOverview.classList.add('d-none');
+    if (statStrip) statStrip.classList.add('d-none');
     initLastFmState();
 
     const modal = bootstrap.Modal.getInstance(lastFmModalEl);
@@ -828,137 +977,31 @@ function handleDisconnectLastFm() {
     loadStats();
 }
 
-async function fetchLastFmDataIfNeeded() {
-    const user = localStorage.getItem('lastfm_user');
-    const key = localStorage.getItem('lastfm_key');
-    if (!user || !key) return;
-
-    let period = '1month';
-    if (currentRange === 'medium_term') period = '6month';
-    if (currentRange === 'long_term') period = 'overall';
-
-    try {
-        if (currentType === 'tracks') {
-            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopTracks&user=${encodeURIComponent(user)}&period=${period}&limit=100&api_key=${encodeURIComponent(key)}&format=json`);
-            const data = await res.json();
-            if (data?.toptracks?.track) {
-                lastFmTracksMap = {};
-                data.toptracks.track.forEach(t => {
-                    const k = `${normalizeKey(t.name)}::${normalizeKey(t.artist?.name)}`;
-                    lastFmTracksMap[k] = t.playcount;
-                });
-            }
-        } else if (currentType === 'artists') {
-            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopArtists&user=${encodeURIComponent(user)}&period=${period}&limit=100&api_key=${encodeURIComponent(key)}&format=json`);
-            const data = await res.json();
-            if (data?.topartists?.artist) {
-                lastFmArtistsMap = {};
-                data.topartists.artist.forEach(a => {
-                    const k = normalizeKey(a.name);
-                    lastFmArtistsMap[k] = a.playcount;
-                });
-            }
+// ----------------------------------------------------
+// ACCIÓN: GUARDAR PLAYLIST EN SPOTIFY (OPCIONAL)
+// ----------------------------------------------------
+async function handleSavePlaylist() {
+    if (!accessToken) {
+        if (confirm('Para guardar una playlist en tu Spotify necesitas iniciar sesión con tu cuenta de Spotify.\n\n¿Deseas iniciar sesión ahora?')) {
+            redirectToSpotifyLogin();
         }
-    } catch (e) {
-        console.warn('No se pudieron obtener datos de Last.fm:', e);
-    }
-}
-
-async function loadTopAlbums() {
-    const user = localStorage.getItem('lastfm_user');
-    const key = localStorage.getItem('lastfm_key');
-
-    loader.classList.add('d-none');
-
-    if (!user || !key) {
-        statsList.innerHTML = `
-            <div class="text-center py-5 p-4 rounded border border-danger border-opacity-25 my-3" style="background-color: var(--bg-surface);">
-                <i class="fa-brands fa-lastfm text-danger mb-3" style="font-size: 3rem;"></i>
-                <h5 class="fw-bold mb-2">Top Álbumes con Last.fm</h5>
-                <p class="text-secondary small mx-auto mb-3" style="max-width: 420px;">
-                    Spotify no expone estadísticas de álbumes escuchados en su API pública, pero Last.fm sí registra cada reproducción por álbum. Conecta tu cuenta gratuita para desbloquear tu Top de Álbumes con portadas en HD y conteo de streams.
-                </p>
-                <button class="btn btn-sm btn-danger px-3 py-2 rounded-pill fw-semibold" onclick="openLastFmModal()">
-                    <i class="fa-brands fa-lastfm me-1"></i> Conectar con Last.fm
-                </button>
-            </div>
-        `;
         return;
     }
 
-    loader.classList.remove('d-none');
-    let period = '1month';
-    if (currentRange === 'medium_term') period = '6month';
-    if (currentRange === 'long_term') period = 'overall';
-
-    try {
-        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopAlbums&user=${encodeURIComponent(user)}&period=${period}&limit=${currentLimit}&api_key=${encodeURIComponent(key)}&format=json`);
-        const data = await res.json();
-        loader.classList.add('d-none');
-
-        const albums = data?.topalbums?.album || [];
-        if (albums.length === 0) {
-            statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron álbumes registrados en este periodo de Last.fm.</div>';
-            return;
-        }
-
-        renderAlbums(albums);
-    } catch (err) {
-        console.error(err);
-        loader.classList.add('d-none');
-        statsList.innerHTML = '<div class="text-center text-danger py-5">Error al cargar álbumes desde Last.fm.</div>';
-    }
-}
-
-function renderAlbums(albums) {
-    statsList.innerHTML = '';
-    albums.forEach((album, index) => {
-        const item = document.createElement('div');
-        item.className = 'card-uniform';
-        const cover = (album.image && album.image[2] && album.image[2]['#text']) || (album.image && album.image[1] && album.image[1]['#text']) || 'https://via.placeholder.com/48';
-        const artistName = album.artist?.name || 'Artista';
-        const albumUrl = album.url || '#';
-        const playcount = formatNumber(parseInt(album.playcount || 0));
-
-        item.innerHTML = `
-            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 22px; font-size: 0.8rem;">#${index + 1}</span>
-            <img src="${cover}" class="img-thumb rounded-2 me-2.5" alt="Cover" onerror="this.src='https://via.placeholder.com/48'">
-            <div class="overflow-hidden flex-grow-1 me-2" style="min-width: 0;">
-                <div class="fw-bold text-truncate" style="font-size: 0.85rem;" title="${album.name}">${album.name}</div>
-                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
-                <div class="d-flex align-items-center gap-2 mt-0.5 text-secondary" style="font-size: 0.68rem;">
-                    <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25" style="font-size: 0.65rem;">
-                        <i class="fa-solid fa-headphones me-1"></i>${playcount} streams
-                    </span>
-                </div>
-            </div>
-            <a href="${albumUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-1 px-2 rounded-circle flex-shrink-0" title="Ver en Last.fm">
-                <i class="fa-brands fa-lastfm" style="color: #ef4444;"></i>
-            </a>
-        `;
-        statsList.appendChild(item);
-    });
-}
-
-// ----------------------------------------------------
-// ACCIÓN: GUARDAR TOP COMO PLAYLIST
-// ----------------------------------------------------
-async function handleSavePlaylist() {
     try {
         if (!userProfileData) {
             await fetchUserProfile();
         }
 
-        const tracksData = await spotifyFetch(`me/top/tracks?time_range=${currentRange}&limit=50`);
-        if (!tracksData || !tracksData.items || tracksData.items.length === 0) {
-            alert('No se encontraron canciones para crear la playlist.');
+        if (!currentLoadedItems || currentLoadedItems.length === 0) {
+            alert('No hay canciones cargadas en este momento.');
             return;
         }
 
         const periodName = getRangeLabel(currentRange);
         const payload = {
             name: `Mi Top (${periodName}) - SpotiTracker`,
-            description: `Playlist creada con mis canciones más escuchadas en SpotiTracker. Fecha: ${new Date().toLocaleDateString()}`,
+            description: `Playlist creada con mis canciones más escuchadas según Last.fm. Fecha: ${new Date().toLocaleDateString()}`,
             public: false
         };
 
@@ -968,18 +1011,13 @@ async function handleSavePlaylist() {
         });
 
         if (!createRes || !createRes.id) {
-            alert('Error al crear la playlist en Spotify. Asegúrate de haber otorgado los permisos necesarios.');
+            alert('Error al crear la playlist en Spotify.');
             return;
         }
 
-        const uris = tracksData.items.map(t => t.uri).filter(Boolean);
-        await spotifyFetch(`playlists/${createRes.id}/tracks`, {
-            method: 'POST',
-            body: JSON.stringify({ uris: uris })
-        });
-
-        if (confirm(`¡Playlist "${payload.name}" guardada con éxito en tu Spotify!\n\n¿Deseas abrirla ahora?`)) {
-            window.open(createRes.external_urls?.spotify, '_blank');
+        alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify!`);
+        if (createRes.external_urls?.spotify) {
+            window.open(createRes.external_urls.spotify, '_blank');
         }
     } catch (err) {
         console.error(err);
@@ -994,39 +1032,30 @@ async function prepareShareCard() {
     const modalEl = new bootstrap.Modal(shareCardModal);
     modalEl.show();
 
-    document.getElementById('card-user-name').textContent = userProfileData?.display_name || 'Usuario';
+    const { user } = getLastFmCredentials();
+    document.getElementById('card-user-name').textContent = userProfileData?.display_name || user || 'Usuario';
     document.getElementById('card-date').textContent = new Date().toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
     document.getElementById('card-period-label').textContent = getRangeLabel(currentRange);
 
     const listContainer = document.getElementById('card-items-list');
-    listContainer.innerHTML = '<div class="text-center py-3 small text-secondary">Cargando tarjeta...</div>';
-
-    let items = [];
-    if (currentType === 'artists' && currentArtistsCache.length > 0) {
-        items = currentArtistsCache.slice(0, 5);
-    } else if (currentTracksCache.length > 0) {
-        items = currentTracksCache.slice(0, 5);
-    } else {
-        const data = await spotifyFetch(`me/top/tracks?time_range=${currentRange}&limit=5`);
-        items = data?.items || [];
-    }
-
     listContainer.innerHTML = '';
+
+    const items = (currentLoadedItems || []).slice(0, 5);
     items.forEach((item, idx) => {
-        const isTrack = !!item.album;
         const name = item.name;
-        const sub = isTrack ? item.artists.map(a => a.name).join(', ') : (item.genres?.slice(0, 2).join(', ') || 'Artista');
-        const img = isTrack ? item.album.images[0]?.url : item.images[0]?.url;
+        const sub = item.artist ? (item.artist.name || item.artist['#text']) : (item.playcount ? `${formatNumber(item.playcount)} scrobbles` : '');
+        const img = getImageFromItem(item);
 
         const row = document.createElement('div');
         row.className = 'd-flex align-items-center gap-2 py-1';
         row.innerHTML = `
             <span class="fw-bold" style="width: 20px; font-size: 0.8rem; color: var(--brand-primary);">#${idx + 1}</span>
-            <img src="${img || 'https://via.placeholder.com/32'}" class="rounded" style="width: 32px; height: 32px; object-fit: cover;" alt="cover">
+            <img src="${img}" class="rounded" style="width: 32px; height: 32px; object-fit: cover;" alt="cover" onerror="this.src='https://via.placeholder.com/32'">
             <div class="overflow-hidden flex-grow-1 text-start">
                 <div class="fw-bold text-truncate" style="font-size: 0.8rem;">${name}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.7rem;">${sub}</small>
             </div>
+            <span class="badge-scrobble" style="font-size: 0.65rem;">${formatNumber(item.playcount)}</span>
         `;
         listContainer.appendChild(row);
     });
