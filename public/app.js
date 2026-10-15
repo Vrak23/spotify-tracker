@@ -778,16 +778,83 @@ async function loadCustomDateStats(user, key) {
 }
 
 // ----------------------------------------------------
-// RENDERIZADO DE CARDS (RESPONSIVE, COMPACTAS Y LIMPIAS)
+// RESOLUCIÓN DE IMÁGENES DESDE SPOTIFY / ITUNES CON CACHÉ
 // ----------------------------------------------------
-function getImageFromItem(item) {
-    if (!item || !item.image) return 'https://via.placeholder.com/42';
-    // Buscar imagen en tamaño grande (2) o mediano (1) o cualquiera con texto
-    if (Array.isArray(item.image)) {
-        const found = item.image[2]?.['#text'] || item.image[1]?.['#text'] || item.image[0]?.['#text'];
-        if (found) return found;
+const artCache = JSON.parse(localStorage.getItem('spoti_art_cache') || '{}');
+
+function saveArtCache() {
+    try {
+        localStorage.setItem('spoti_art_cache', JSON.stringify(artCache));
+    } catch (e) {}
+}
+
+async function resolveSpotifyArtwork(name, artist, type = 'track', elementId) {
+    const key = `${type}::${normalizeKey(name)}::${normalizeKey(artist || '')}`;
+
+    if (artCache[key]) {
+        const el = document.getElementById(elementId);
+        if (el) el.src = artCache[key];
+        return artCache[key];
     }
-    return 'https://via.placeholder.com/42';
+
+    // 1. Si hay accessToken de Spotify, buscar directo en Spotify API
+    if (accessToken) {
+        try {
+            let q = type === 'artist' ? `artist:${name}` : `track:${name} artist:${artist}`;
+            if (type === 'album') q = `album:${name} artist:${artist}`;
+            const res = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(q)}&type=${type}&limit=1`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                let img = null;
+                if (type === 'track') img = data.tracks?.items?.[0]?.album?.images?.[1]?.url || data.tracks?.items?.[0]?.album?.images?.[0]?.url;
+                if (type === 'artist') img = data.artists?.items?.[0]?.images?.[1]?.url || data.artists?.items?.[0]?.images?.[0]?.url;
+                if (type === 'album') img = data.albums?.items?.[0]?.images?.[1]?.url || data.albums?.items?.[0]?.images?.[0]?.url;
+
+                if (img) {
+                    artCache[key] = img;
+                    saveArtCache();
+                    const el = document.getElementById(elementId);
+                    if (el) el.src = img;
+                    return img;
+                }
+            }
+        } catch (e) {}
+    }
+
+    // 2. Fallback público instantáneo usando búsqueda de Apple / iTunes (sin necesidad de token)
+    try {
+        const queryTerm = `${name} ${artist || ''}`.trim();
+        const itunesEntity = type === 'artist' ? 'musicArtist' : (type === 'album' ? 'album' : 'song');
+        const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(queryTerm)}&entity=${itunesEntity}&limit=1`);
+        if (itRes.ok) {
+            const itData = await itRes.json();
+            const rawUrl = itData.results?.[0]?.artworkUrl100;
+            if (rawUrl) {
+                const hdUrl = rawUrl.replace('100x100bb', '300x300bb');
+                artCache[key] = hdUrl;
+                saveArtCache();
+                const el = document.getElementById(elementId);
+                if (el) el.src = hdUrl;
+                return hdUrl;
+            }
+        }
+    } catch (e) {}
+}
+
+function getInitialImage(item, name, artist, type) {
+    const key = `${type}::${normalizeKey(name)}::${normalizeKey(artist || '')}`;
+    if (artCache[key]) {
+        return artCache[key];
+    }
+    if (item && item.image && Array.isArray(item.image)) {
+        const candidate = item.image[2]?.['#text'] || item.image[1]?.['#text'] || item.image[0]?.['#text'];
+        if (candidate && !candidate.includes('2a96cbd8b46e442fc41c2b86b821562f.png') && candidate.startsWith('http')) {
+            return candidate;
+        }
+    }
+    return '/logo.png';
 }
 
 function renderTracks(tracks) {
@@ -797,12 +864,13 @@ function renderTracks(tracks) {
         item.className = 'card-uniform';
         const artistName = track.artist ? (track.artist.name || track.artist['#text']) : '';
         const playcount = formatNumber(track.playcount);
-        const cover = getImageFromItem(track);
+        const imgId = `art-track-${index}`;
+        const initialImg = getInitialImage(track, track.name, artistName, 'track');
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(track.name + ' ' + artistName)}`;
 
         item.innerHTML = `
             <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
-            <img src="${cover}" class="img-thumb" alt="Cover" onerror="this.src='https://via.placeholder.com/42'">
+            <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Cover" onerror="this.src='/logo.png'">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
@@ -813,6 +881,11 @@ function renderTracks(tracks) {
             </a>
         `;
         statsList.appendChild(item);
+
+        const key = `track::${normalizeKey(track.name)}::${normalizeKey(artistName)}`;
+        if (!artCache[key]) {
+            resolveSpotifyArtwork(track.name, artistName, 'track', imgId);
+        }
     });
 }
 
@@ -823,12 +896,13 @@ function renderArtists(artists) {
         item.className = 'card-uniform';
         const artistName = artist.name || '';
         const playcount = formatNumber(artist.playcount);
-        const cover = getImageFromItem(artist);
+        const imgId = `art-artist-${index}`;
+        const initialImg = getInitialImage(artist, artistName, '', 'artist');
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(artistName)}`;
 
         item.innerHTML = `
             <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
-            <img src="${cover}" class="img-thumb rounded-circle" alt="Artist" onerror="this.src='https://via.placeholder.com/42'">
+            <img id="${imgId}" src="${initialImg}" class="img-thumb rounded-circle" alt="Artist" onerror="this.src='/logo.png'">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${artistName}">${artistName}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">Artista</small>
@@ -839,6 +913,11 @@ function renderArtists(artists) {
             </a>
         `;
         statsList.appendChild(item);
+
+        const key = `artist::${normalizeKey(artistName)}::`;
+        if (!artCache[key]) {
+            resolveSpotifyArtwork(artistName, '', 'artist', imgId);
+        }
     });
 }
 
@@ -849,12 +928,13 @@ function renderAlbums(albums) {
         item.className = 'card-uniform';
         const artistName = album.artist ? (album.artist.name || album.artist['#text']) : '';
         const playcount = formatNumber(album.playcount);
-        const cover = getImageFromItem(album);
+        const imgId = `art-album-${index}`;
+        const initialImg = getInitialImage(album, album.name, artistName, 'album');
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(album.name + ' ' + artistName)}`;
 
         item.innerHTML = `
             <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
-            <img src="${cover}" class="img-thumb" alt="Album" onerror="this.src='https://via.placeholder.com/42'">
+            <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Album" onerror="this.src='/logo.png'">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${album.name}">${album.name}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
@@ -865,6 +945,11 @@ function renderAlbums(albums) {
             </a>
         `;
         statsList.appendChild(item);
+
+        const key = `album::${normalizeKey(album.name)}::${normalizeKey(artistName)}`;
+        if (!artCache[key]) {
+            resolveSpotifyArtwork(album.name, artistName, 'album', imgId);
+        }
     });
 }
 
@@ -876,12 +961,13 @@ function renderRecent(tracks) {
         const artistName = track.artist ? (track.artist['#text'] || track.artist.name) : '';
         const isNowPlaying = track['@attr']?.nowplaying === 'true';
         const playedAtStr = isNowPlaying ? 'En vivo' : formatDate(track.date?.uts);
-        const cover = getImageFromItem(track);
+        const imgId = `art-recent-${index}`;
+        const initialImg = getInitialImage(track, track.name, artistName, 'track');
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(track.name + ' ' + artistName)}`;
 
         item.innerHTML = `
             <span class="card-rank">#${index + 1}</span>
-            <img src="${cover}" class="img-thumb" alt="Cover" onerror="this.src='https://via.placeholder.com/42'">
+            <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Cover" onerror="this.src='/logo.png'">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
@@ -894,6 +980,11 @@ function renderRecent(tracks) {
             </a>
         `;
         statsList.appendChild(item);
+
+        const key = `track::${normalizeKey(track.name)}::${normalizeKey(artistName)}`;
+        if (!artCache[key]) {
+            resolveSpotifyArtwork(track.name, artistName, 'track', imgId);
+        }
     });
 }
 
