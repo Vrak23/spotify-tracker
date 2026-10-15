@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spotify Tracker - Estadísticas, ADN Musical & Géneros</title>
+    <title>Spotify Tracker - Estadísticas, Streams & Historial</title>
 
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#a855f7">
@@ -18,8 +18,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- FontAwesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js & html2canvas -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
@@ -43,6 +42,14 @@
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
+        }
+
+        /* Responsive max-width container (More compact & orderly) */
+        .app-container {
+            max-width: 820px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 0 14px;
         }
 
         /* Branding Buttons */
@@ -83,63 +90,54 @@
             font-weight: 600;
         }
 
-        /* Horizontal Scrollable Pill Tabs */
-        .pill-scroll-wrapper {
-            overflow-x: auto;
-            white-space: nowrap;
-            -webkit-overflow-scrolling: touch;
-            scrollbar-width: none;
-            padding-bottom: 2px;
-        }
-        .pill-scroll-wrapper::-webkit-scrollbar {
-            display: none;
-        }
-        .pill-group {
-            display: inline-flex;
-            gap: 8px;
-        }
-        .pill-btn {
-            background: var(--bg-surface);
+        /* Segmented Top Tabs */
+        .segmented-tabs {
+            display: flex;
+            background-color: var(--bg-surface);
             border: 1px solid var(--border-subtle);
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+        }
+        .segmented-tab {
+            flex: 1;
+            text-align: center;
+            border: none;
+            background: transparent;
             color: var(--text-muted);
-            border-radius: 24px;
-            padding: 7px 16px;
-            font-size: 0.85rem;
+            font-size: 0.86rem;
             font-weight: 500;
-            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 8px;
             transition: all 0.15s ease;
-            display: inline-flex;
-            align-items: center;
-            flex-shrink: 0;
-            text-decoration: none;
+            cursor: pointer;
+            white-space: nowrap;
         }
-        .pill-btn:hover {
+        .segmented-tab:hover {
             color: #ffffff;
-            border-color: rgba(168, 85, 247, 0.4);
-            background: var(--bg-surface-hover);
+            background-color: rgba(255, 255, 255, 0.05);
         }
-        .pill-btn.active {
-            background: var(--brand-primary);
-            border-color: var(--brand-primary);
+        .segmented-tab.active {
+            background-color: var(--brand-primary);
             color: #ffffff;
             font-weight: 600;
-            box-shadow: 0 2px 12px var(--brand-glow);
+            box-shadow: 0 2px 10px var(--brand-glow);
         }
 
         /* Nav & Brand */
         .navbar-brand img {
-            height: 34px;
-            width: 34px;
+            height: 32px;
+            width: 32px;
             object-fit: contain;
             border-radius: 8px;
-            filter: drop-shadow(0 0 8px var(--brand-glow));
+            filter: drop-shadow(0 0 6px var(--brand-glow));
         }
 
         /* Uniform Card Styles */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 10px;
+            grid-template-columns: 1fr;
+            gap: 8px;
         }
 
         .card-uniform {
@@ -148,19 +146,19 @@
             border-radius: 10px;
             padding: 8px 12px;
             transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-            height: 78px;
+            height: 72px;
             display: flex;
             align-items: center;
         }
         .card-uniform:hover {
             background-color: var(--bg-surface-hover);
             border-color: rgba(168, 85, 247, 0.4);
-            transform: translateY(-2px);
+            transform: translateY(-1px);
         }
 
         .img-thumb {
-            width: 50px;
-            height: 50px;
+            width: 48px;
+            height: 48px;
             object-fit: cover;
             border-radius: 6px;
             flex-shrink: 0;
@@ -175,8 +173,37 @@
             background: linear-gradient(90deg, rgba(20, 16, 30, 0.95) 0%, rgba(38, 22, 60, 0.85) 100%);
             border: 1px solid rgba(168, 85, 247, 0.3);
             border-radius: 12px;
-            padding: 8px 14px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            padding: 8px 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Offcanvas Drawer Style */
+        .offcanvas-dark {
+            background-color: #100c18 !important;
+            border-left: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+        .offcanvas-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 0.92rem;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            border: 1px solid transparent;
+            cursor: pointer;
+            width: 100%;
+            background: transparent;
+            text-align: left;
+        }
+        .offcanvas-menu-item:hover {
+            background-color: var(--bg-surface-hover);
+            border-color: rgba(168, 85, 247, 0.3);
+            color: #ffffff;
         }
 
         /* Share Card Preview */
@@ -186,7 +213,7 @@
             border-radius: 16px;
             padding: 24px;
             color: #ffffff;
-            width: 360px;
+            width: 340px;
             margin: 0 auto;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
         }
@@ -196,8 +223,8 @@
             position: fixed;
             bottom: 20px;
             right: 20px;
-            width: 46px;
-            height: 46px;
+            width: 44px;
+            height: 44px;
             border-radius: 50%;
             background-color: var(--bg-surface);
             border: 1px solid var(--brand-primary);
@@ -214,22 +241,6 @@
             background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
             color: #ffffff;
             transform: scale(1.1);
-            box-shadow: 0 8px 25px rgba(168, 85, 247, 0.6);
-        }
-
-        /* Responsive tweaks */
-        @media (max-width: 576px) {
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-            .card-uniform {
-                height: 74px;
-                padding: 6px 10px;
-            }
-            .img-thumb {
-                width: 44px;
-                height: 44px;
-            }
         }
     </style>
 </head>
@@ -237,37 +248,33 @@
 
     <!-- Header / Navbar -->
     <nav class="navbar border-bottom border-secondary border-opacity-10 py-2 sticky-top" style="background-color: rgba(12, 10, 18, 0.95); backdrop-filter: blur(12px);">
-        <div class="container-xl d-flex align-items-center justify-content-between">
+        <div class="app-container d-flex align-items-center justify-content-between">
             <a class="navbar-brand d-flex align-items-center gap-2 fw-bold text-white text-decoration-none" href="#">
                 <img src="/logo.png" alt="SpotiTracker Logo">
-                <span class="fs-5 tracking-wide">Spotify<span style="color: var(--brand-primary);">Tracker</span></span>
+                <span class="fs-6 tracking-wide">Spotify<span style="color: var(--brand-primary);">Tracker</span></span>
             </a>
 
-            <!-- User Profile (Visible when logged in) -->
-            <div id="user-profile" class="d-none d-flex align-items-center gap-2">
-                <img id="user-img" src="" alt="Avatar" class="img-avatar rounded-circle border" style="width: 34px; height: 34px; object-fit: cover; border-color: var(--brand-primary) !important;">
-                <div class="d-none d-sm-block text-start leading-tight">
-                    <div id="user-name" class="fw-bold small text-truncate" style="max-width: 140px;"></div>
-                    <small id="user-followers" class="text-secondary" style="font-size: 0.72rem;"></small>
-                </div>
-                <button id="btn-logout" class="btn btn-outline-secondary btn-sm py-1 px-2.5 ms-1 rounded-pill" style="font-size: 0.75rem;" title="Cerrar Sesión">
-                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <!-- Right Navbar Controls (Avatar + Burger Menu Button) -->
+            <div id="nav-actions" class="d-none d-flex align-items-center gap-2">
+                <img id="user-img" src="" alt="Avatar" class="img-avatar rounded-circle border" style="width: 32px; height: 32px; object-fit: cover; border-color: var(--brand-primary) !important;">
+                <button class="btn btn-outline-brand rounded-pill px-2.5 py-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#burgerMenu" aria-controls="burgerMenu" title="Abrir Menú">
+                    <i class="fa-solid fa-bars fs-6"></i>
                 </button>
             </div>
         </div>
     </nav>
 
     <!-- Main Container -->
-    <div class="container-xl py-3 flex-grow-1">
+    <div class="app-container py-3 flex-grow-1">
 
         <!-- Login View -->
         <div id="login-view" class="text-center py-5 my-auto">
             <div class="mb-4">
-                <img src="/logo.png" alt="Logo" style="width: 110px; height: 110px; filter: drop-shadow(0 0 25px var(--brand-glow));" class="rounded-4">
+                <img src="/logo.png" alt="Logo" style="width: 100px; height: 100px; filter: drop-shadow(0 0 25px var(--brand-glow));" class="rounded-4">
             </div>
-            <h1 class="fw-bold mb-2 display-6">Tus Estadísticas & ADN Musical</h1>
-            <p class="text-secondary fs-6 mb-4 mx-auto" style="max-width: 440px;">
-                Descubre tus tops, analiza el ADN de tu música, desglose de géneros y genera playlists automáticas.
+            <h1 class="fw-bold mb-2 display-6">Tus Estadísticas de Spotify</h1>
+            <p class="text-secondary fs-6 mb-4 mx-auto" style="max-width: 420px;">
+                Descubre tus tops de canciones y artistas, streams reales sincronizados con Last.fm y genera playlists automáticas.
             </p>
             <div class="d-flex flex-column align-items-center gap-2">
                 <button id="btn-login" class="btn btn-brand btn-lg shadow">
@@ -285,47 +292,38 @@
             <!-- Currently Playing Bar -->
             <div id="currently-playing-container" class="mb-3"></div>
 
-            <!-- 1. Main Navigation Pill Tabs (Scrollable) -->
-            <div class="pill-scroll-wrapper mb-3">
-                <div class="pill-group" id="content-type-tabs">
-                    <button class="pill-btn active" data-type="tracks"><i class="fa-solid fa-music me-1.5"></i> Canciones</button>
-                    <button class="pill-btn" data-type="artists"><i class="fa-solid fa-user-group me-1.5"></i> Artistas</button>
-                    <button class="pill-btn" data-type="recent"><i class="fa-solid fa-clock-rotate-left me-1.5"></i> Recientes</button>
-                    <button class="pill-btn" data-type="dna"><i class="fa-solid fa-dna me-1.5 text-warning"></i> ADN Musical</button>
-                    <button class="pill-btn" data-type="genres"><i class="fa-solid fa-chart-pie me-1.5" style="color: var(--brand-primary);"></i> Géneros</button>
-                </div>
+            <!-- Last.fm Sync Banner (If connected) -->
+            <div id="lastfm-banner" class="d-none align-items-center justify-content-between p-2 px-3 mb-2 rounded border border-danger border-opacity-25" style="background-color: rgba(220, 38, 38, 0.08); font-size: 0.78rem;">
+                <span class="text-danger fw-semibold">
+                    <i class="fa-brands fa-lastfm me-1"></i> Conectado con Last.fm: <span id="lastfm-banner-user" class="text-white"></span>
+                </span>
+                <span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25">Streams Activos</span>
             </div>
 
-            <!-- 2. Secondary Bar: Time Range, Limits & Actions -->
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-                <!-- Time Range & Limit (Left) -->
-                <div id="time-range-container" class="d-flex align-items-center gap-2 flex-wrap">
-                    <div class="btn-group btn-group-sm" id="time-range-tabs" role="group">
-                        <button type="button" class="btn btn-outline-brand active py-1 px-2.5 range-btn" data-range="short_term">4 Semanas</button>
-                        <button type="button" class="btn btn-outline-brand py-1 px-2.5 range-btn" data-range="medium_term">6 Meses</button>
-                        <button type="button" class="btn btn-outline-brand py-1 px-2.5 range-btn" data-range="long_term">Histórico</button>
-                    </div>
+            <!-- 1. Segmented Primary Content Tabs (Clean 3 views) -->
+            <div class="segmented-tabs mb-2" id="content-type-tabs">
+                <button class="segmented-tab active" data-type="tracks"><i class="fa-solid fa-music me-1"></i> Canciones</button>
+                <button class="segmented-tab" data-type="artists"><i class="fa-solid fa-user-group me-1"></i> Artistas</button>
+                <button class="segmented-tab" data-type="recent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</button>
+            </div>
 
-                    <div id="limit-container" class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-brand py-1 px-2.5 limit-btn" data-limit="20">Top 20</button>
-                        <button type="button" class="btn btn-outline-brand py-1 px-2.5 active limit-btn" data-limit="50">Top 50</button>
-                    </div>
+            <!-- 2. Sub-Filters Bar: Ranges & Limits (Clean single row) -->
+            <div id="time-range-container" class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                <div class="btn-group btn-group-sm" id="time-range-tabs" role="group">
+                    <button type="button" class="btn btn-outline-brand active py-1 px-2.5 range-btn" data-range="short_term">4 Semanas</button>
+                    <button type="button" class="btn btn-outline-brand py-1 px-2.5 range-btn" data-range="medium_term">6 Meses</button>
+                    <button type="button" class="btn btn-outline-brand py-1 px-2.5 range-btn" data-range="long_term">Histórico</button>
                 </div>
 
-                <!-- Action Buttons: Save Playlist & Share Card (Right) -->
-                <div class="d-flex align-items-center gap-2 ms-auto">
-                    <button id="btn-save-playlist" class="btn btn-sm btn-outline-success py-1 px-3 rounded-pill text-nowrap" title="Guardar lista en tu Spotify">
-                        <i class="fa-solid fa-plus me-1"></i> Guardar Playlist
-                    </button>
-                    <button id="btn-open-share-modal" class="btn btn-sm btn-brand py-1 px-3 text-nowrap" title="Crear imagen para compartir">
-                        <i class="fa-solid fa-share-nodes me-1"></i> Tarjeta
-                    </button>
+                <div id="limit-container" class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn btn-outline-brand py-1 px-2.5 limit-btn" data-limit="20">Top 20</button>
+                    <button type="button" class="btn btn-outline-brand py-1 px-2.5 active limit-btn" data-limit="50">Top 50</button>
                 </div>
             </div>
 
             <!-- 3. Date Filter (Only for Recientes) -->
             <div id="recent-date-filter" class="d-none d-flex align-items-center gap-2 flex-wrap mb-3 p-2 px-3 rounded border border-secondary border-opacity-10" style="background-color: var(--bg-surface);">
-                <small class="text-secondary fw-semibold"><i class="fa-solid fa-calendar me-1"></i> Fecha:</small>
+                <small class="text-secondary fw-semibold"><i class="fa-solid fa-calendar me-1"></i> Filtrar fecha:</small>
                 <button class="btn btn-sm btn-outline-brand active date-filter-btn py-0 px-2.5" data-filter="all">Todas</button>
                 <button class="btn btn-sm btn-outline-brand date-filter-btn py-0 px-2.5" data-filter="today">Hoy</button>
                 <button class="btn btn-sm btn-outline-brand date-filter-btn py-0 px-2.5" data-filter="yesterday">Ayer</button>
@@ -338,60 +336,117 @@
             <!-- Loader -->
             <div id="loader" class="text-center py-5 d-none">
                 <div class="spinner-border text-primary" style="color: var(--brand-primary) !important;" role="status">
-                    <span class="visually-hidden">Cargando datos...</span>
+                    <span class="visually-hidden">Cargando...</span>
                 </div>
             </div>
 
-            <!-- Stats List / Grid Container (For Tracks, Artists, Recent) -->
+            <!-- Stats List / Grid Container (Single column orderly list) -->
             <div id="stats-list" class="stats-grid"></div>
-
-            <!-- DNA View Container -->
-            <div id="dna-container" class="d-none">
-                <div class="row g-3">
-                    <div class="col-12 col-lg-6">
-                        <div class="p-3 rounded-3 border border-secondary border-opacity-10 h-100" style="background-color: var(--bg-surface);">
-                            <h6 class="fw-bold mb-3 d-flex align-items-center gap-2" style="color: var(--brand-primary);">
-                                <i class="fa-solid fa-dna"></i> Radar de Emociones & Audio
-                            </h6>
-                            <div style="position: relative; height: 280px; width: 100%;">
-                                <canvas id="dnaRadarChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-lg-6">
-                        <div class="p-3 rounded-3 border border-secondary border-opacity-10 h-100 d-flex flex-column justify-content-between" style="background-color: var(--bg-surface);">
-                            <div>
-                                <h6 class="fw-bold mb-3"><i class="fa-solid fa-chart-simple text-warning me-2"></i>Métricas de tu Top</h6>
-                                <div id="dna-bars" class="d-flex flex-column gap-3"></div>
-                            </div>
-                            <div id="dna-summary" class="mt-3 p-2.5 px-3 rounded text-secondary" style="background-color: rgba(168, 85, 247, 0.08); font-size: 0.82rem;"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Genres View Container -->
-            <div id="genres-container" class="d-none">
-                <div class="row g-3">
-                    <div class="col-12 col-lg-6">
-                        <div class="p-3 rounded-3 border border-secondary border-opacity-10 h-100 text-center" style="background-color: var(--bg-surface);">
-                            <h6 class="fw-bold mb-3 text-start"><i class="fa-solid fa-pie-chart text-info me-2"></i>Distribución de Géneros</h6>
-                            <div style="position: relative; height: 280px; width: 100%;">
-                                <canvas id="genresDoughnutChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-lg-6">
-                        <div class="p-3 rounded-3 border border-secondary border-opacity-10 h-100" style="background-color: var(--bg-surface);">
-                            <h6 class="fw-bold mb-3"><i class="fa-solid fa-list-ol text-success me-2"></i>Tus Géneros Dominantes</h6>
-                            <div id="genres-list" class="d-flex flex-column gap-2"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
         </div>
 
+    </div>
+
+    <!-- Offcanvas Burger Menu Drawer -->
+    <div class="offcanvas offcanvas-end offcanvas-dark" tabindex="-1" id="burgerMenu" aria-labelledby="burgerMenuLabel">
+        <div class="offcanvas-header border-bottom border-secondary border-opacity-10 py-3">
+            <div class="d-flex align-items-center gap-2">
+                <img src="/logo.png" style="width: 32px; height: 32px; object-fit: contain;">
+                <span class="fw-bold fs-6">Spotify<span style="color: var(--brand-primary);">Tracker</span></span>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body d-flex flex-column justify-content-between p-3">
+            <!-- Top Section -->
+            <div class="d-flex flex-column gap-2">
+                <!-- User card in Drawer -->
+                <div class="p-3 rounded border border-secondary border-opacity-10 d-flex align-items-center gap-3 mb-3" style="background-color: var(--bg-surface);">
+                    <img id="drawer-user-img" src="" class="rounded-circle border" style="width: 44px; height: 44px; object-fit: cover; border-color: var(--brand-primary) !important;">
+                    <div class="overflow-hidden">
+                        <div id="drawer-user-name" class="fw-bold text-truncate" style="font-size: 0.95rem;">Usuario</div>
+                        <small id="drawer-user-followers" class="text-secondary" style="font-size: 0.78rem;"></small>
+                    </div>
+                </div>
+
+                <div class="text-secondary px-2 mb-1" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Acciones & Herramientas</div>
+
+                <button class="offcanvas-menu-item" id="menu-save-playlist" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-plus text-success fs-5"></i>
+                    <div>
+                        <div>Guardar Top como Playlist</div>
+                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Crear playlist en tu cuenta de Spotify</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-open-share" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-share-nodes text-warning fs-5"></i>
+                    <div>
+                        <div>Compartir Tarjeta</div>
+                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Generar imagen descargable de tu Top</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-lastfm-connect" data-bs-dismiss="offcanvas">
+                    <i class="fa-brands fa-lastfm text-danger fs-5"></i>
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span>Conectar con Last.fm</span>
+                            <span id="drawer-lastfm-status" class="badge bg-secondary bg-opacity-25" style="font-size: 0.65rem;">Opcional</span>
+                        </div>
+                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Ver conteo real de streams (scrobbles)</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-install-app" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-download fs-5" style="color: var(--brand-primary);"></i>
+                    <div>
+                        <div>Descargar App Web (PWA)</div>
+                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Instalar acceso directo en tu celular o PC</small>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Bottom Section -->
+            <div class="border-top border-secondary border-opacity-10 pt-3">
+                <button class="offcanvas-menu-item text-danger" id="menu-logout" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-arrow-right-from-bracket fs-5"></i>
+                    <span>Cerrar Sesión</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Conectar Last.fm -->
+    <div class="modal fade" id="lastFmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-secondary border-opacity-25" style="background-color: var(--bg-surface);">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2">
+                    <h6 class="modal-title fw-bold text-danger"><i class="fa-brands fa-lastfm me-2"></i>Conectar con Last.fm</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-secondary small mb-3">
+                        Last.fm registra tus reproducciones exactas de Spotify en tiempo real. Al conectar tu cuenta, verás los <strong>streams y scrobbles exactos</strong> al lado de cada canción y artista.
+                    </p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Tu usuario de Last.fm:</label>
+                        <input type="text" id="lastfm-username-input" class="form-control form-control-sm bg-black text-white border-secondary" placeholder="Ej: Vrak_23" value="Vrak_23">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">API Key de Last.fm (gratuita e instantánea):</label>
+                        <input type="text" id="lastfm-apikey-input" class="form-control form-control-sm bg-black text-white border-secondary" placeholder="Pega tu API Key de Last.fm">
+                        <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">
+                            ¿No tienes una? Consíguela en 10 segundos en <a href="https://www.last.fm/api/account/create" target="_blank" class="text-danger">last.fm/api/account/create</a> (solo ingresa cualquier nombre de app y dale enviar).
+                        </small>
+                    </div>
+                    <div id="lastfm-error" class="alert alert-danger d-none py-1.5 px-2.5 small mb-0"></div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 justify-content-between">
+                    <button type="button" id="btn-lastfm-disconnect" class="btn btn-sm btn-outline-danger d-none">Desconectar</button>
+                    <button type="button" id="btn-lastfm-save" class="btn btn-sm btn-danger ms-auto px-3">Guardar y Sincronizar</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal: Share Card -->
@@ -436,7 +491,7 @@
 
     <!-- Floating Corner Download Button (Always visible inside dashboard) -->
     <button id="btn-install-fab" class="btn-floating-corner d-none" title="Descargar / Instalar App Web">
-        <i class="fa-solid fa-download fs-5"></i>
+        <i class="fa-solid fa-download fs-6"></i>
     </button>
 
     <!-- Modal: Instrucciones de Instalación Web / PWA -->

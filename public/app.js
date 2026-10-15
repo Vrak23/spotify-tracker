@@ -11,8 +11,9 @@ let currentTracksCache = [];
 let currentArtistsCache = [];
 let userProfileData = null;
 
-let dnaChartInstance = null;
-let genresChartInstance = null;
+// Last.fm Data Cache
+let lastFmTracksMap = {}; // key: `${track}::${artist}` -> playcount
+let lastFmArtistsMap = {}; // key: `${artist}` -> playcount
 
 // PWA: Registrar Service Worker
 if ('serviceWorker' in navigator) {
@@ -26,27 +27,40 @@ if ('serviceWorker' in navigator) {
 // Elementos DOM
 const loginView = document.getElementById('login-view');
 const dashboardView = document.getElementById('dashboard-view');
-const userProfile = document.getElementById('user-profile');
-const userName = document.getElementById('user-name');
+const navActions = document.getElementById('nav-actions');
 const userImg = document.getElementById('user-img');
-const userFollowers = document.getElementById('user-followers');
+const drawerUserImg = document.getElementById('drawer-user-img');
+const drawerUserName = document.getElementById('drawer-user-name');
+const drawerUserFollowers = document.getElementById('drawer-user-followers');
 const btnLogin = document.getElementById('btn-login');
-const btnLogout = document.getElementById('btn-logout');
 const statsList = document.getElementById('stats-list');
 const loader = document.getElementById('loader');
 const currentlyPlayingContainer = document.getElementById('currently-playing-container');
 const timeRangeContainer = document.getElementById('time-range-container');
-const limitContainer = document.getElementById('limit-container');
 const recentDateFilter = document.getElementById('recent-date-filter');
 const recentDatePicker = document.getElementById('recent-date-picker');
-const dnaContainer = document.getElementById('dna-container');
-const genresContainer = document.getElementById('genres-container');
 
-// Botones de acciones
-const btnSavePlaylist = document.getElementById('btn-save-playlist');
-const btnOpenShareModal = document.getElementById('btn-open-share-modal');
-const btnDownloadCard = document.getElementById('btn-download-card');
+// Last.fm DOM
+const lastFmBanner = document.getElementById('lastfm-banner');
+const lastFmBannerUser = document.getElementById('lastfm-banner-user');
+const drawerLastFmStatus = document.getElementById('drawer-lastfm-status');
+const lastFmModalEl = document.getElementById('lastFmModal');
+const lastFmUsernameInput = document.getElementById('lastfm-username-input');
+const lastFmApiKeyInput = document.getElementById('lastfm-apikey-input');
+const btnLastFmSave = document.getElementById('btn-lastfm-save');
+const btnLastFmDisconnect = document.getElementById('btn-lastfm-disconnect');
+const lastFmError = document.getElementById('lastfm-error');
+
+// Menu Drawer Items
+const menuSavePlaylist = document.getElementById('menu-save-playlist');
+const menuOpenShare = document.getElementById('menu-open-share');
+const menuLastFmConnect = document.getElementById('menu-lastfm-connect');
+const menuInstallApp = document.getElementById('menu-install-app');
+const menuLogout = document.getElementById('menu-logout');
+
+// Share Modal Elements
 const shareCardModal = document.getElementById('shareCardModal');
+const btnDownloadCard = document.getElementById('btn-download-card');
 
 // Botones de instalación PWA
 let deferredPrompt = null;
@@ -167,6 +181,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     setupEventListeners();
+    initLastFmState();
 });
 
 function formatDuration(ms) {
@@ -208,19 +223,10 @@ function setupEventListeners() {
         btnLogin.addEventListener('click', redirectToSpotifyLogin);
     }
 
-    if (btnLogout) {
-        btnLogout.addEventListener('click', () => {
-            localStorage.removeItem('spotify_access_token');
-            localStorage.removeItem('code_verifier');
-            accessToken = null;
-            showLogin();
-        });
-    }
-
-    // Pestañas principales de tipo de contenido (.pill-btn)
-    document.querySelectorAll('#content-type-tabs .pill-btn').forEach(btn => {
+    // Segmented Content Tabs (Canciones, Artistas, Recientes)
+    document.querySelectorAll('#content-type-tabs .segmented-tab').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            document.querySelectorAll('#content-type-tabs .pill-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#content-type-tabs .segmented-tab').forEach(b => b.classList.remove('active'));
             const target = e.currentTarget;
             target.classList.add('active');
             currentType = target.getAttribute('data-type');
@@ -272,14 +278,29 @@ function setupEventListeners() {
         });
     }
 
-    // Guardar Playlist
-    if (btnSavePlaylist) {
-        btnSavePlaylist.addEventListener('click', handleSavePlaylist);
+    // Acciones del Burger Menu
+    if (menuSavePlaylist) {
+        menuSavePlaylist.addEventListener('click', handleSavePlaylist);
+    }
+    if (menuOpenShare) {
+        menuOpenShare.addEventListener('click', prepareShareCard);
+    }
+    if (menuLastFmConnect) {
+        menuLastFmConnect.addEventListener('click', openLastFmModal);
+    }
+    if (menuInstallApp) {
+        menuInstallApp.addEventListener('click', triggerInstallFlow);
+    }
+    if (menuLogout) {
+        menuLogout.addEventListener('click', handleLogout);
     }
 
-    // Modal Tarjeta
-    if (btnOpenShareModal) {
-        btnOpenShareModal.addEventListener('click', prepareShareCard);
+    // Modal Last.fm
+    if (btnLastFmSave) {
+        btnLastFmSave.addEventListener('click', handleSaveLastFm);
+    }
+    if (btnLastFmDisconnect) {
+        btnLastFmDisconnect.addEventListener('click', handleDisconnectLastFm);
     }
 
     // Descargar Tarjeta PNG
@@ -287,7 +308,7 @@ function setupEventListeners() {
         btnDownloadCard.addEventListener('click', handleDownloadCard);
     }
 
-    // Instalación PWA (Login y Floating FAB)
+    // Instalación PWA
     if (btnInstallLogin) {
         btnInstallLogin.addEventListener('click', triggerInstallFlow);
     }
@@ -296,33 +317,28 @@ function setupEventListeners() {
     }
 }
 
+function handleLogout() {
+    localStorage.removeItem('spotify_access_token');
+    localStorage.removeItem('code_verifier');
+    accessToken = null;
+    showLogin();
+}
+
 function switchContentTypeView() {
     statsList.classList.remove('d-none');
-    dnaContainer.classList.add('d-none');
-    genresContainer.classList.add('d-none');
     recentDateFilter.classList.add('d-none');
     timeRangeContainer.classList.remove('d-none');
-    limitContainer.classList.remove('d-none');
 
     if (currentType === 'recent') {
         timeRangeContainer.classList.add('d-none');
-        limitContainer.classList.add('d-none');
         recentDateFilter.classList.remove('d-none');
-    } else if (currentType === 'dna') {
-        statsList.classList.add('d-none');
-        limitContainer.classList.add('d-none');
-        dnaContainer.classList.remove('d-none');
-    } else if (currentType === 'genres') {
-        statsList.classList.add('d-none');
-        limitContainer.classList.add('d-none');
-        genresContainer.classList.remove('d-none');
     }
 }
 
 function showLogin() {
     loginView.classList.remove('d-none');
     dashboardView.classList.add('d-none');
-    userProfile.classList.add('d-none');
+    navActions.classList.add('d-none');
     if (btnInstallFab) btnInstallFab.classList.add('d-none');
 
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -334,7 +350,7 @@ function showLogin() {
 async function showDashboard() {
     loginView.classList.add('d-none');
     dashboardView.classList.remove('d-none');
-    userProfile.classList.remove('d-none');
+    navActions.classList.remove('d-none');
 
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     if (!isStandalone && btnInstallFab) {
@@ -366,11 +382,6 @@ async function spotifyFetch(endpoint, options = {}) {
             return null;
         }
 
-        if (res.status === 403) {
-            console.warn(`Spotify API endpoint /${endpoint} devolvió 403 (restringido por Spotify)`);
-            return null;
-        }
-
         if (res.status === 204) return null;
         return await res.json();
     } catch (err) {
@@ -384,14 +395,12 @@ async function fetchUserProfile() {
     if (!data) return;
     userProfileData = data;
 
-    userName.textContent = data.display_name || 'Usuario';
-    userFollowers.textContent = `${data.followers ? data.followers.total : 0} seguidores`;
+    if (drawerUserName) drawerUserName.textContent = data.display_name || 'Usuario';
+    if (drawerUserFollowers) drawerUserFollowers.textContent = `${data.followers ? data.followers.total : 0} seguidores`;
     
-    if (data.images && data.images.length > 0) {
-        userImg.src = data.images[0].url;
-    } else {
-        userImg.src = 'https://via.placeholder.com/34?text=U';
-    }
+    const avatarUrl = data.images && data.images.length > 0 ? data.images[0].url : 'https://via.placeholder.com/34?text=U';
+    if (userImg) userImg.src = avatarUrl;
+    if (drawerUserImg) drawerUserImg.src = avatarUrl;
 }
 
 async function fetchCurrentlyPlaying() {
@@ -401,17 +410,17 @@ async function fetchCurrentlyPlaying() {
         const track = data.item;
         currentlyPlayingContainer.innerHTML = `
             <div class="now-playing-bar d-flex align-items-center gap-3">
-                <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/44'}" class="img-thumb" style="width: 42px; height: 42px;" alt="Cover">
+                <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/44'}" class="img-thumb" style="width: 40px; height: 40px;" alt="Cover">
                 <div class="flex-grow-1 overflow-hidden" style="min-width: 0;">
                     <div class="d-flex align-items-center gap-2">
                         <small class="fw-bold text-uppercase tracking-wider" style="font-size: 0.65rem; color: var(--brand-primary);">
                             <i class="fa-solid fa-volume-high me-1"></i> Escuchando ahora
                         </small>
                     </div>
-                    <div class="fw-bold text-truncate" style="font-size: 0.88rem;">${track.name}</div>
-                    <small class="text-secondary text-truncate d-block" style="font-size: 0.75rem;">${track.artists.map(a => a.name).join(', ')}</small>
+                    <div class="fw-bold text-truncate" style="font-size: 0.85rem;">${track.name}</div>
+                    <small class="text-secondary text-truncate d-block" style="font-size: 0.73rem;">${track.artists.map(a => a.name).join(', ')}</small>
                 </div>
-                <a href="${track.external_urls?.spotify || '#'}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-brand rounded-pill py-1 px-3 d-none d-sm-inline-block text-nowrap" style="font-size: 0.75rem;">
+                <a href="${track.external_urls?.spotify || '#'}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-brand rounded-pill py-0.5 px-2.5 d-none d-sm-inline-block text-nowrap" style="font-size: 0.72rem;">
                     <i class="fa-brands fa-spotify me-1"></i> Abrir
                 </a>
             </div>
@@ -425,12 +434,15 @@ async function loadStats() {
     statsList.innerHTML = '';
     loader.classList.remove('d-none');
 
+    // Cargar datos de Last.fm si está configurado para mostrar streams exactos
+    await fetchLastFmDataIfNeeded();
+
     // 1. Historial Reciente
     if (currentType === 'recent') {
         const data = await spotifyFetch('me/player/recently-played?limit=50');
         loader.classList.add('d-none');
         if (!data || !data.items || data.items.length === 0) {
-            statsList.innerHTML = '<div class="col-12 text-center text-secondary py-5">No se encontraron reproducciones recientes.</div>';
+            statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron reproducciones recientes.</div>';
             return;
         }
         rawRecentItems = data.items;
@@ -438,27 +450,13 @@ async function loadStats() {
         return;
     }
 
-    // 2. ADN Musical
-    if (currentType === 'dna') {
-        await loadDNAStats();
-        loader.classList.add('d-none');
-        return;
-    }
-
-    // 3. Géneros
-    if (currentType === 'genres') {
-        await loadGenresStats();
-        loader.classList.add('d-none');
-        return;
-    }
-
-    // 4. Canciones o Artistas
+    // 2. Canciones o Artistas
     const endpoint = `me/top/${currentType}?time_range=${currentRange}&limit=${currentLimit}`;
     const data = await spotifyFetch(endpoint);
 
     loader.classList.add('d-none');
     if (!data || !data.items || data.items.length === 0) {
-        statsList.innerHTML = '<div class="col-12 text-center text-secondary py-5">No se encontraron datos para este rango de fechas.</div>';
+        statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron datos para este rango de fechas.</div>';
         return;
     }
 
@@ -473,7 +471,7 @@ async function loadStats() {
 
 function applyRecentFilter() {
     if (!rawRecentItems || rawRecentItems.length === 0) {
-        statsList.innerHTML = '<div class="col-12 text-center text-secondary py-5">No hay canciones recientes.</div>';
+        statsList.innerHTML = '<div class="text-center text-secondary py-5">No hay canciones recientes.</div>';
         return;
     }
 
@@ -495,6 +493,10 @@ function applyRecentFilter() {
     renderRecent(filtered);
 }
 
+function normalizeKey(str) {
+    return (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function renderTracks(tracks) {
     statsList.innerHTML = '';
     tracks.forEach((track, index) => {
@@ -505,15 +507,20 @@ function renderTracks(tracks) {
         const spotifyUrl = track.external_urls?.spotify || '#';
         const albumYear = track.album?.release_date ? track.album.release_date.substring(0, 4) : '';
 
+        // Buscar playcount en Last.fm
+        const mainArtist = track.artists[0]?.name || '';
+        const searchKey = `${normalizeKey(track.name)}::${normalizeKey(mainArtist)}`;
+        const playcount = lastFmTracksMap[searchKey] || null;
+
         item.innerHTML = `
-            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 24px; font-size: 0.82rem;">#${index + 1}</span>
-            <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/50'}" class="img-thumb me-2.5" alt="Cover">
+            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 22px; font-size: 0.8rem;">#${index + 1}</span>
+            <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/48'}" class="img-thumb me-2.5" alt="Cover">
             <div class="overflow-hidden flex-grow-1 me-2" style="min-width: 0;">
                 <div class="fw-bold text-truncate" style="font-size: 0.85rem;" title="${track.name}">${track.name}</div>
-                <small class="text-secondary text-truncate d-block" style="font-size: 0.74rem;">${track.artists.map(a => a.name).join(', ')}</small>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${track.artists.map(a => a.name).join(', ')}</small>
                 <div class="d-flex align-items-center gap-2 mt-0.5 text-secondary" style="font-size: 0.68rem;">
                     <span><i class="fa-regular fa-clock me-1"></i>${duration}</span>
-                    ${popularity !== null ? `<span>•</span><span style="color: var(--brand-primary);"><i class="fa-solid fa-fire me-1"></i>${popularity}%</span>` : ''}
+                    ${playcount !== null ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25" style="font-size: 0.65rem;"><i class="fa-solid fa-headphones me-1"></i>${playcount} streams</span>` : (popularity !== null ? `<span>•</span><span style="color: var(--brand-primary);"><i class="fa-solid fa-fire me-1"></i>${popularity}%</span>` : '')}
                     ${albumYear ? `<span>•</span><span>${albumYear}</span>` : ''}
                 </div>
             </div>
@@ -535,15 +542,19 @@ function renderArtists(artists) {
         const genres = artist.genres?.slice(0, 2).join(', ') || 'Artista';
         const spotifyUrl = artist.external_urls?.spotify || '#';
 
+        // Buscar playcount del artista en Last.fm
+        const artistKey = normalizeKey(artist.name);
+        const playcount = lastFmArtistsMap[artistKey] || null;
+
         item.innerHTML = `
-            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 24px; font-size: 0.82rem;">#${index + 1}</span>
-            <img src="${artist.images[0]?.url || 'https://via.placeholder.com/50'}" class="img-thumb rounded-circle me-2.5" alt="Artist">
+            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 22px; font-size: 0.8rem;">#${index + 1}</span>
+            <img src="${artist.images[0]?.url || 'https://via.placeholder.com/48'}" class="img-thumb rounded-circle me-2.5" alt="Artist">
             <div class="overflow-hidden flex-grow-1 me-2" style="min-width: 0;">
                 <div class="fw-bold text-truncate" style="font-size: 0.85rem;" title="${artist.name}">${artist.name}</div>
-                <small class="text-secondary text-capitalize text-truncate d-block" style="font-size: 0.74rem;">${genres}</small>
+                <small class="text-secondary text-capitalize text-truncate d-block" style="font-size: 0.72rem;">${genres}</small>
                 <div class="d-flex align-items-center gap-2 mt-0.5 text-secondary" style="font-size: 0.68rem;">
                     <span><i class="fa-solid fa-users me-1"></i>${followers}</span>
-                    ${popularity !== null ? `<span>•</span><span style="color: var(--brand-primary);"><i class="fa-solid fa-fire me-1"></i>${popularity}%</span>` : ''}
+                    ${playcount !== null ? `<span class="badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25" style="font-size: 0.65rem;"><i class="fa-solid fa-headphones me-1"></i>${playcount} scrobbles</span>` : (popularity !== null ? `<span>•</span><span style="color: var(--brand-primary);"><i class="fa-solid fa-fire me-1"></i>${popularity}%</span>` : '')}
                 </div>
             </div>
             <a href="${spotifyUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-brand btn-sm py-1 px-2 rounded-circle flex-shrink-0" title="Ver en Spotify">
@@ -557,7 +568,7 @@ function renderArtists(artists) {
 function renderRecent(items) {
     statsList.innerHTML = '';
     if (!items || items.length === 0) {
-        statsList.innerHTML = '<div class="col-12 text-center text-secondary py-5">No se encontraron reproducciones para la fecha seleccionada.</div>';
+        statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron reproducciones para la fecha seleccionada.</div>';
         return;
     }
 
@@ -570,11 +581,11 @@ function renderRecent(items) {
         const card = document.createElement('div');
         card.className = 'card-uniform';
         card.innerHTML = `
-            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 24px; font-size: 0.82rem;">#${index + 1}</span>
-            <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/50'}" class="img-thumb me-2.5" alt="Cover">
+            <span class="fw-bold text-secondary text-center me-2 flex-shrink-0" style="width: 22px; font-size: 0.8rem;">#${index + 1}</span>
+            <img src="${track.album.images[0]?.url || 'https://via.placeholder.com/48'}" class="img-thumb me-2.5" alt="Cover">
             <div class="overflow-hidden flex-grow-1 me-2" style="min-width: 0;">
                 <div class="fw-bold text-truncate" style="font-size: 0.85rem;" title="${track.name}">${track.name}</div>
-                <small class="text-secondary text-truncate d-block" style="font-size: 0.74rem;">${track.artists.map(a => a.name).join(', ')}</small>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${track.artists.map(a => a.name).join(', ')}</small>
                 <div class="d-flex align-items-center gap-2 mt-0.5 text-secondary" style="font-size: 0.68rem;">
                     <span style="color: var(--brand-primary);"><i class="fa-regular fa-clock me-1"></i>${playedAt}</span>
                     <span>•</span>
@@ -590,274 +601,149 @@ function renderRecent(items) {
 }
 
 // ----------------------------------------------------
-// FEATURE 1: ADN MUSICAL (Audio Features & Inferencia)
+// LAST.FM INTEGRATION (STREAMS & SCROBBLES REALES)
 // ----------------------------------------------------
-async function loadDNAStats() {
-    const barsContainer = document.getElementById('dna-bars');
-    const summaryContainer = document.getElementById('dna-summary');
-    barsContainer.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm me-2 text-primary"></span>Analizando acústica y emociones...</div>';
+function initLastFmState() {
+    const user = localStorage.getItem('lastfm_user');
+    const key = localStorage.getItem('lastfm_key');
 
-    // Obtener Top Canciones y Artistas simultáneamente
-    const [tracksData, artistsData] = await Promise.all([
-        spotifyFetch(`me/top/tracks?time_range=${currentRange}&limit=50`),
-        spotifyFetch(`me/top/artists?time_range=${currentRange}&limit=50`)
-    ]);
+    if (user && key) {
+        if (lastFmBanner) {
+            lastFmBanner.classList.remove('d-none');
+            lastFmBanner.classList.add('d-flex');
+        }
+        if (lastFmBannerUser) lastFmBannerUser.textContent = user;
+        if (drawerLastFmStatus) {
+            drawerLastFmStatus.textContent = `@${user}`;
+            drawerLastFmStatus.className = 'badge bg-danger bg-opacity-25 text-danger border border-danger border-opacity-25';
+        }
+        if (btnLastFmDisconnect) btnLastFmDisconnect.classList.remove('d-none');
+    } else {
+        if (lastFmBanner) lastFmBanner.classList.add('d-none');
+        if (drawerLastFmStatus) {
+            drawerLastFmStatus.textContent = 'Opcional';
+            drawerLastFmStatus.className = 'badge bg-secondary bg-opacity-25';
+        }
+        if (btnLastFmDisconnect) btnLastFmDisconnect.classList.add('d-none');
+    }
+}
 
-    const tracks = tracksData?.items || [];
-    const artists = artistsData?.items || [];
+function openLastFmModal() {
+    const user = localStorage.getItem('lastfm_user') || 'Vrak_23';
+    const key = localStorage.getItem('lastfm_key') || '';
+    if (lastFmUsernameInput) lastFmUsernameInput.value = user;
+    if (lastFmApiKeyInput) lastFmApiKeyInput.value = key;
+    if (lastFmError) lastFmError.classList.add('d-none');
 
-    if (tracks.length === 0 && artists.length === 0) {
-        barsContainer.innerHTML = '<div class="text-center py-4 text-secondary">No se encontraron suficientes canciones para este periodo. Intenta seleccionando 6 Meses o Histórico.</div>';
+    const modal = new bootstrap.Modal(lastFmModalEl);
+    modal.show();
+}
+
+async function handleSaveLastFm() {
+    const user = lastFmUsernameInput.value.trim();
+    const key = lastFmApiKeyInput.value.trim();
+
+    if (!user || !key) {
+        if (lastFmError) {
+            lastFmError.textContent = 'Por favor ingresa tanto tu usuario como tu API Key de Last.fm.';
+            lastFmError.classList.remove('d-none');
+        }
         return;
     }
 
-    let avgDance = 72, avgEnergy = 76, avgValence = 64, avgAcoustic = 26, avgTempo = 124;
-    let usedNativeApi = false;
+    btnLastFmSave.disabled = true;
+    btnLastFmSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verificando...';
 
-    // Intentar endpoint nativo audio-features
-    const ids = tracks.map(t => t.id).filter(Boolean).slice(0, 50).join(',');
-    if (ids) {
-        try {
-            const featuresData = await spotifyFetch(`audio-features?ids=${ids}`);
-            if (featuresData && featuresData.audio_features && featuresData.audio_features.filter(Boolean).length > 0) {
-                const valid = featuresData.audio_features.filter(Boolean);
-                let totalDance = 0, totalEnergy = 0, totalValence = 0, totalAcoustic = 0, totalTempo = 0;
-                valid.forEach(f => {
-                    totalDance += f.danceability || 0;
-                    totalEnergy += f.energy || 0;
-                    totalValence += f.valence || 0;
-                    totalAcoustic += f.acousticness || 0;
-                    totalTempo += f.tempo || 0;
+    try {
+        // Probar llamada a Last.fm
+        const testRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopTracks&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&limit=1&format=json`);
+        const testData = await testRes.json();
+
+        if (testData.error) {
+            if (lastFmError) {
+                lastFmError.textContent = `Error de Last.fm: ${testData.message || 'API Key o usuario inválido'}`;
+                lastFmError.classList.remove('d-none');
+            }
+            btnLastFmSave.disabled = false;
+            btnLastFmSave.textContent = 'Guardar y Sincronizar';
+            return;
+        }
+
+        // Guardar credenciales
+        localStorage.setItem('lastfm_user', user);
+        localStorage.setItem('lastfm_key', key);
+        initLastFmState();
+
+        const modal = bootstrap.Modal.getInstance(lastFmModalEl);
+        if (modal) modal.hide();
+
+        alert(`¡Conectado exitosamente con Last.fm (@${user})!\nAhora verás tus streams reales sincronizados.`);
+        loadStats();
+    } catch (e) {
+        console.error(e);
+        if (lastFmError) {
+            lastFmError.textContent = 'Error al conectar con los servidores de Last.fm.';
+            lastFmError.classList.remove('d-none');
+        }
+    } finally {
+        btnLastFmSave.disabled = false;
+        btnLastFmSave.textContent = 'Guardar y Sincronizar';
+    }
+}
+
+function handleDisconnectLastFm() {
+    localStorage.removeItem('lastfm_user');
+    localStorage.removeItem('lastfm_key');
+    lastFmTracksMap = {};
+    lastFmArtistsMap = {};
+    initLastFmState();
+
+    const modal = bootstrap.Modal.getInstance(lastFmModalEl);
+    if (modal) modal.hide();
+
+    loadStats();
+}
+
+async function fetchLastFmDataIfNeeded() {
+    const user = localStorage.getItem('lastfm_user');
+    const key = localStorage.getItem('lastfm_key');
+    if (!user || !key) return;
+
+    let period = '1month';
+    if (currentRange === 'medium_term') period = '6month';
+    if (currentRange === 'long_term') period = 'overall';
+
+    try {
+        if (currentType === 'tracks') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopTracks&user=${encodeURIComponent(user)}&period=${period}&limit=100&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            if (data?.toptracks?.track) {
+                lastFmTracksMap = {};
+                data.toptracks.track.forEach(t => {
+                    const k = `${normalizeKey(t.name)}::${normalizeKey(t.artist?.name)}`;
+                    lastFmTracksMap[k] = t.playcount;
                 });
-                avgDance = Math.round((totalDance / valid.length) * 100);
-                avgEnergy = Math.round((totalEnergy / valid.length) * 100);
-                avgValence = Math.round((totalValence / valid.length) * 100);
-                avgAcoustic = Math.round((totalAcoustic / valid.length) * 100);
-                avgTempo = Math.round(totalTempo / valid.length);
-                usedNativeApi = true;
             }
-        } catch (e) {
-            console.warn('Endpoint audio-features no disponible.');
-        }
-    }
-
-    // Inferencia acústica avanzada por géneros y perfiles de tus artistas favoritos
-    if (!usedNativeApi) {
-        const genres = [];
-        artists.forEach(a => (a.genres || []).forEach(g => genres.push(g.toLowerCase())));
-
-        let danceScore = 70, energyScore = 72, valenceScore = 65, acousticScore = 24, tempoEst = 122;
-
-        genres.forEach(g => {
-            if (g.includes('reggaeton') || g.includes('latin') || g.includes('urbano') || g.includes('dembow') || g.includes('cumbia')) {
-                danceScore += 8; energyScore += 6; valenceScore += 8; acousticScore -= 4; tempoEst = 102;
-            } else if (g.includes('rock') || g.includes('metal') || g.includes('punk')) {
-                danceScore -= 4; energyScore += 14; acousticScore -= 6; tempoEst = 136;
-            } else if (g.includes('electronic') || g.includes('dance') || g.includes('house') || g.includes('edm')) {
-                danceScore += 12; energyScore += 12; valenceScore += 6; acousticScore -= 10; tempoEst = 128;
-            } else if (g.includes('pop')) {
-                danceScore += 6; energyScore += 4; valenceScore += 5;
-            } else if (g.includes('hip hop') || g.includes('rap') || g.includes('trap')) {
-                danceScore += 8; energyScore += 6; valenceScore -= 2; acousticScore -= 3; tempoEst = 118;
-            } else if (g.includes('indie') || g.includes('folk') || g.includes('acoustic')) {
-                acousticScore += 18; energyScore -= 6; danceScore -= 4;
-            } else if (g.includes('classical') || g.includes('jazz') || g.includes('lo-fi')) {
-                acousticScore += 22; energyScore -= 12; danceScore -= 12; valenceScore -= 4; tempoEst = 90;
-            }
-        });
-
-        avgDance = Math.min(95, Math.max(30, danceScore));
-        avgEnergy = Math.min(96, Math.max(25, energyScore));
-        avgValence = Math.min(92, Math.max(20, valenceScore));
-        avgAcoustic = Math.min(85, Math.max(10, acousticScore));
-        avgTempo = Math.min(160, Math.max(80, tempoEst));
-    }
-
-    // Renderizar gráfico Radar
-    const ctx = document.getElementById('dnaRadarChart').getContext('2d');
-    if (dnaChartInstance) dnaChartInstance.destroy();
-
-    dnaChartInstance = new Chart(ctx, {
-        type: 'radar',
-        data: {
-            labels: ['Bailabilidad', 'Energía', 'Positividad', 'Acústica'],
-            datasets: [{
-                label: 'Tu ADN (%)',
-                data: [avgDance, avgEnergy, avgValence, avgAcoustic],
-                backgroundColor: 'rgba(168, 85, 247, 0.25)',
-                borderColor: '#a855f7',
-                borderWidth: 2,
-                pointBackgroundColor: '#c084fc',
-                pointBorderColor: '#ffffff',
-                pointHoverRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                r: {
-                    angleLines: { color: 'rgba(255, 255, 255, 0.08)' },
-                    grid: { color: 'rgba(255, 255, 255, 0.08)' },
-                    pointLabels: { color: '#cbd5e1', font: { size: 12, weight: 600 } },
-                    suggestedMin: 0,
-                    suggestedMax: 100,
-                    ticks: { display: false }
-                }
-            },
-            plugins: {
-                legend: { display: false }
+        } else if (currentType === 'artists') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopArtists&user=${encodeURIComponent(user)}&period=${period}&limit=100&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            if (data?.topartists?.artist) {
+                lastFmArtistsMap = {};
+                data.topartists.artist.forEach(a => {
+                    const k = normalizeKey(a.name);
+                    lastFmArtistsMap[k] = a.playcount;
+                });
             }
         }
-    });
-
-    // Renderizar barras de métricas
-    barsContainer.innerHTML = `
-        <div>
-            <div class="d-flex justify-content-between small mb-1">
-                <span><i class="fa-solid fa-bolt text-warning me-1"></i> Energía</span>
-                <span class="fw-bold">${avgEnergy}%</span>
-            </div>
-            <div class="progress bg-black" style="height: 6px;">
-                <div class="progress-bar" style="width: ${avgEnergy}%; background: linear-gradient(90deg, #a855f7, #f59e0b);"></div>
-            </div>
-        </div>
-        <div>
-            <div class="d-flex justify-content-between small mb-1">
-                <span><i class="fa-solid fa-music text-info me-1"></i> Bailabilidad</span>
-                <span class="fw-bold">${avgDance}%</span>
-            </div>
-            <div class="progress bg-black" style="height: 6px;">
-                <div class="progress-bar" style="width: ${avgDance}%; background: linear-gradient(90deg, #a855f7, #06b6d4);"></div>
-            </div>
-        </div>
-        <div>
-            <div class="d-flex justify-content-between small mb-1">
-                <span><i class="fa-solid fa-face-smile text-success me-1"></i> Positividad (Valence)</span>
-                <span class="fw-bold">${avgValence}%</span>
-            </div>
-            <div class="progress bg-black" style="height: 6px;">
-                <div class="progress-bar" style="width: ${avgValence}%; background: linear-gradient(90deg, #a855f7, #10b981);"></div>
-            </div>
-        </div>
-        <div>
-            <div class="d-flex justify-content-between small mb-1">
-                <span><i class="fa-solid fa-guitar text-danger me-1"></i> Acústica</span>
-                <span class="fw-bold">${avgAcoustic}%</span>
-            </div>
-            <div class="progress bg-black" style="height: 6px;">
-                <div class="progress-bar" style="width: ${avgAcoustic}%; background: linear-gradient(90deg, #a855f7, #ef4444);"></div>
-            </div>
-        </div>
-    `;
-
-    summaryContainer.innerHTML = `
-        <div class="d-flex align-items-center justify-content-between">
-            <span><i class="fa-solid fa-gauge-high me-1" style="color: var(--brand-primary);"></i> Tempo promedio:</span>
-            <span class="fw-bold text-white">${avgTempo} BPM</span>
-        </div>
-        <div class="mt-1">
-            Tu música en este periodo es <strong>${avgEnergy > 60 ? 'enérgica y vibrante' : 'suave y relajante'}</strong> y se inclina a ritmos <strong>${avgDance > 50 ? 'muy bailables' : 'melódicos'}</strong>.
-        </div>
-    `;
+    } catch (e) {
+        console.warn('No se pudieron obtener datos de Last.fm:', e);
+    }
 }
 
 // ----------------------------------------------------
-// FEATURE 2: DISTRIBUCIÓN DE GÉNEROS
-// ----------------------------------------------------
-async function loadGenresStats() {
-    const listContainer = document.getElementById('genres-list');
-    listContainer.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm me-2 text-primary"></span>Analizando géneros...</div>';
-
-    let artistsData = await spotifyFetch(`me/top/artists?time_range=${currentRange}&limit=50`);
-    let artists = artistsData?.items || [];
-
-    // Fallback a periodos más amplios si en 4 semanas no hay suficientes
-    if (artists.length === 0 && currentRange !== 'long_term') {
-        const fallback = await spotifyFetch(`me/top/artists?time_range=medium_term&limit=50`);
-        artists = fallback?.items || [];
-    }
-
-    const genreCounts = {};
-    let totalGenreHits = 0;
-
-    artists.forEach(artist => {
-        if (artist.genres && artist.genres.length > 0) {
-            artist.genres.forEach(g => {
-                const clean = g.toLowerCase();
-                genreCounts[clean] = (genreCounts[clean] || 0) + 1;
-                totalGenreHits++;
-            });
-        }
-    });
-
-    let sortedGenres = Object.entries(genreCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 6);
-
-    if (sortedGenres.length === 0) {
-        listContainer.innerHTML = '<div class="text-secondary py-4 text-center">Spotify no tiene géneros etiquetados en este periodo aún. Escucha más artistas para ver tu distribución.</div>';
-        return;
-    }
-
-    const labels = sortedGenres.map(g => g[0]);
-    const values = sortedGenres.map(g => g[1]);
-    const palette = ['#a855f7', '#8b5cf6', '#6366f1', '#ec4899', '#f43f5e', '#3b82f6'];
-
-    // Render Doughnut Chart
-    const ctx = document.getElementById('genresDoughnutChart').getContext('2d');
-    if (genresChartInstance) genresChartInstance.destroy();
-
-    genresChartInstance = new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: values,
-                backgroundColor: palette,
-                borderColor: '#14101e',
-                borderWidth: 2,
-                hoverOffset: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom',
-                    labels: { color: '#cbd5e1', font: { size: 11 }, boxWidth: 12 }
-                }
-            },
-            cutout: '68%'
-        }
-    });
-
-    // Render Genres List
-    listContainer.innerHTML = '';
-    sortedGenres.forEach(([genre, count], idx) => {
-        const percent = Math.round((count / totalGenreHits) * 100);
-        const div = document.createElement('div');
-        div.className = 'd-flex align-items-center justify-content-between p-2.5 rounded';
-        div.style.backgroundColor = 'rgba(255, 255, 255, 0.03)';
-        div.innerHTML = `
-            <div class="d-flex align-items-center gap-2 text-truncate">
-                <span class="rounded-circle flex-shrink-0" style="width: 10px; height: 10px; background-color: ${palette[idx] || '#a855f7'};"></span>
-                <span class="text-capitalize small fw-semibold text-truncate">${genre}</span>
-            </div>
-            <span class="badge text-secondary border border-secondary border-opacity-25" style="font-size: 0.75rem;">${percent}%</span>
-        `;
-        listContainer.appendChild(div);
-    });
-}
-
-// ----------------------------------------------------
-// FEATURE 3: GUARDAR TOP COMO PLAYLIST
+// ACCIÓN: GUARDAR TOP COMO PLAYLIST
 // ----------------------------------------------------
 async function handleSavePlaylist() {
-    btnSavePlaylist.disabled = true;
-    btnSavePlaylist.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Creando...';
-
     try {
         if (!userProfileData) {
             await fetchUserProfile();
@@ -866,8 +752,6 @@ async function handleSavePlaylist() {
         const tracksData = await spotifyFetch(`me/top/tracks?time_range=${currentRange}&limit=50`);
         if (!tracksData || !tracksData.items || tracksData.items.length === 0) {
             alert('No se encontraron canciones para crear la playlist.');
-            btnSavePlaylist.disabled = false;
-            btnSavePlaylist.innerHTML = '<i class="fa-solid fa-plus me-1"></i> Guardar Playlist';
             return;
         }
 
@@ -885,8 +769,6 @@ async function handleSavePlaylist() {
 
         if (!createRes || !createRes.id) {
             alert('Error al crear la playlist en Spotify. Asegúrate de haber otorgado los permisos necesarios.');
-            btnSavePlaylist.disabled = false;
-            btnSavePlaylist.innerHTML = '<i class="fa-solid fa-plus me-1"></i> Guardar Playlist';
             return;
         }
 
@@ -896,25 +778,17 @@ async function handleSavePlaylist() {
             body: JSON.stringify({ uris: uris })
         });
 
-        btnSavePlaylist.innerHTML = '<i class="fa-solid fa-check text-success me-1"></i> ¡Guardada!';
-        setTimeout(() => {
-            btnSavePlaylist.disabled = false;
-            btnSavePlaylist.innerHTML = '<i class="fa-solid fa-plus me-1"></i> Guardar Playlist';
-        }, 3000);
-
         if (confirm(`¡Playlist "${payload.name}" guardada con éxito en tu Spotify!\n\n¿Deseas abrirla ahora?`)) {
             window.open(createRes.external_urls?.spotify, '_blank');
         }
     } catch (err) {
         console.error(err);
         alert('Ocurrió un error al guardar la playlist.');
-        btnSavePlaylist.disabled = false;
-        btnSavePlaylist.innerHTML = '<i class="fa-solid fa-plus me-1"></i> Guardar Playlist';
     }
 }
 
 // ----------------------------------------------------
-// FEATURE 4: TARJETA PARA COMPARTIR
+// ACCIÓN: TARJETA PARA COMPARTIR
 // ----------------------------------------------------
 async function prepareShareCard() {
     const modalEl = new bootstrap.Modal(shareCardModal);
