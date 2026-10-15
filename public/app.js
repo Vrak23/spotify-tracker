@@ -62,13 +62,9 @@ const stripPlaycount = document.getElementById('strip-playcount');
 const stripArtists = document.getElementById('strip-artists');
 const stripAlbums = document.getElementById('strip-albums');
 
-// Custom Date Filter DOM
-const customDateBox = document.getElementById('custom-date-box');
-const customDateFrom = document.getElementById('custom-date-from');
-const customDateTo = document.getElementById('custom-date-to');
-const btnApplyCustomDate = document.getElementById('btn-apply-custom-date');
-const btnToggleCustomDate = document.getElementById('btn-toggle-custom-date');
-const customDateStatus = document.getElementById('custom-date-status');
+// Years Filter DOM
+const yearsFilterContainer = document.getElementById('years-filter-container');
+const yearsPillList = document.getElementById('years-pill-list');
 
 // PWA Update DOM
 const updateToast = document.getElementById('update-toast');
@@ -153,13 +149,13 @@ function formatDate(timestampUTS) {
 }
 
 function getRangeLabel(range) {
+    if (range && range.startsWith('year-')) return `Año ${range.replace('year-', '')}`;
     if (range === '7day') return 'Últimos 7 Días';
     if (range === '1month') return 'Último Mes';
     if (range === '3month') return 'Últimos 3 Meses';
     if (range === '6month') return 'Últimos 6 Meses';
     if (range === '12month') return 'Último Año';
     if (range === 'overall') return 'Histórico Total';
-    if (range === 'custom') return 'Rango Personalizado';
     return range;
 }
 
@@ -167,12 +163,6 @@ function getRangeLabel(range) {
 // EVENT LISTENERS & INICIALIZACIÓN
 // ----------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
-    // Configurar fechas por defecto para el rango personalizado
-    const today = new Date().toISOString().split('T')[0];
-    const past14 = new Date(Date.now() - 14 * 86400000).toISOString().split('T')[0];
-    if (customDateTo) customDateTo.value = today;
-    if (customDateFrom) customDateFrom.value = past14;
-
     setupEventListeners();
 
     // Procesar posible retorno de Spotify OAuth PKCE
@@ -206,31 +196,13 @@ function setupEventListeners() {
     document.querySelectorAll('#time-range-tabs .pill-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const range = e.currentTarget.getAttribute('data-range');
-            if (range === 'custom') {
-                if (customDateBox) {
-                    customDateBox.classList.toggle('d-none');
-                }
-                document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
-                e.currentTarget.classList.add('active');
-                currentRange = 'custom';
-                return;
-            }
-
-            if (customDateBox) customDateBox.classList.add('d-none');
             document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.year-pill-btn').forEach(b => b.classList.remove('active'));
             e.currentTarget.classList.add('active');
             currentRange = range;
             loadStats();
         });
     });
-
-    // Botón para aplicar rango de fechas personalizado
-    if (btnApplyCustomDate) {
-        btnApplyCustomDate.addEventListener('click', () => {
-            currentRange = 'custom';
-            loadStats();
-        });
-    }
 
     // Selector de límite (20 / 50)
     document.querySelectorAll('#limit-container .limit-btn').forEach(btn => {
@@ -548,6 +520,12 @@ async function fetchLastFmGlobalStats() {
             if (drawerUserFollowers && !accessToken) {
                 drawerUserFollowers.textContent = `${formatNumber(data.user.playcount)} scrobbles en Last.fm`;
             }
+
+            const regUTS = parseInt(data.user.registered?.unixtime || data.user.registered?.['#text'] || 0, 10);
+            if (regUTS) {
+                const regYear = new Date(regUTS * 1000).getFullYear();
+                renderYearsFilter(regYear);
+            }
         }
     } catch (e) {
         console.warn(e);
@@ -578,9 +556,10 @@ async function loadStats() {
     }
 
     try {
-        // Rango de fechas personalizado
-        if (currentRange === 'custom') {
-            await loadCustomDateStats(user, key);
+        // Filtro por año específico (ej: year-2026, year-2025)
+        if (currentRange.startsWith('year-')) {
+            const year = currentRange.replace('year-', '');
+            await loadYearStats(user, key, year);
             return;
         }
 
@@ -651,129 +630,120 @@ async function loadStats() {
 }
 
 // ----------------------------------------------------
-// FILTRO POR RANGO DE FECHAS PERSONALIZADO
+// FILTRO POR AÑOS ESPECÍFICOS DE USO DE LAST.FM
 // ----------------------------------------------------
-async function loadCustomDateStats(user, key) {
-    const fromVal = customDateFrom ? customDateFrom.value : '';
-    const toVal = customDateTo ? customDateTo.value : '';
+function renderYearsFilter(regYear) {
+    if (!yearsFilterContainer || !yearsPillList) return;
+    const currentYear = new Date().getFullYear();
+    yearsPillList.innerHTML = '';
 
-    if (!fromVal || !toVal) {
-        loader.classList.add('d-none');
-        if (customDateBox) customDateBox.classList.remove('d-none');
-        statsList.innerHTML = '<div class="text-center text-secondary py-5">Selecciona una fecha de inicio y fin, luego haz clic en Aplicar.</div>';
+    const years = [];
+    for (let y = currentYear; y >= regYear; y--) {
+        years.push(y);
+    }
+
+    if (years.length === 0) {
+        yearsFilterContainer.classList.add('d-none');
+        yearsFilterContainer.classList.remove('d-flex');
         return;
     }
 
-    const fromDate = new Date(`${fromVal}T00:00:00`);
-    const toDate = new Date(`${toVal}T23:59:59`);
-    const fromUTS = Math.floor(fromDate.getTime() / 1000);
-    const toUTS = Math.floor(toDate.getTime() / 1000);
+    yearsFilterContainer.classList.remove('d-none');
+    yearsFilterContainer.classList.add('d-flex');
 
-    if (customDateStatus) {
-        customDateStatus.textContent = 'Consultando historial...';
-    }
+    years.forEach(year => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `pill-btn year-pill-btn ${currentRange === `year-${year}` ? 'active' : ''}`;
+        btn.setAttribute('data-year', year);
+        btn.textContent = year;
+
+        btn.addEventListener('click', () => {
+            // Deseleccionar botones de periodos relativos
+            document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
+            // Activar este botón de año
+            document.querySelectorAll('.year-pill-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            currentRange = `year-${year}`;
+            loadStats();
+        });
+
+        yearsPillList.appendChild(btn);
+    });
+}
+
+async function loadYearStats(user, key, year) {
+    const fromUTS = Math.floor(new Date(`${year}-01-01T00:00:00Z`).getTime() / 1000);
+    const toUTS = Math.floor(new Date(`${year}-12-31T23:59:59Z`).getTime() / 1000);
 
     try {
-        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&limit=200&api_key=${encodeURIComponent(key)}&format=json`);
-        const data = await res.json();
-        loader.classList.add('d-none');
-
-        const tracks = data?.recenttracks?.track || [];
-        const total = data?.recenttracks?.['@attr']?.total || tracks.length;
-
-        if (customDateStatus) {
-            customDateStatus.textContent = `${total} scrobbles encontrados`;
-        }
-
-        if (tracks.length === 0) {
-            statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron reproducciones entre ${fromVal} y ${toVal}.</div>`;
+        // 1. TOP CANCIONES DEL AÑO (user.getweeklytrackchart)
+        if (currentType === 'tracks') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getweeklytrackchart&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            loader.classList.add('d-none');
+            const tracks = data?.weeklytrackchart?.track || [];
+            if (tracks.length === 0) {
+                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron canciones registradas para el año ${year}.</div>`;
+                return;
+            }
+            const sliced = tracks.slice(0, currentLimit);
+            currentLoadedItems = sliced;
+            renderTracks(sliced);
             return;
         }
 
-        // 1. Recientes en ese rango
+        // 2. TOP ARTISTAS DEL AÑO (user.getweeklyartistchart)
+        if (currentType === 'artists') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getweeklyartistchart&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            loader.classList.add('d-none');
+            const artists = data?.weeklyartistchart?.artist || [];
+            if (artists.length === 0) {
+                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron artistas registrados para el año ${year}.</div>`;
+                return;
+            }
+            const sliced = artists.slice(0, currentLimit);
+            currentLoadedItems = sliced;
+            renderArtists(sliced);
+            return;
+        }
+
+        // 3. TOP ÁLBUMES DEL AÑO (user.getweeklyalbumchart)
+        if (currentType === 'albums') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getweeklyalbumchart&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            loader.classList.add('d-none');
+            const albums = data?.weeklyalbumchart?.album || [];
+            if (albums.length === 0) {
+                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron álbumes registrados para el año ${year}.</div>`;
+                return;
+            }
+            const sliced = albums.slice(0, currentLimit);
+            currentLoadedItems = sliced;
+            renderAlbums(sliced);
+            return;
+        }
+
+        // 4. HISTORIAL RECIENTE DEL AÑO (user.getrecenttracks con from y to)
         if (currentType === 'recent') {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(user)}&from=${fromUTS}&to=${toUTS}&limit=${currentLimit}&api_key=${encodeURIComponent(key)}&format=json`);
+            const data = await res.json();
+            loader.classList.add('d-none');
+            const tracks = data?.recenttracks?.track || [];
+            if (tracks.length === 0) {
+                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron reproducciones registradas en el año ${year}.</div>`;
+                return;
+            }
             currentLoadedItems = tracks;
             renderRecent(tracks);
             return;
         }
-
-        // 2. Top Canciones agregadas en ese rango
-        if (currentType === 'tracks') {
-            const map = {};
-            tracks.forEach(t => {
-                const artistName = t.artist ? (t.artist['#text'] || t.artist.name) : 'Desconocido';
-                const k = `${normalizeKey(t.name)}:::${normalizeKey(artistName)}`;
-                if (!map[k]) {
-                    map[k] = {
-                        name: t.name,
-                        artist: { name: artistName },
-                        image: t.image,
-                        url: t.url,
-                        playcount: 0
-                    };
-                }
-                map[k].playcount++;
-            });
-            const sorted = Object.values(map).sort((a, b) => b.playcount - a.playcount).slice(0, currentLimit);
-            currentLoadedItems = sorted;
-            renderTracks(sorted);
-            return;
-        }
-
-        // 3. Top Artistas agregados en ese rango
-        if (currentType === 'artists') {
-            const map = {};
-            tracks.forEach(t => {
-                const artistName = t.artist ? (t.artist['#text'] || t.artist.name) : 'Desconocido';
-                const k = normalizeKey(artistName);
-                if (!map[k]) {
-                    map[k] = {
-                        name: artistName,
-                        image: t.image,
-                        url: t.artist?.url || `https://www.last.fm/music/${encodeURIComponent(artistName)}`,
-                        playcount: 0
-                    };
-                }
-                map[k].playcount++;
-            });
-            const sorted = Object.values(map).sort((a, b) => b.playcount - a.playcount).slice(0, currentLimit);
-            currentLoadedItems = sorted;
-            renderArtists(sorted);
-            return;
-        }
-
-        // 4. Top Álbumes agregados en ese rango
-        if (currentType === 'albums') {
-            const map = {};
-            tracks.forEach(t => {
-                const albName = t.album ? (t.album['#text'] || t.album.name) : '';
-                if (!albName) return;
-                const artistName = t.artist ? (t.artist['#text'] || t.artist.name) : 'Desconocido';
-                const k = `${normalizeKey(albName)}:::${normalizeKey(artistName)}`;
-                if (!map[k]) {
-                    map[k] = {
-                        name: albName,
-                        artist: { name: artistName },
-                        image: t.image,
-                        url: t.url,
-                        playcount: 0
-                    };
-                }
-                map[k].playcount++;
-            });
-            const sorted = Object.values(map).sort((a, b) => b.playcount - a.playcount).slice(0, currentLimit);
-            if (sorted.length === 0) {
-                statsList.innerHTML = `<div class="text-center text-secondary py-5">No se encontraron álbumes etiquetados en este rango.</div>`;
-                return;
-            }
-            currentLoadedItems = sorted;
-            renderAlbums(sorted);
-            return;
-        }
     } catch (err) {
-        console.error(err);
+        console.error('Error al cargar stats anuales:', err);
         loader.classList.add('d-none');
-        statsList.innerHTML = '<div class="text-center text-danger py-5">Error al calcular tops del rango seleccionado.</div>';
+        statsList.innerHTML = `<div class="text-center text-danger py-5">Error al consultar datos del año ${year} en Last.fm.</div>`;
     }
 }
 
@@ -1060,6 +1030,7 @@ function handleDisconnectLastFm() {
     localStorage.removeItem('lastfm_user');
     localStorage.removeItem('lastfm_key');
     if (statStrip) statStrip.classList.add('d-none');
+    if (yearsFilterContainer) yearsFilterContainer.classList.add('d-none');
     initLastFmState();
 
     const modal = bootstrap.Modal.getInstance(lastFmModalEl);

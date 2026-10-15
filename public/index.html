@@ -466,7 +466,6 @@
                     <button type="button" class="pill-btn" data-range="6month">6 Meses</button>
                     <button type="button" class="pill-btn" data-range="12month">1 Año</button>
                     <button type="button" class="pill-btn" data-range="overall">Todo</button>
-                    <button type="button" class="pill-btn" data-range="custom" id="btn-toggle-custom-date"><i class="fa-regular fa-calendar me-1"></i>Fechas</button>
                 </div>
 
                 <div id="limit-container" class="btn-group btn-group-sm flex-shrink-0" role="group">
@@ -475,27 +474,12 @@
                 </div>
             </div>
 
-            <!-- 3. Custom Date Range Filter Box (Responsive Grid that never overflows) -->
-            <div id="custom-date-box" class="d-none mb-2.5 p-2.5 rounded-3 border border-secondary border-opacity-15" style="background-color: var(--bg-surface); width: 100%;">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <small class="fw-semibold text-secondary" style="font-size: 0.72rem;"><i class="fa-solid fa-calendar-days text-info me-1"></i>Filtrar por rango exacto de fechas:</small>
-                    <span id="custom-date-status" class="text-secondary" style="font-size: 0.68rem;"></span>
-                </div>
-                <div class="row g-2 align-items-end">
-                    <div class="col-6">
-                        <small class="text-secondary d-block mb-1" style="font-size: 0.68rem;">Desde:</small>
-                        <input type="date" id="custom-date-from" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-1 px-2" style="font-size: 0.74rem; width: 100%;">
-                    </div>
-                    <div class="col-6">
-                        <small class="text-secondary d-block mb-1" style="font-size: 0.68rem;">Hasta:</small>
-                        <input type="date" id="custom-date-to" class="form-control form-control-sm bg-black text-white border-secondary border-opacity-25 py-1 px-2" style="font-size: 0.74rem; width: 100%;">
-                    </div>
-                    <div class="col-12 mt-1">
-                        <button id="btn-apply-custom-date" class="btn btn-sm btn-brand w-100 py-1.5 rounded-pill" style="font-size: 0.76rem;">
-                            Aplicar Filtro
-                        </button>
-                    </div>
-                </div>
+            <!-- 3. Native Last.fm Annual Streams & Scrobbles Bar -->
+            <div id="years-filter-container" class="d-none align-items-center gap-1.5 mb-2.5 py-1 px-2 rounded-3 border border-secondary border-opacity-10 overflow-auto" style="background-color: rgba(255, 255, 255, 0.02); scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; width: 100%;">
+                <span class="text-secondary fw-semibold flex-shrink-0 d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                    <i class="fa-regular fa-calendar-check text-warning"></i> Por Año:
+                </span>
+                <div id="years-pill-list" class="d-flex align-items-center gap-1 overflow-auto" style="min-width: 0; flex-grow: 1;"></div>
             </div>
 
             <!-- Loader -->
@@ -702,6 +686,6 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=6"></script>
+    <script src="/app.js?v=7"></script>
 </body>
 </html>
