@@ -174,6 +174,32 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
         }
 
+        /* Floating Corner Download Button (Inside Dashboard) */
+        .btn-floating-corner {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: var(--bg-surface);
+            border: 1px solid var(--brand-primary);
+            color: var(--brand-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 15px var(--brand-glow);
+            z-index: 1050;
+            transition: all 0.25s ease;
+            cursor: pointer;
+        }
+        .btn-floating-corner:hover {
+            background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
+            color: #ffffff;
+            transform: scale(1.1);
+            box-shadow: 0 8px 25px rgba(168, 85, 247, 0.6);
+        }
+
         /* Responsive tweaks */
         @media (max-width: 576px) {
             .stats-grid {
@@ -202,6 +228,9 @@
 
             <!-- User Profile (Visible when logged in) -->
             <div id="user-profile" class="d-none d-flex align-items-center gap-2">
+                <button id="btn-install-corner" class="btn btn-outline-brand btn-sm rounded-circle py-1 px-2" title="Descargar App Web">
+                    <i class="fa-solid fa-download"></i>
+                </button>
                 <img id="user-img" src="" alt="Avatar" class="img-avatar rounded-circle border" style="width: 36px; height: 36px; object-fit: cover; border-color: var(--brand-primary) !important;">
                 <div class="d-none d-sm-block text-start leading-tight">
                     <div id="user-name" class="fw-bold small text-truncate" style="max-width: 140px;"></div>
@@ -226,9 +255,14 @@
             <p class="text-secondary fs-6 mb-4 mx-auto" style="max-width: 440px;">
                 Descubre tus tops, analiza el ADN emocional de tu música, desglose de géneros y genera playlists automáticas.
             </p>
-            <button id="btn-login" class="btn btn-brand btn-lg shadow">
-                <i class="fa-brands fa-spotify me-2"></i> Iniciar sesión con Spotify
-            </button>
+            <div class="d-flex flex-column align-items-center gap-2">
+                <button id="btn-login" class="btn btn-brand btn-lg shadow">
+                    <i class="fa-brands fa-spotify me-2"></i> Iniciar sesión con Spotify
+                </button>
+                <button id="btn-install-login" class="btn btn-outline-brand rounded-pill py-2 px-4 shadow-sm mt-2" style="font-size: 0.88rem;">
+                    <i class="fa-solid fa-download me-2"></i> Descargar App Web
+                </button>
+            </div>
         </div>
 
         <!-- Dashboard View -->
@@ -409,6 +443,43 @@
                     <button id="btn-download-card" class="btn btn-sm btn-brand">
                         <i class="fa-solid fa-download me-1"></i> Descargar Imagen
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Corner Download Button (Always visible inside dashboard) -->
+    <button id="btn-install-fab" class="btn-floating-corner d-none" title="Descargar / Instalar App Web">
+        <i class="fa-solid fa-download fs-5"></i>
+    </button>
+
+    <!-- Modal: Instrucciones de Instalación Web / PWA -->
+    <div class="modal fade" id="installModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-secondary border-opacity-25" style="background-color: var(--bg-surface);">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2">
+                    <h6 class="modal-title fw-bold"><i class="fa-solid fa-download me-2" style="color: var(--brand-primary);"></i>Instalar Spotify Tracker</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4 text-center">
+                    <img src="/logo.png" style="width: 64px; height: 64px; filter: drop-shadow(0 0 15px var(--brand-glow));" class="mb-3 rounded-3" alt="Logo">
+                    <h5 class="fw-bold mb-2">Instalar como App en tu Dispositivo</h5>
+                    <p class="text-secondary small mb-3">
+                        Úsala en pantalla completa sin barra de navegación, con acceso directo desde tu celular o escritorio y carga ultra rápida.
+                    </p>
+                    <div class="p-3 rounded text-start d-flex flex-column gap-3" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); font-size: 0.84rem;">
+                        <div>
+                            <span class="fw-bold text-white"><i class="fa-brands fa-apple me-1 text-secondary"></i> En iPhone / iPad (Safari):</span><br>
+                            Toca el botón <strong>Compartir</strong> <i class="fa-solid fa-arrow-up-from-bracket mx-1" style="color: var(--brand-primary);"></i> y luego selecciona <strong>"Agregar a pantalla de inicio"</strong>.
+                        </div>
+                        <div>
+                            <span class="fw-bold text-white"><i class="fa-brands fa-android me-1 text-success"></i> En Android / Chrome / Edge:</span><br>
+                            Toca los tres puntos <i class="fa-solid fa-ellipsis-vertical mx-1"></i> o el icono <i class="fa-solid fa-download mx-1" style="color: var(--brand-primary);"></i> en la barra de tu navegador y elige <strong>"Instalar aplicación"</strong>.
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" data-bs-dismiss="modal">Entendido</button>
                 </div>
             </div>
         </div>

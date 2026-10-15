@@ -48,6 +48,34 @@ const btnOpenShareModal = document.getElementById('btn-open-share-modal');
 const btnDownloadCard = document.getElementById('btn-download-card');
 const shareCardModal = document.getElementById('shareCardModal');
 
+// Botones de instalación PWA
+let deferredPrompt = null;
+const btnInstallLogin = document.getElementById('btn-install-login');
+const btnInstallCorner = document.getElementById('btn-install-corner');
+const btnInstallFab = document.getElementById('btn-install-fab');
+const installModalEl = document.getElementById('installModal');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+});
+
+async function triggerInstallFlow() {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            if (btnInstallLogin) btnInstallLogin.classList.add('d-none');
+            if (btnInstallCorner) btnInstallCorner.classList.add('d-none');
+            if (btnInstallFab) btnInstallFab.classList.add('d-none');
+        }
+        deferredPrompt = null;
+    } else {
+        const modal = new bootstrap.Modal(installModalEl);
+        modal.show();
+    }
+}
+
 function generateRandomString(length) {
     let text = '';
     const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -251,6 +279,17 @@ function setupEventListeners() {
     if (btnDownloadCard) {
         btnDownloadCard.addEventListener('click', handleDownloadCard);
     }
+
+    // Instalación PWA (Login, Header y Floating FAB)
+    if (btnInstallLogin) {
+        btnInstallLogin.addEventListener('click', triggerInstallFlow);
+    }
+    if (btnInstallCorner) {
+        btnInstallCorner.addEventListener('click', triggerInstallFlow);
+    }
+    if (btnInstallFab) {
+        btnInstallFab.addEventListener('click', triggerInstallFlow);
+    }
 }
 
 function switchContentTypeView() {
@@ -280,12 +319,27 @@ function showLogin() {
     loginView.classList.remove('d-none');
     dashboardView.classList.add('d-none');
     userProfile.classList.add('d-none');
+    if (btnInstallFab) btnInstallFab.classList.add('d-none');
+
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (isStandalone && btnInstallLogin) {
+        btnInstallLogin.classList.add('d-none');
+    }
 }
 
 async function showDashboard() {
     loginView.classList.add('d-none');
     dashboardView.classList.remove('d-none');
     userProfile.classList.remove('d-none');
+
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (!isStandalone) {
+        if (btnInstallFab) btnInstallFab.classList.remove('d-none');
+        if (btnInstallCorner) btnInstallCorner.classList.remove('d-none');
+    } else {
+        if (btnInstallFab) btnInstallFab.classList.add('d-none');
+        if (btnInstallCorner) btnInstallCorner.classList.add('d-none');
+    }
 
     await fetchUserProfile();
     fetchCurrentlyPlaying();
