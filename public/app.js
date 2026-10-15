@@ -655,9 +655,16 @@ async function handleSaveLastFm() {
     btnLastFmSave.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Verificando...';
 
     try {
-        // Probar llamada a Last.fm
-        const testRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getTopTracks&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&limit=1&format=json`);
-        const testData = await testRes.json();
+        // Probar llamada a Last.fm con user.getinfo
+        let testRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&format=json`);
+        let testData = await testRes.json();
+
+        // Si Last.fm devuelve error 8 (transient / backend sync), reintentamos una vez
+        if (testData.error === 8) {
+            await new Promise(r => setTimeout(r, 1200));
+            testRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getinfo&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&format=json`);
+            testData = await testRes.json();
+        }
 
         if (testData.error) {
             if (lastFmError) {
