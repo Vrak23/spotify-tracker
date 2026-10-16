@@ -553,11 +553,19 @@
                 Descubre tus tops de canciones y artistas, streams reales sincronizados con Last.fm y genera playlists automáticas.
             </p>
             <div class="d-flex flex-column align-items-center gap-2">
-                <button id="btn-login" class="btn btn-brand btn-lg shadow">
+                <button id="btn-login" class="btn btn-brand btn-lg shadow px-4 py-2.5">
                     <i class="fa-brands fa-spotify me-2"></i> Iniciar sesión con Spotify
                 </button>
-                <button id="btn-install-login" class="btn btn-outline-brand rounded-pill py-2 px-4 shadow-sm mt-2" style="font-size: 0.88rem;">
-                    <i class="fa-solid fa-download me-2"></i> Descargar App Web
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    <button id="btn-login-lastfm" class="btn btn-outline-secondary rounded-pill py-1.5 px-3" style="font-size: 0.84rem;" data-bs-toggle="modal" data-bs-target="#lastFmModal">
+                        <i class="fa-brands fa-lastfm me-1.5 text-danger"></i> Conectar Last.fm
+                    </button>
+                    <button id="btn-login-demo" class="btn btn-outline-secondary rounded-pill py-1.5 px-3" style="font-size: 0.84rem;">
+                        <i class="fa-solid fa-arrow-right-to-bracket me-1.5 text-primary"></i> Entrar a la app
+                    </button>
+                </div>
+                <button id="btn-install-login" class="btn btn-link text-secondary text-decoration-none mt-2" style="font-size: 0.82rem;">
+                    <i class="fa-solid fa-download me-1.5"></i> Descargar App Web (PWA)
                 </button>
             </div>
         </div>
@@ -1007,6 +1015,6 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=17"></script>
+    <script src="/app.js?v=18"></script>
 </body>
 </html>

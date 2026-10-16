@@ -6,6 +6,9 @@ const DEFAULT_LASTFM_USER = 'Vrak_23';
 const DEFAULT_LASTFM_KEY = '82a251af624ca33e3d59215313af74c2';
 
 function getLastFmCredentials() {
+    if (localStorage.getItem('spoti_logged_out') === 'true') {
+        return { user: null, key: null };
+    }
     const user = localStorage.getItem('lastfm_user') || DEFAULT_LASTFM_USER;
     const key = localStorage.getItem('lastfm_key') || DEFAULT_LASTFM_KEY;
     return { user, key };
@@ -203,20 +206,42 @@ function getRangeLabel(range) {
 document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
 
+    const isLoggedOut = localStorage.getItem('spoti_logged_out') === 'true';
+
     // Procesar posible retorno de Spotify OAuth PKCE
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     if (code) {
+        localStorage.removeItem('spoti_logged_out');
         await fetchAccessToken(code);
+    } else if (isLoggedOut) {
+        showLogin();
     } else {
-        // La app se basa en Last.fm: Mostrar dashboard directamente
         showDashboard();
     }
 });
 
 function setupEventListeners() {
     if (btnLogin) {
-        btnLogin.addEventListener('click', redirectToSpotifyLogin);
+        btnLogin.addEventListener('click', () => {
+            localStorage.removeItem('spoti_logged_out');
+            redirectToSpotifyLogin();
+        });
+    }
+
+    const btnLoginDemo = document.getElementById('btn-login-demo');
+    if (btnLoginDemo) {
+        btnLoginDemo.addEventListener('click', () => {
+            localStorage.removeItem('spoti_logged_out');
+            showDashboard();
+        });
+    }
+
+    const btnLoginLastFm = document.getElementById('btn-login-lastfm');
+    if (btnLoginLastFm) {
+        btnLoginLastFm.addEventListener('click', () => {
+            localStorage.removeItem('spoti_logged_out');
+        });
     }
 
     // Segmented Content Tabs (Canciones, Artistas, Álbumes, Recientes)
@@ -625,8 +650,27 @@ function handleLogout() {
     localStorage.removeItem('code_verifier');
     localStorage.removeItem('lastfm_user');
     localStorage.removeItem('lastfm_key');
+    localStorage.setItem('spoti_logged_out', 'true');
     accessToken = null;
-    window.location.reload();
+    userProfileData = null;
+
+    if (currentlyPlayingTimer) {
+        clearInterval(currentlyPlayingTimer);
+        currentlyPlayingTimer = null;
+    }
+
+    // Resetear datos visuales del perfil
+    if (drawerUserName) drawerUserName.textContent = 'Usuario';
+    if (drawerUserFollowers) drawerUserFollowers.textContent = '';
+    if (drawerUserImg) drawerUserImg.src = FALLBACK_ART_SVG;
+    if (userImg) userImg.src = FALLBACK_ART_SVG;
+    if (drawerLastFmStatus) {
+        drawerLastFmStatus.textContent = 'Opcional';
+        drawerLastFmStatus.className = 'badge bg-secondary bg-opacity-25';
+    }
+    if (currentlyPlayingContainer) currentlyPlayingContainer.innerHTML = '';
+
+    showLogin();
 }
 
 // ----------------------------------------------------
@@ -637,6 +681,11 @@ function showLogin() {
     dashboardView.classList.add('d-none');
     navActions.classList.add('d-none');
     if (btnInstallFab) btnInstallFab.classList.add('d-none');
+
+    if (currentlyPlayingTimer) {
+        clearInterval(currentlyPlayingTimer);
+        currentlyPlayingTimer = null;
+    }
 }
 
 async function showDashboard() {
@@ -2064,8 +2113,10 @@ async function handleSaveLastFm() {
             return;
         }
 
+        localStorage.removeItem('spoti_logged_out');
         localStorage.setItem('lastfm_user', user);
         localStorage.setItem('lastfm_key', key);
+        showDashboard();
         initLastFmState();
         fetchLastFmGlobalStats();
 
