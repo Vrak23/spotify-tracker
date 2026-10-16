@@ -1826,10 +1826,14 @@ async function showItemStats(type, name, artist) {
                     <span class="fw-bold text-white" style="font-size: 0.78rem;"><i class="fa-solid fa-list-ol text-info me-1.5"></i> Canciones de este Álbum</span>
                     <small class="text-secondary">${data.tracks.length} canciones</small>
                 </div>
-                <div class="d-flex flex-column gap-1" style="max-height: 180px; overflow-y: auto;">
+                <div class="d-flex flex-column gap-1.5" style="max-height: 200px; overflow-y: auto;">
                     ${data.tracks.map((t, idx) => `
-                        <div class="d-flex align-items-center justify-content-between py-1 px-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); font-size: 0.72rem;">
-                            <span class="text-truncate me-2"><strong class="text-secondary me-1.5">#${idx + 1}</strong> <span class="text-white">${t.name}</span></span>
+                        <div class="d-flex align-items-center justify-content-between py-1.5 px-2 rounded cursor-pointer" onclick="showItemStats('track', '${(t.name || '').replace(/'/g, "\\'")}', '${(data.artist || artist || '').replace(/'/g, "\\'")}')" style="background-color: rgba(255, 255, 255, 0.03); font-size: 0.72rem; cursor: pointer; transition: background 0.15s ease;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.08)'" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.03)'">
+                            <span class="text-truncate me-2">
+                                <strong class="text-secondary me-1.5">#${idx + 1}</strong>
+                                <span class="text-white">${t.name}</span>
+                                ${(currentSource === 'unified' && t.gap > 0) ? `<span class="badge border border-info border-opacity-30 text-info ms-1" style="font-size: 0.58rem; padding: 1px 4px;">+${formatNumber(t.gap)}</span>` : ''}
+                            </span>
                             <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0">${formatNumber(t.plays)} reps</span>
                         </div>
                     `).join('')}
@@ -1847,10 +1851,14 @@ async function showItemStats(type, name, artist) {
                     <span class="fw-bold text-white" style="font-size: 0.78rem;"><i class="fa-solid fa-fire text-warning me-1.5"></i> Canciones Top de este Artista</span>
                     <small class="text-secondary">${data.tracks.length} destacadas</small>
                 </div>
-                <div class="d-flex flex-column gap-1" style="max-height: 180px; overflow-y: auto;">
+                <div class="d-flex flex-column gap-1.5" style="max-height: 200px; overflow-y: auto;">
                     ${data.tracks.map((t, idx) => `
-                        <div class="d-flex align-items-center justify-content-between py-1 px-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); font-size: 0.72rem;">
-                            <span class="text-truncate me-2"><strong class="text-secondary me-1.5">#${idx + 1}</strong> <span class="text-white">${t.name}</span></span>
+                        <div class="d-flex align-items-center justify-content-between py-1.5 px-2 rounded cursor-pointer" onclick="showItemStats('track', '${(t.name || '').replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}')" style="background-color: rgba(255, 255, 255, 0.03); font-size: 0.72rem; cursor: pointer; transition: background 0.15s ease;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.08)'" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.03)'">
+                            <span class="text-truncate me-2">
+                                <strong class="text-secondary me-1.5">#${idx + 1}</strong>
+                                <span class="text-white">${t.name}</span>
+                                ${(currentSource === 'unified' && t.gap > 0) ? `<span class="badge border border-info border-opacity-30 text-info ms-1" style="font-size: 0.58rem; padding: 1px 4px;">+${formatNumber(t.gap)}</span>` : ''}
+                            </span>
                             <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0">${formatNumber(t.plays)} reps</span>
                         </div>
                     `).join('')}

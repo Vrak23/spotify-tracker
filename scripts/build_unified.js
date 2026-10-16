@@ -25,7 +25,7 @@ function fetchJson(url) {
     });
 }
 
-function norm(s) {
+function stripKey(s) {
     return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
@@ -55,6 +55,22 @@ async function main() {
     const albumsLookup = JSON.parse(JSON.stringify(spData.albumsLookup || {}));
     const yearlyTops = JSON.parse(JSON.stringify(spData.yearlyTops || {}));
 
+    // Mapas de claves simplificadas (stripKey) para emparejar sin problemas de espacios o signos de puntuación
+    const trackStripMap = new Map();
+    Object.keys(tracksLookup).forEach(k => {
+        trackStripMap.set(stripKey(k), k);
+    });
+
+    const artistStripMap = new Map();
+    Object.keys(artistsLookup).forEach(k => {
+        artistStripMap.set(stripKey(k), k);
+    });
+
+    const albumStripMap = new Map();
+    Object.keys(albumsLookup).forEach(k => {
+        albumStripMap.set(stripKey(k), k);
+    });
+
     let totalStreamsAdded = 0;
 
     // ------------------------------------------------------------------
@@ -65,20 +81,27 @@ async function main() {
         const lfPlays = parseInt(t.playcount, 10);
         if (!lfPlays || lfPlays <= 0) return;
 
-        const tName = t.name;
-        const tArtist = t.artist?.name || t.artist?.['#text'] || '';
-        const key = `${norm(tName)}:::${norm(tArtist)}`;
+        const tName = t.name.trim();
+        const tArtist = (t.artist?.name || t.artist?.['#text'] || '').trim();
+        const stripSearch = stripKey(`${tName}:::${tArtist}`);
 
-        let sp = tracksLookup[key];
-        if (!sp) {
-            const foundKey = Object.keys(tracksLookup).find(k => k.startsWith(norm(tName) + ':::'));
-            if (foundKey) {
-                sp = tracksLookup[foundKey];
+        let targetKey = trackStripMap.get(stripSearch);
+        if (!targetKey) {
+            // Intentar buscar solo por nombre de pista si el artista coincide parcialmente
+            const stripNameOnly = stripKey(tName);
+            for (const [sKey, origKey] of trackStripMap.entries()) {
+                if (sKey.startsWith(stripNameOnly + ':::') || sKey.includes(stripNameOnly)) {
+                    const entry = tracksLookup[origKey];
+                    if (entry && (stripKey(entry.artist).includes(stripKey(tArtist)) || stripKey(tArtist).includes(stripKey(entry.artist)))) {
+                        targetKey = origKey;
+                        break;
+                    }
+                }
             }
         }
 
-        if (sp) {
-            // Existe en Spotify: comparar escuchas en la época de Last.fm (2026 + Dec 2025)
+        if (targetKey && tracksLookup[targetKey]) {
+            const sp = tracksLookup[targetKey];
             const sp2026 = sp.years?.['2026'] || 0;
             const spDec2025 = sp.months?.['2025-12'] || 0;
             const spEra = sp2026 + spDec2025;
@@ -93,7 +116,8 @@ async function main() {
                 totalStreamsAdded += gap;
             }
         } else {
-            // No existe en Spotify (escuchado en YouTube u otra plataforma)
+            // Pista escuchada fuera de Spotify (YouTube / archivos locales)
+            const standardKey = `${tName.toLowerCase()}:::${tArtist.toLowerCase()}`;
             const newEntry = {
                 name: tName,
                 artist: tArtist,
@@ -109,7 +133,8 @@ async function main() {
                 gap: lfPlays,
                 uri: null
             };
-            tracksLookup[key] = newEntry;
+            tracksLookup[standardKey] = newEntry;
+            trackStripMap.set(stripSearch, standardKey);
             totalStreamsAdded += lfPlays;
         }
     });
@@ -122,17 +147,21 @@ async function main() {
         const lfPlays = parseInt(a.playcount, 10);
         if (!lfPlays || lfPlays <= 0) return;
 
-        const aName = a.name;
-        const key = norm(aName);
-        let sp = artistsLookup[key];
-        if (!sp) {
-            const foundKey = Object.keys(artistsLookup).find(k => k === key || k.includes(key) || key.includes(k));
-            if (foundKey) {
-                sp = artistsLookup[foundKey];
+        const aName = a.name.trim();
+        const stripSearch = stripKey(aName);
+
+        let targetKey = artistStripMap.get(stripSearch);
+        if (!targetKey) {
+            for (const [sKey, origKey] of artistStripMap.entries()) {
+                if (sKey.includes(stripSearch) || stripSearch.includes(sKey)) {
+                    targetKey = origKey;
+                    break;
+                }
             }
         }
 
-        if (sp) {
+        if (targetKey && artistsLookup[targetKey]) {
+            const sp = artistsLookup[targetKey];
             const sp2026 = sp.years?.['2026'] || 0;
             const spDec2025 = sp.months?.['2025-12'] || 0;
             const spEra = sp2026 + spDec2025;
@@ -146,7 +175,8 @@ async function main() {
                 sp.years['2026'] = (sp.years['2026'] || 0) + gap;
             }
         } else {
-            artistsLookup[key] = {
+            const standardKey = aName.toLowerCase();
+            artistsLookup[standardKey] = {
                 name: aName,
                 plays: lfPlays,
                 ms: lfPlays * 210000,
@@ -157,6 +187,7 @@ async function main() {
                 gap: lfPlays,
                 tracks: []
             };
+            artistStripMap.set(stripSearch, standardKey);
         }
     });
 
@@ -168,16 +199,23 @@ async function main() {
         const lfPlays = parseInt(al.playcount, 10);
         if (!lfPlays || lfPlays <= 0) return;
 
-        const alName = al.name;
-        const alArtist = al.artist?.name || al.artist?.['#text'] || '';
-        const key = `${norm(alName)}:::${norm(alArtist)}`;
-        let sp = albumsLookup[key];
-        if (!sp) {
-            const foundKey = Object.keys(albumsLookup).find(k => k.startsWith(norm(alName) + ':::'));
-            if (foundKey) sp = albumsLookup[foundKey];
+        const alName = al.name.trim();
+        const alArtist = (al.artist?.name || al.artist?.['#text'] || '').trim();
+        const stripSearch = stripKey(`${alName}:::${alArtist}`);
+
+        let targetKey = albumStripMap.get(stripSearch);
+        if (!targetKey) {
+            const albStripOnly = stripKey(alName);
+            for (const [sKey, origKey] of albumStripMap.entries()) {
+                if (sKey.startsWith(albStripOnly + ':::')) {
+                    targetKey = origKey;
+                    break;
+                }
+            }
         }
 
-        if (sp) {
+        if (targetKey && albumsLookup[targetKey]) {
+            const sp = albumsLookup[targetKey];
             const sp2026 = sp.years?.['2026'] || 0;
             const spDec2025 = sp.months?.['2025-12'] || 0;
             const spEra = sp2026 + spDec2025;
@@ -191,7 +229,8 @@ async function main() {
                 sp.years['2026'] = (sp.years['2026'] || 0) + gap;
             }
         } else {
-            albumsLookup[key] = {
+            const standardKey = `${alName.toLowerCase()}:::${alArtist.toLowerCase()}`;
+            albumsLookup[standardKey] = {
                 name: alName,
                 artist: alArtist,
                 plays: lfPlays,
@@ -203,16 +242,65 @@ async function main() {
                 gap: lfPlays,
                 tracks: []
             };
+            albumStripMap.set(stripSearch, standardKey);
         }
     });
 
     // ------------------------------------------------------------------
-    // 4. RECONSTRUCCIÓN DE TOPS UNIFICADOS (OVERALL Y 2026)
+    // 4. RECONSTRUCCIÓN DINÁMICA DE CANCIONES DE CADA ARTISTA Y ÁLBUM
     // ------------------------------------------------------------------
-    console.log('Reconstruyendo tops de canciones, artistas y álbumes...');
+    console.log('Reconstruyendo lista de canciones ordenadas para cada artista...');
+    const allTracksArray = Object.values(tracksLookup);
+
+    // Reconstruir tracks de cada artista
+    Object.values(artistsLookup).forEach(artist => {
+        const artStrip = stripKey(artist.name);
+        const matchedTracks = allTracksArray
+            .filter(t => {
+                const tArtStrip = stripKey(t.artist);
+                return tArtStrip === artStrip || tArtStrip.includes(artStrip) || artStrip.includes(tArtStrip);
+            })
+            .map(t => ({
+                name: t.name,
+                plays: t.plays,
+                album: t.album,
+                uri: t.uri,
+                gap: t.gap || 0
+            }))
+            .sort((a, b) => b.plays - a.plays);
+
+        artist.tracks = matchedTracks;
+    });
+
+    console.log('Reconstruyendo lista de canciones ordenadas para cada álbum...');
+    // Reconstruir tracks de cada álbum
+    Object.values(albumsLookup).forEach(album => {
+        const albStrip = stripKey(album.name);
+        const artStrip = stripKey(album.artist);
+        const matchedTracks = allTracksArray
+            .filter(t => {
+                const tAlbStrip = stripKey(t.album);
+                const tArtStrip = stripKey(t.artist);
+                return tAlbStrip === albStrip && (!artStrip || tArtStrip === artStrip || tArtStrip.includes(artStrip) || artStrip.includes(tArtStrip));
+            })
+            .map(t => ({
+                name: t.name,
+                plays: t.plays,
+                uri: t.uri,
+                gap: t.gap || 0
+            }))
+            .sort((a, b) => b.plays - a.plays);
+
+        album.tracks = matchedTracks;
+    });
+
+    // ------------------------------------------------------------------
+    // 5. RECONSTRUCCIÓN DE TOPS UNIFICADOS (OVERALL Y 2026)
+    // ------------------------------------------------------------------
+    console.log('Reconstruyendo tops globales de canciones, artistas y álbumes...');
 
     // Overall Tracks
-    const allTracksList = Object.values(tracksLookup).map(t => ({
+    const allTracksList = allTracksArray.map(t => ({
         name: t.name,
         artist: t.artist,
         album: t.album,
@@ -221,7 +309,7 @@ async function main() {
     })).sort((a, b) => b.plays - a.plays);
 
     // 2026 Tracks
-    const tracks2026List = Object.values(tracksLookup).filter(t => t.years?.['2026'] > 0).map(t => ({
+    const tracks2026List = allTracksArray.filter(t => t.years?.['2026'] > 0).map(t => ({
         name: t.name,
         artist: t.artist,
         album: t.album,
@@ -304,7 +392,7 @@ async function main() {
     console.log(`Guardando unified_history.json (${totalStreamsAdded} reproducciones añadidas de otras plataformas)...`);
     fs.writeFileSync(UNIFIED_OUTPUT_PATH, JSON.stringify(unifiedResult));
     console.log('¡Archivo unified_history.json generado exitosamente!');
-    console.log(`Resumen: Streams unificados: ${unifiedSummary.validStreams.toLocaleString()} (${totalStreamsAdded.toLocaleString()} de otras plataformas agregados). Horas: ${unifiedSummary.totalHours}.`);
+    console.log(`Resumen: Streams unificados: ${unifiedSummary.validStreams.toLocaleString()} (${totalStreamsAdded.toLocaleString()} agregados). Horas: ${unifiedSummary.totalHours}.`);
 }
 
 main().catch(err => {
