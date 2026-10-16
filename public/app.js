@@ -618,7 +618,7 @@ async function showDashboard() {
     }
 
     initLastFmState();
-    fetchCurrentlyPlaying();
+    startCurrentlyPlayingPolling();
 
     if (accessToken) {
         fetchUserProfile();
@@ -756,44 +756,77 @@ async function fetchUserProfile() {
 // ----------------------------------------------------
 // EN VIVO: DETECCIÓN DE REPRODUCCIÓN ACTUAL
 // ----------------------------------------------------
+let currentlyPlayingTimer = null;
+let lastPlayingTrackKey = null;
+
 async function fetchCurrentlyPlaying() {
-    // Probar con Last.fm en tiempo real (@attr.nowplaying)
     const { user, key } = getLastFmCredentials();
     if (user && key) {
         try {
             const lfRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&limit=1&format=json`);
             const lfData = await lfRes.json();
             const firstTrack = lfData?.recenttracks?.track?.[0];
-            if (firstTrack && firstTrack['@attr']?.nowplaying === 'true') {
-                const cover = firstTrack.image?.[1]?.['#text'] || 'https://via.placeholder.com/42';
-                const artistName = firstTrack.artist ? (firstTrack.artist['#text'] || firstTrack.artist.name) : '';
-                const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(firstTrack.name + ' ' + artistName)}`;
+            const isPlaying = firstTrack && firstTrack['@attr']?.nowplaying === 'true';
 
-                currentlyPlayingContainer.innerHTML = `
-                    <div class="card-uniform border-primary border-opacity-40" style="background: linear-gradient(90deg, rgba(20, 16, 30, 0.95) 0%, rgba(38, 22, 60, 0.85) 100%);">
-                        <img src="${cover}" class="img-thumb" alt="Cover" onerror="this.src='https://via.placeholder.com/42'">
-                        <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
-                            <div class="d-flex align-items-center gap-1.5">
-                                <span class="badge bg-primary bg-opacity-25 text-white border border-primary border-opacity-30" style="font-size: 0.65rem;">
-                                    <i class="fa-solid fa-volume-high me-1 text-primary"></i> En vivo
-                                </span>
+            if (isPlaying) {
+                const trackName = firstTrack.name || '';
+                const artistName = firstTrack.artist ? (firstTrack.artist['#text'] || firstTrack.artist.name) : '';
+                const trackKey = `${trackName}:::${artistName}`;
+
+                if (trackKey === lastPlayingTrackKey && currentlyPlayingContainer && currentlyPlayingContainer.innerHTML.trim() !== '') {
+                    return;
+                }
+                lastPlayingTrackKey = trackKey;
+
+                const cover = firstTrack.image?.[1]?.['#text'] || 'https://via.placeholder.com/42';
+                const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(trackName + ' ' + artistName)}`;
+
+                if (currentlyPlayingContainer) {
+                    currentlyPlayingContainer.innerHTML = `
+                        <div class="card-uniform border-primary border-opacity-40" style="background: linear-gradient(90deg, rgba(20, 16, 30, 0.95) 0%, rgba(38, 22, 60, 0.85) 100%);">
+                            <img src="${cover}" class="img-thumb" alt="Cover" onerror="this.src='/logo.png'">
+                            <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <span class="badge bg-primary bg-opacity-25 text-white border border-primary border-opacity-30" style="font-size: 0.65rem;">
+                                        <i class="fa-solid fa-volume-high me-1 text-primary"></i> En vivo
+                                    </span>
+                                </div>
+                                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;">${trackName}</div>
+                                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
                             </div>
-                            <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;">${firstTrack.name}</div>
-                            <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
+                            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Escuchar en Spotify">
+                                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
+                            </a>
                         </div>
-                        <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Escuchar en Spotify">
-                            <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
-                        </a>
-                    </div>
-                `;
+                    `;
+                }
                 return;
             }
         } catch (e) {
-            // Ignorar
+            // Ignorar errores temporales
         }
     }
 
-    currentlyPlayingContainer.innerHTML = '';
+    if (lastPlayingTrackKey !== null) {
+        lastPlayingTrackKey = null;
+        if (currentlyPlayingContainer) currentlyPlayingContainer.innerHTML = '';
+    }
+}
+
+function startCurrentlyPlayingPolling() {
+    if (currentlyPlayingTimer) clearInterval(currentlyPlayingTimer);
+    fetchCurrentlyPlaying();
+    currentlyPlayingTimer = setInterval(fetchCurrentlyPlaying, 7000);
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            fetchCurrentlyPlaying();
+        }
+    });
+
+    window.addEventListener('focus', () => {
+        fetchCurrentlyPlaying();
+    });
 }
 
 // ----------------------------------------------------
