@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spotify Tracker - Estadísticas, Streams & Historial</title>
+    <title>Spotify Tracker</title>
 
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#a855f7">
@@ -23,15 +23,15 @@
 
     <style>
         :root {
-            --bg-base: #000000;
-            --bg-surface: #0a0a0c;
-            --bg-surface-hover: #141418;
-            --border-subtle: #1c1c22;
+            --bg-base: #09090b;
+            --bg-surface: #18181c;         /* Gris sólido, elegante y distinguible */
+            --bg-surface-hover: #222228;   /* Hover sutil y limpio */
+            --border-subtle: #292934;      /* Borde claro y nítido para contraste */
             --brand-primary: #a855f7;
             --brand-primary-hover: #9333ea;
-            --brand-glow: rgba(168, 85, 247, 0.35);
+            --brand-glow: rgba(168, 85, 247, 0.2);
             --text-primary: #f8fafc;
-            --text-muted: #94a3b8;
+            --text-muted: #8e8ea0;
         }
 
         html, body {
@@ -45,7 +45,7 @@
         }
 
         body {
-            background-color: #000000;
+            background-color: var(--bg-base);
             color: var(--text-primary);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             min-height: 100vh;
@@ -104,17 +104,14 @@
             background: linear-gradient(135deg, #a855f7 0%, #7e22ce 100%);
             color: #ffffff;
             font-weight: 600;
-            border-radius: 50px;
-            padding: 8px 20px;
+            border-radius: 8px;
+            padding: 8px 18px;
             border: none;
-            box-shadow: 0 4px 15px var(--brand-glow);
             transition: all 0.2s ease;
         }
         .btn-brand:hover, .btn-brand:focus {
             background: linear-gradient(135deg, #c084fc 0%, #9333ea 100%);
             color: #ffffff;
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(168, 85, 247, 0.5);
         }
 
         .btn-outline-brand {
@@ -127,13 +124,13 @@
         }
         .btn-outline-brand:hover {
             color: #ffffff;
-            border-color: rgba(168, 85, 247, 0.4);
+            border-color: #4a4a58;
             background-color: var(--bg-surface-hover);
         }
         .btn-outline-brand.active {
             border-color: var(--brand-primary);
             color: #ffffff;
-            background-color: rgba(168, 85, 247, 0.25);
+            background-color: rgba(168, 85, 247, 0.2);
             font-weight: 600;
         }
 
@@ -165,23 +162,23 @@
         /* Segmented Top Tabs */
         .segmented-tabs {
             display: flex;
-            background: rgba(255, 255, 255, 0.03);
+            background: var(--bg-surface);
             border: 1px solid var(--border-subtle);
-            border-radius: 14px;
+            border-radius: 10px;
             padding: 3px;
-            gap: 2px;
+            gap: 3px;
         }
         .segmented-tab {
             flex: 1 1 0;
             min-width: 0;
             text-align: center;
-            border: none;
+            border: 1px solid transparent;
             background: transparent;
             color: var(--text-muted);
             font-size: 0.8rem;
             font-weight: 500;
-            padding: 7px 2px;
-            border-radius: 10px;
+            padding: 6px 4px;
+            border-radius: 7px;
             transition: all 0.15s ease;
             cursor: pointer;
             white-space: nowrap;
@@ -190,22 +187,22 @@
         }
         .segmented-tab:hover {
             color: #ffffff;
-            background-color: rgba(255, 255, 255, 0.05);
+            background-color: rgba(255, 255, 255, 0.04);
         }
         .segmented-tab.active {
-            background-color: var(--brand-primary);
+            background-color: #272733;
+            border-color: #3b3b4c;
             color: #ffffff;
             font-weight: 600;
-            box-shadow: 0 2px 10px var(--brand-glow);
+            box-shadow: none;
         }
 
         /* Nav & Brand */
         .navbar-brand img {
-            height: 32px;
-            width: 32px;
+            height: 30px;
+            width: 30px;
             object-fit: contain;
-            border-radius: 8px;
-            filter: drop-shadow(0 0 6px var(--brand-glow));
+            border-radius: 6px;
         }
 
         /* Uniform Card Styles */
@@ -219,12 +216,12 @@
             background-color: var(--bg-surface);
             border: 1px solid var(--border-subtle);
             border-radius: 8px;
-            padding: 4px 8px;
-            min-height: 44px;
+            padding: 5px 9px;
+            min-height: 46px;
             display: flex;
             align-items: center;
-            gap: 7px;
-            transition: all 0.15s ease;
+            gap: 8px;
+            transition: background-color 0.12s ease, border-color 0.12s ease;
             width: 100%;
             max-width: 100%;
             box-sizing: border-box;
@@ -233,16 +230,18 @@
         }
         .card-uniform:hover {
             background-color: var(--bg-surface-hover);
-            border-color: rgba(168, 85, 247, 0.35);
-            transform: translateY(-1px);
+            border-color: #3e3e4e;
         }
         .card-uniform .fw-bold {
-            font-size: 0.80rem !important;
-            line-height: 1.2;
+            font-size: 0.81rem !important;
+            font-weight: 600 !important;
+            line-height: 1.25;
+            color: #f1f5f9;
         }
         .card-uniform small {
-            font-size: 0.68rem !important;
+            font-size: 0.69rem !important;
             line-height: 1.2;
+            color: #8e8ea0;
         }
 
         /* Filter Toolbar and Custom Selects */
@@ -254,60 +253,64 @@
         .filter-label {
             display: flex;
             align-items: center;
-            font-size: 0.68rem;
+            font-size: 0.67rem;
             font-weight: 600;
-            color: var(--text-muted);
-            margin-bottom: 2px;
+            color: #8e8ea0;
+            margin-bottom: 3px;
             white-space: nowrap;
         }
         .filter-select {
-            background-color: #08070c !important;
-            border: 1px solid rgba(255, 255, 255, 0.12) !important;
+            background-color: #111116 !important;
+            border: 1px solid #2a2a34 !important;
             color: #f1f5f9 !important;
             font-size: 0.74rem !important;
             font-weight: 500 !important;
-            border-radius: 8px !important;
+            border-radius: 6px !important;
             padding: 4px 24px 4px 8px !important;
-            height: 30px !important;
-            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23a855f7' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+            height: 32px !important;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%238e8ea0' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
             background-size: 10px 10px !important;
             background-position: right 8px center !important;
             transition: all 0.15s ease;
         }
         .filter-select:focus {
-            border-color: var(--brand-primary) !important;
-            box-shadow: 0 0 0 2px var(--brand-glow) !important;
+            border-color: #555566 !important;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.08) !important;
             color: #ffffff !important;
         }
         .filter-select option {
-            background-color: #121018;
+            background-color: #16161c;
             color: #ffffff;
         }
         .filter-select:disabled {
-            opacity: 0.4;
+            opacity: 0.35;
             cursor: not-allowed;
             background-color: rgba(255, 255, 255, 0.02) !important;
         }
 
         .card-rank {
-            width: 18px;
-            text-align: center;
+            width: 22px;
+            text-align: right;
+            padding-right: 4px;
             font-size: 0.72rem;
-            font-weight: 700;
-            color: #64748b;
+            font-weight: 600;
+            color: #71717a;
             flex-shrink: 0;
+            font-variant-numeric: tabular-nums;
         }
         .card-rank.top-3 {
-            color: #c084fc;
+            color: #e2e8f0;
+            font-weight: 700;
         }
 
         .img-thumb {
-            width: 34px;
-            height: 34px;
+            width: 36px;
+            height: 36px;
             object-fit: cover;
             border-radius: 6px;
             flex-shrink: 0;
             background-color: #121215;
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
         .img-thumb.rounded-circle {
             border-radius: 50% !important;
@@ -316,43 +319,48 @@
         .badge-scrobble {
             display: inline-flex;
             align-items: center;
-            gap: 3px;
-            padding: 2px 6px;
+            gap: 4px;
+            padding: 2px 7px;
             border-radius: 6px;
-            font-size: 0.65rem;
-            font-weight: 600;
-            color: #d8b4fe;
-            background: rgba(168, 85, 247, 0.12);
-            border: 1px solid rgba(168, 85, 247, 0.25);
+            font-size: 0.68rem;
+            font-weight: 500;
+            color: #cbd5e1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             flex-shrink: 0;
             white-space: nowrap;
         }
+        .badge-scrobble i {
+            color: #8e8ea0;
+            font-size: 0.60rem;
+        }
 
         .btn-card-action {
-            width: 25px;
-            height: 25px;
-            min-width: 25px;
-            min-height: 25px;
-            max-width: 25px;
-            max-height: 25px;
+            width: 26px;
+            height: 26px;
+            min-width: 26px;
+            min-height: 26px;
+            max-width: 26px;
+            max-height: 26px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            border-radius: 50% !important;
-            background-color: var(--bg-surface-hover);
-            border: 1px solid var(--border-subtle);
-            color: var(--text-muted);
+            border-radius: 6px;
+            background-color: transparent;
+            border: 1px solid transparent;
+            color: #71717a;
             flex-shrink: 0;
             text-decoration: none;
             transition: all 0.15s ease;
         }
-        .btn-card-action:hover {
-            border-color: #1ed760;
-            background-color: rgba(30, 215, 96, 0.15);
-            color: #ffffff;
+        .btn-card-action:hover, .card-uniform:hover .btn-card-action {
+            color: #1ed760;
+            background-color: rgba(30, 215, 96, 0.1);
+            border-color: rgba(30, 215, 96, 0.2);
         }
         .btn-card-action i {
-            font-size: 0.78rem !important;
+            font-size: 0.82rem !important;
+            color: inherit !important;
         }
 
         @media (max-width: 480px) {
@@ -367,36 +375,36 @@
                 display: none;
             }
             .card-uniform {
-                padding: 3px 6px;
-                gap: 5px;
-                min-height: 40px;
+                padding: 4px 7px;
+                gap: 6px;
+                min-height: 42px;
                 border-radius: 6px;
             }
             .img-thumb {
-                width: 30px;
-                height: 30px;
+                width: 32px;
+                height: 32px;
                 border-radius: 5px;
             }
             .badge-scrobble {
-                padding: 1px 4px;
-                font-size: 0.60rem;
+                padding: 1px 5px;
+                font-size: 0.62rem;
                 gap: 2px;
             }
             .badge-scrobble i {
                 font-size: 0.55rem;
             }
             .card-rank {
-                width: 16px;
-                font-size: 0.66rem;
+                width: 18px;
+                font-size: 0.68rem;
             }
             .btn-card-action {
-                width: 23px;
-                height: 23px;
-                min-width: 23px;
-                min-height: 23px;
+                width: 24px;
+                height: 24px;
+                min-width: 24px;
+                min-height: 24px;
             }
             .btn-card-action i {
-                font-size: 0.72rem !important;
+                font-size: 0.75rem !important;
             }
         }
 
@@ -573,22 +581,27 @@
                 <button class="segmented-tab" data-type="recent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</button>
             </div>
 
-            <!-- Toolbar con Desplegables Ordenados -->
-            <div class="filter-toolbar p-2 mb-2.5 rounded-3 border border-secondary border-opacity-15">
+            <!-- Toolbar con Buscador y Desplegables -->
+            <div class="filter-toolbar p-2.5 mb-2.5 rounded-3">
+                <!-- Buscador en tiempo real -->
+                <div class="position-relative mb-2">
+                    <i class="fa-solid fa-magnifying-glass position-absolute text-muted" style="left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.74rem;"></i>
+                    <input type="text" id="filter-search-input" class="form-control form-control-sm filter-select" placeholder="Buscar canciones, artistas o álbumes en este listado..." style="padding-left: 28px !important; height: 32px !important;">
+                </div>
                 <div class="row g-2 align-items-center">
                     <!-- Desplegable 1: Fuente de Datos -->
                     <div class="col-6 col-sm-3">
-                        <label class="filter-label"><i class="fa-solid fa-layer-group text-primary me-1"></i> Datos</label>
+                        <label class="filter-label"><i class="fa-solid fa-database me-1 text-muted"></i> Datos</label>
                         <select id="select-data-source" class="form-select form-select-sm filter-select">
                             <option value="unified" selected>✨ Unificado</option>
-                            <option value="spotify">🟢 Solo Spotify</option>
-                            <option value="lastfm">🔴 Solo Last.fm</option>
+                            <option value="spotify">Spotify</option>
+                            <option value="lastfm">Last.fm</option>
                         </select>
                     </div>
 
                     <!-- Desplegable 2: Periodo / Año -->
                     <div class="col-6 col-sm-3">
-                        <label class="filter-label"><i class="fa-regular fa-calendar-check text-warning me-1"></i> Periodo / Año</label>
+                        <label class="filter-label"><i class="fa-regular fa-calendar-days me-1 text-muted"></i> Periodo</label>
                         <select id="select-time-period" class="form-select form-select-sm filter-select">
                             <option value="overall" selected>Histórico Total</option>
                             <option value="year-2026">Año 2026</option>
@@ -604,7 +617,7 @@
 
                     <!-- Desplegable 3: Mes -->
                     <div class="col-6 col-sm-3">
-                        <label class="filter-label"><i class="fa-regular fa-calendar text-info me-1"></i> Mes</label>
+                        <label class="filter-label"><i class="fa-regular fa-calendar me-1 text-muted"></i> Mes</label>
                         <select id="select-month" class="form-select form-select-sm filter-select" disabled>
                             <option value="all" selected>Todo el año</option>
                         </select>
@@ -612,7 +625,7 @@
 
                     <!-- Desplegable 4: Cantidad / Top -->
                     <div class="col-6 col-sm-3">
-                        <label class="filter-label"><i class="fa-solid fa-arrow-down-wide-short text-success me-1"></i> Mostrar</label>
+                        <label class="filter-label"><i class="fa-solid fa-list-ol me-1 text-muted"></i> Mostrar</label>
                         <select id="select-limit" class="form-select form-select-sm filter-select">
                             <option value="20">Top 20</option>
                             <option value="50" selected>Top 50</option>
@@ -629,7 +642,7 @@
                 </div>
             </div>
 
-            <!-- Stats List / Grid Container (Single column orderly list) -->
+            <!-- Stats List / Grid Container -->
             <div id="stats-list" class="stats-grid"></div>
 
         </div>
@@ -657,13 +670,47 @@
                     </div>
                 </div>
 
-                <div class="text-secondary px-2 mb-1" style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Acciones & Herramientas</div>
+                <div class="text-secondary px-2 mb-1" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Análisis & Estadísticas</div>
+
+                <button class="offcanvas-menu-item" id="menu-open-habits" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-chart-column text-info fs-5"></i>
+                    <div>
+                        <div>Hábitos de Escucha</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Horas pico del día y días más activos</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-open-forgotten" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-ghost text-warning fs-5"></i>
+                    <div>
+                        <div>Artistas Olvidados</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Música que amabas y hace tiempo no escuchas</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-open-versus" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-scale-balanced text-primary fs-5"></i>
+                    <div>
+                        <div>Comparador Versus</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Compara dos artistas de tu catálogo cara a cara</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-open-records" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-trophy text-warning fs-5"></i>
+                    <div>
+                        <div>Récords y Logros</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Día con más escuchas de tu vida y rachas</small>
+                    </div>
+                </button>
+
+                <div class="text-secondary px-2 mt-2 mb-1" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Herramientas</div>
 
                 <button class="offcanvas-menu-item" id="menu-save-playlist" data-bs-dismiss="offcanvas">
                     <i class="fa-solid fa-plus text-success fs-5"></i>
                     <div>
                         <div>Guardar Top como Playlist</div>
-                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Crear playlist en tu cuenta de Spotify</small>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Crear playlist en tu cuenta de Spotify</small>
                     </div>
                 </button>
 
@@ -671,7 +718,7 @@
                     <i class="fa-solid fa-share-nodes text-warning fs-5"></i>
                     <div>
                         <div>Compartir Tarjeta</div>
-                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Generar imagen descargable de tu Top</small>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Generar imagen descargable de tu Top</small>
                     </div>
                 </button>
 
@@ -682,7 +729,7 @@
                             <span>Conectar con Last.fm</span>
                             <span id="drawer-lastfm-status" class="badge bg-secondary bg-opacity-25" style="font-size: 0.65rem;">Opcional</span>
                         </div>
-                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Ver conteo real de streams (scrobbles)</small>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Ver conteo real de streams (scrobbles)</small>
                     </div>
                 </button>
 
@@ -690,7 +737,7 @@
                     <i class="fa-solid fa-download fs-5" style="color: var(--brand-primary);"></i>
                     <div>
                         <div>Descargar App Web (PWA)</div>
-                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Instalar acceso directo en tu celular o PC</small>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Instalar acceso directo en tu celular o PC</small>
                     </div>
                 </button>
 
@@ -698,7 +745,7 @@
                     <i class="fa-solid fa-arrows-rotate text-info fs-5"></i>
                     <div>
                         <div class="text-info">Actualizar App / Limpiar Caché</div>
-                        <small class="text-secondary d-block" style="font-size: 0.75rem;">Fuerza la descarga de la última versión en tu celular</small>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Fuerza la descarga de la última versión</small>
                     </div>
                 </button>
             </div>
@@ -826,7 +873,7 @@
     <!-- Modal: Apartado de Estadísticas de Mis Escuchas (Canción / Álbum) -->
     <div class="modal fade" id="itemStatsModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-stats-dialog">
-            <div class="modal-content border border-secondary border-opacity-25" style="background-color: #08080a; color: #f8fafc; border-radius: 16px;">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 12px;">
                 <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
                     <div class="d-flex align-items-center gap-2">
                         <i class="fa-solid fa-chart-simple text-info fs-6"></i>
@@ -847,9 +894,104 @@
         </div>
     </div>
 
+    <!-- Modal: Hábitos de Escucha -->
+    <div class="modal fade" id="habitsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-stats-dialog">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 12px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-chart-column text-info fs-6"></i>
+                        <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.90rem;">Tus Hábitos de Escucha</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="habits-body" style="font-size: 0.82rem;">
+                    <!-- Injected dynamically -->
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3">
+                    <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-3 ms-auto" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Artistas Olvidados -->
+    <div class="modal fade" id="forgottenModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-stats-dialog">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 12px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-ghost text-warning fs-6"></i>
+                        <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.90rem;">Tus Artistas Olvidados</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="forgotten-body" style="font-size: 0.82rem;">
+                    <!-- Injected dynamically -->
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3">
+                    <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-3 ms-auto" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Comparador Versus -->
+    <div class="modal fade" id="versusModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-stats-dialog">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 12px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-scale-balanced text-primary fs-6"></i>
+                        <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.90rem;">Comparador Musical (Versus)</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="versus-body" style="font-size: 0.82rem;">
+                    <!-- Selectores de Artistas -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="filter-label">Artista 1</label>
+                            <select id="versus-select-a" class="form-select form-select-sm filter-select"></select>
+                        </div>
+                        <div class="col-6">
+                            <label class="filter-label">Artista 2</label>
+                            <select id="versus-select-b" class="form-select form-select-sm filter-select"></select>
+                        </div>
+                    </div>
+                    <div id="versus-comparison-results"></div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3">
+                    <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-3 ms-auto" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Récords y Logros Personales -->
+    <div class="modal fade" id="recordsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-stats-dialog">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 12px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-trophy text-warning fs-6"></i>
+                        <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.90rem;">Tus Récords & Logros</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="records-body" style="font-size: 0.82rem;">
+                    <!-- Injected dynamically -->
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3">
+                    <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-3 ms-auto" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=14"></script>
+    <script src="/app.js?v=15"></script>
 </body>
 </html>

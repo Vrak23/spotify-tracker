@@ -92,6 +92,11 @@ const btnLastFmDisconnect = document.getElementById('btn-lastfm-disconnect');
 const lastFmError = document.getElementById('lastfm-error');
 
 // Menu Drawer Items
+const filterSearchInput = document.getElementById('filter-search-input');
+const menuOpenHabits = document.getElementById('menu-open-habits');
+const menuOpenForgotten = document.getElementById('menu-open-forgotten');
+const menuOpenVersus = document.getElementById('menu-open-versus');
+const menuOpenRecords = document.getElementById('menu-open-records');
 const menuSavePlaylist = document.getElementById('menu-save-playlist');
 const menuOpenShare = document.getElementById('menu-open-share');
 const menuLastFmConnect = document.getElementById('menu-lastfm-connect');
@@ -267,6 +272,25 @@ function setupEventListeners() {
     }
     if (btnApplyUpdate) {
         btnApplyUpdate.addEventListener('click', forceAppUpdate);
+    }
+
+    // Buscador en tiempo real
+    if (filterSearchInput) {
+        filterSearchInput.addEventListener('input', handleFilterSearch);
+    }
+
+    // Acciones de Análisis y Estadísticas
+    if (menuOpenHabits) {
+        menuOpenHabits.addEventListener('click', openHabitsModal);
+    }
+    if (menuOpenForgotten) {
+        menuOpenForgotten.addEventListener('click', openForgottenModal);
+    }
+    if (menuOpenVersus) {
+        menuOpenVersus.addEventListener('click', openVersusModal);
+    }
+    if (menuOpenRecords) {
+        menuOpenRecords.addEventListener('click', openRecordsModal);
     }
 
     // Acciones del Menú Hamburguesa
@@ -892,6 +916,7 @@ async function fetchLastFmGlobalStats() {
 }
 
 async function loadStats() {
+    if (filterSearchInput) filterSearchInput.value = '';
     statsList.innerHTML = '';
     loader.classList.remove('d-none');
 
@@ -2167,4 +2192,362 @@ async function handleDownloadCard() {
         btnDownloadCard.disabled = false;
         btnDownloadCard.innerHTML = '<i class="fa-solid fa-download me-1"></i> Descargar Imagen';
     }
+}
+
+// ----------------------------------------------------
+// 6. BUSCADOR GLOBAL EN TIEMPO REAL
+// ----------------------------------------------------
+function renderCurrentItems(items) {
+    if (currentType === 'tracks') renderTracks(items);
+    else if (currentType === 'artists') renderArtists(items);
+    else if (currentType === 'albums') renderAlbums(items);
+    else if (currentType === 'recent') renderRecent(items);
+}
+
+function handleFilterSearch(e) {
+    const q = (e.target.value || '').trim().toLowerCase();
+    if (!q) {
+        renderCurrentItems(currentLoadedItems);
+        return;
+    }
+    const filtered = (currentLoadedItems || []).filter(item => {
+        const name = (item.name || '').toLowerCase();
+        const artist = (item.artist?.name || item.artist?.['#text'] || item.artist || '').toLowerCase();
+        const album = (item.album?.name || item.album?.['#text'] || item.album || '').toLowerCase();
+        return name.includes(q) || artist.includes(q) || album.includes(q);
+    });
+    renderCurrentItems(filtered);
+}
+
+// ----------------------------------------------------
+// CARGA Y CACHÉ DE INSIGHTS (HÁBITOS, RÉCORDS, OLVIDADOS)
+// ----------------------------------------------------
+let cachedInsights = null;
+
+async function loadInsightsData() {
+    if (cachedInsights) return cachedInsights;
+    if (unifiedDb && unifiedDb.insights) {
+        cachedInsights = unifiedDb.insights;
+        return cachedInsights;
+    }
+    try {
+        const res = await fetch('/data/insights.json');
+        if (res.ok) {
+            cachedInsights = await res.json();
+            return cachedInsights;
+        }
+    } catch (e) {
+        console.warn('Error al cargar insights.json:', e);
+    }
+    return null;
+}
+
+// ----------------------------------------------------
+// 2. HÁBITOS DE ESCUCHA (GRÁFICOS DE HORAS Y DÍAS)
+// ----------------------------------------------------
+async function openHabitsModal() {
+    const habitsBody = document.getElementById('habits-body');
+    if (!habitsBody) return;
+    habitsBody.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm text-info me-2"></span>Cargando tus hábitos...</div>';
+    const modal = new bootstrap.Modal(document.getElementById('habitsModal'));
+    modal.show();
+
+    const insights = await loadInsightsData();
+    if (!insights || !insights.habits) {
+        habitsBody.innerHTML = '<div class="text-secondary text-center py-3">No se encontraron datos de hábitos disponibles.</div>';
+        return;
+    }
+
+    const h = insights.habits;
+    const maxHourVal = Math.max(...h.hourly, 1);
+    const maxDayVal = Math.max(...h.weekday, 1);
+
+    let hourlyBarsHtml = '';
+    h.hourly.forEach((count, hour) => {
+        const pct = Math.round((count / maxHourVal) * 100);
+        const label = `${String(hour).padStart(2, '0')}:00`;
+        const isPeak = hour === h.peakHour;
+        hourlyBarsHtml += `
+            <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 0.72rem;">
+                <span class="text-secondary text-end font-monospace" style="width: 42px;">${label}</span>
+                <div class="flex-grow-1 bg-black rounded" style="height: 7px; overflow: hidden; border: 1px solid var(--border-subtle);">
+                    <div style="width: ${pct}%; height: 100%; background: ${isPeak ? 'var(--brand-primary)' : '#475569'}; border-radius: 3px;"></div>
+                </div>
+                <span class="${isPeak ? 'text-white fw-bold' : 'text-secondary'} font-monospace" style="width: 45px; text-align: right;">${formatNumber(count)}</span>
+            </div>
+        `;
+    });
+
+    let dayBarsHtml = '';
+    h.weekdayNames.forEach((name, idx) => {
+        const count = h.weekday[idx];
+        const pct = Math.round((count / maxDayVal) * 100);
+        const isPeak = name === h.peakWeekday;
+        dayBarsHtml += `
+            <div class="d-flex align-items-center gap-2 mb-1" style="font-size: 0.72rem;">
+                <span class="text-secondary text-end" style="width: 65px;">${name}</span>
+                <div class="flex-grow-1 bg-black rounded" style="height: 7px; overflow: hidden; border: 1px solid var(--border-subtle);">
+                    <div style="width: ${pct}%; height: 100%; background: ${isPeak ? '#06b6d4' : '#475569'}; border-radius: 3px;"></div>
+                </div>
+                <span class="${isPeak ? 'text-white fw-bold' : 'text-secondary'} font-monospace" style="width: 45px; text-align: right;">${formatNumber(count)}</span>
+            </div>
+        `;
+    });
+
+    habitsBody.innerHTML = `
+        <div class="p-2.5 rounded-3 border mb-3" style="background-color: var(--bg-surface-hover); border-color: var(--border-subtle) !important;">
+            <div class="d-flex align-items-center gap-2 mb-1 text-info fw-semibold" style="font-size: 0.78rem;">
+                <i class="fa-solid fa-bolt"></i> Tu Momento Favorito
+            </div>
+            <div class="text-white" style="font-size: 0.81rem;">
+                Tu hora pico del día son las <strong>${h.peakHour}:00 hrs</strong> y tu día con mayor actividad musical es el <strong>${h.peakWeekday}</strong>.
+            </div>
+        </div>
+
+        <div class="fw-bold text-white mb-2" style="font-size: 0.80rem;">Distribución por Día de la Semana</div>
+        <div class="mb-3">${dayBarsHtml}</div>
+
+        <div class="fw-bold text-white mb-2" style="font-size: 0.80rem;">Distribución por Hora del Día (0:00 - 23:00)</div>
+        <div style="max-height: 220px; overflow-y: auto; padding-right: 4px;">${hourlyBarsHtml}</div>
+    `;
+}
+
+// ----------------------------------------------------
+// 3. SECCIÓN DE ARTISTAS OLVIDADOS
+// ----------------------------------------------------
+async function openForgottenModal() {
+    const forgottenBody = document.getElementById('forgotten-body');
+    if (!forgottenBody) return;
+    forgottenBody.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm text-warning me-2"></span>Buscando artistas olvidados...</div>';
+    const modal = new bootstrap.Modal(document.getElementById('forgottenModal'));
+    modal.show();
+
+    const insights = await loadInsightsData();
+    const list = insights?.forgottenArtists || [];
+
+    if (list.length === 0) {
+        forgottenBody.innerHTML = '<div class="text-secondary text-center py-3">¡No tienes artistas olvidados! Sigues escuchando tu biblioteca activamente.</div>';
+        return;
+    }
+
+    forgottenBody.innerHTML = `
+        <div class="text-secondary mb-2" style="font-size: 0.76rem;">
+            Artistas que escuchabas intensamente en el pasado y no has reproducido en más de 1 año:
+        </div>
+        <div id="forgotten-items-container" style="max-height: 380px; overflow-y: auto; padding-right: 2px;"></div>
+    `;
+
+    const container = document.getElementById('forgotten-items-container');
+    list.forEach((art, idx) => {
+        const lastDate = art.last ? new Date(art.last).toLocaleDateString([], { month: 'short', year: 'numeric' }) : 'Antiguo';
+        const spSearch = `https://open.spotify.com/search/${encodeURIComponent(art.name)}`;
+        const row = document.createElement('div');
+        row.className = 'card-uniform mb-1';
+        row.style.minHeight = '44px';
+        row.style.padding = '5px 8px';
+        row.innerHTML = `
+            <span class="card-rank text-muted">#${idx + 1}</span>
+            <div class="overflow-hidden flex-grow-1">
+                <div class="fw-bold text-truncate text-white" style="font-size: 0.81rem;">${art.name}</div>
+                <small class="text-secondary d-block text-truncate" style="font-size: 0.69rem;"><i class="fa-regular fa-clock me-1"></i>Última vez: ${lastDate} • Top: ${art.topTrack}</small>
+            </div>
+            <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${formatNumber(art.plays)}</span>
+            <a href="${spSearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Volver a escuchar">
+                <i class="fa-brands fa-spotify"></i>
+            </a>
+        `;
+        row.addEventListener('click', () => {
+            showItemStats('artist', art.name, '');
+        });
+        const spLink = row.querySelector('.btn-card-action');
+        if (spLink) spLink.addEventListener('click', (e) => e.stopPropagation());
+        container.appendChild(row);
+    });
+}
+
+// ----------------------------------------------------
+// 4. COMPARADOR MUSICAL ("VERSUS")
+// ----------------------------------------------------
+async function openVersusModal() {
+    const modal = new bootstrap.Modal(document.getElementById('versusModal'));
+    modal.show();
+
+    const db = await getActiveDatabase();
+    if (!db || !db.artistsLookup) return;
+
+    const selectA = document.getElementById('versus-select-a');
+    const selectB = document.getElementById('versus-select-b');
+    if (!selectA || !selectB) return;
+
+    const allArtists = Object.values(db.artistsLookup).sort((a, b) => b.plays - a.plays).slice(0, 150);
+
+    selectA.innerHTML = '';
+    selectB.innerHTML = '';
+
+    allArtists.forEach((a, i) => {
+        const optA = document.createElement('option');
+        optA.value = a.name;
+        optA.textContent = `#${i + 1} ${a.name} (${formatNumber(a.plays)})`;
+        selectA.appendChild(optA);
+
+        const optB = document.createElement('option');
+        optB.value = a.name;
+        optB.textContent = `#${i + 1} ${a.name} (${formatNumber(a.plays)})`;
+        selectB.appendChild(optB);
+    });
+
+    if (allArtists.length > 0) selectA.value = allArtists[0].name;
+    if (allArtists.length > 1) selectB.value = allArtists[1].name;
+
+    selectA.onchange = () => updateVersusResults(db);
+    selectB.onchange = () => updateVersusResults(db);
+
+    updateVersusResults(db);
+}
+
+function updateVersusResults(db) {
+    const nameA = document.getElementById('versus-select-a')?.value;
+    const nameB = document.getElementById('versus-select-b')?.value;
+    const resultsContainer = document.getElementById('versus-comparison-results');
+    if (!resultsContainer) return;
+
+    const artMap = db.artistsLookup || {};
+    const keyA = normalizeKey(nameA);
+    const keyB = normalizeKey(nameB);
+
+    const artA = artMap[keyA] || Object.values(artMap).find(a => normalizeKey(a.name) === keyA);
+    const artB = artMap[keyB] || Object.values(artMap).find(a => normalizeKey(a.name) === keyB);
+
+    if (!artA || !artB) return;
+
+    const playsA = artA.plays || 0;
+    const playsB = artB.plays || 0;
+    const hoursA = (artA.ms ? (artA.ms / 3600000).toFixed(1) : (playsA * 3.5 / 60).toFixed(1));
+    const hoursB = (artB.ms ? (artB.ms / 3600000).toFixed(1) : (playsB * 3.5 / 60).toFixed(1));
+    const topSongA = artA.tracks?.[0]?.name || 'N/A';
+    const topSongB = artB.tracks?.[0]?.name || 'N/A';
+
+    const totalPlays = playsA + playsB || 1;
+    const pctA = Math.round((playsA / totalPlays) * 100);
+    const pctB = 100 - pctA;
+
+    const winner = playsA >= playsB ? 'A' : 'B';
+
+    resultsContainer.innerHTML = `
+        <div class="p-2.5 rounded-3 border mb-3" style="background-color: var(--bg-surface-hover); border-color: var(--border-subtle) !important;">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <div class="text-start" style="width: 45%;">
+                    <div class="fw-bold text-truncate text-white" style="font-size: 0.88rem;">
+                        ${winner === 'A' ? '👑 ' : ''}${artA.name}
+                    </div>
+                    <small class="text-secondary">${pctA}% cuota</small>
+                </div>
+                <div class="text-center text-muted fw-bold" style="font-size: 0.76rem;">VS</div>
+                <div class="text-end" style="width: 45%;">
+                    <div class="fw-bold text-truncate text-white" style="font-size: 0.88rem;">
+                        ${winner === 'B' ? '👑 ' : ''}${artB.name}
+                    </div>
+                    <small class="text-secondary">${pctB}% cuota</small>
+                </div>
+            </div>
+
+            <!-- Comparison Bar -->
+            <div class="d-flex rounded overflow-hidden mb-2" style="height: 8px; background-color: #272733;">
+                <div style="width: ${pctA}%; background: linear-gradient(90deg, #a855f7, #c084fc);"></div>
+                <div style="width: ${pctB}%; background: linear-gradient(90deg, #06b6d4, #22d3ee);"></div>
+            </div>
+        </div>
+
+        <!-- Comparative Metrics -->
+        <div class="d-flex flex-column gap-2" style="font-size: 0.78rem;">
+            <div class="d-flex justify-content-between border-bottom pb-1" style="border-color: var(--border-subtle) !important;">
+                <span class="fw-bold text-white">${formatNumber(playsA)}</span>
+                <span class="text-muted">Reproducciones</span>
+                <span class="fw-bold text-white">${formatNumber(playsB)}</span>
+            </div>
+            <div class="d-flex justify-content-between border-bottom pb-1" style="border-color: var(--border-subtle) !important;">
+                <span class="fw-bold text-white">${hoursA} h</span>
+                <span class="text-muted">Horas Totales</span>
+                <span class="fw-bold text-white">${hoursB} h</span>
+            </div>
+            <div class="d-flex justify-content-between border-bottom pb-1" style="border-color: var(--border-subtle) !important;">
+                <span class="text-white text-truncate text-start" style="max-width: 40%;" title="${topSongA}">${topSongA}</span>
+                <span class="text-muted text-center" style="min-width: 80px;">Canción Top</span>
+                <span class="text-white text-truncate text-end" style="max-width: 40%;" title="${topSongB}">${topSongB}</span>
+            </div>
+        </div>
+    `;
+}
+
+// ----------------------------------------------------
+// 5. RÉCORDS Y LOGROS PERSONALES
+// ----------------------------------------------------
+async function openRecordsModal() {
+    const recordsBody = document.getElementById('records-body');
+    if (!recordsBody) return;
+    recordsBody.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm text-warning me-2"></span>Calculando tus récords...</div>';
+    const modal = new bootstrap.Modal(document.getElementById('recordsModal'));
+    modal.show();
+
+    const insights = await loadInsightsData();
+    const rec = insights?.records;
+    if (!rec) {
+        recordsBody.innerHTML = '<div class="text-secondary text-center py-3">No hay datos de récords disponibles.</div>';
+        return;
+    }
+
+    const topDayDate = rec.topDay?.date ? new Date(rec.topDay.date + 'T12:00:00Z').toLocaleDateString([], { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A';
+    const marathonDate = rec.marathonArtist?.date ? new Date(rec.marathonArtist.date + 'T12:00:00Z').toLocaleDateString([], { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A';
+
+    let topDaysHtml = '';
+    (rec.topDaysList || []).forEach((d, i) => {
+        const fDate = new Date(d.date + 'T12:00:00Z').toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+        topDaysHtml += `
+            <div class="d-flex justify-content-between py-1 border-bottom" style="border-color: var(--border-subtle) !important; font-size: 0.74rem;">
+                <span class="text-white">#${i + 1} ${fDate}</span>
+                <span class="badge-scrobble">${d.count} streams</span>
+            </div>
+        `;
+    });
+
+    recordsBody.innerHTML = `
+        <div class="row g-2 mb-3">
+            <div class="col-12">
+                <div class="p-3 rounded-3 border" style="background-color: var(--bg-surface-hover); border-color: var(--border-subtle) !important;">
+                    <div class="d-flex align-items-center gap-2 mb-1 text-warning fw-semibold" style="font-size: 0.76rem;">
+                        <i class="fa-solid fa-trophy"></i> Día Récord Histórico
+                    </div>
+                    <div class="display-6 fw-bold text-white mb-0" style="font-size: 1.5rem;">${rec.topDay.count} <span style="font-size: 0.82rem;" class="fw-normal text-secondary">canciones</span></div>
+                    <div class="text-secondary" style="font-size: 0.76rem;">El <strong>${topDayDate}</strong> fue el día con más música en toda tu vida registrada.</div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="p-3 rounded-3 border" style="background-color: var(--bg-surface-hover); border-color: var(--border-subtle) !important;">
+                    <div class="d-flex align-items-center gap-2 mb-1 text-info fw-semibold" style="font-size: 0.76rem;">
+                        <i class="fa-solid fa-fire"></i> Artista Más Maratoneado
+                    </div>
+                    <div class="h6 fw-bold text-white mb-0">${rec.marathonArtist.artist} (${rec.marathonArtist.count} reproducciones)</div>
+                    <div class="text-secondary" style="font-size: 0.76rem;">Escuchado intensamente en una sola jornada el <strong>${marathonDate}</strong>.</div>
+                </div>
+            </div>
+
+            <div class="col-6">
+                <div class="p-2.5 rounded-3 border" style="background-color: var(--bg-surface-hover); border-color: var(--border-subtle) !important;">
+                    <div class="text-muted" style="font-size: 0.68rem;">Días con Música</div>
+                    <div class="fw-bold text-white mb-0" style="font-size: 0.88rem;">${formatNumber(rec.totalDaysActive)} días</div>
+                </div>
+            </div>
+
+            <div class="col-6">
+                <div class="p-2.5 rounded-3 border" style="background-color: var(--bg-surface-hover); border-color: var(--border-subtle) !important;">
+                    <div class="text-muted" style="font-size: 0.68rem;">Promedio Diario</div>
+                    <div class="fw-bold text-white mb-0" style="font-size: 0.88rem;">~${rec.avgPlaysPerDay} canciones/día</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="fw-bold text-white mb-2" style="font-size: 0.80rem;">Top 5 Días con Más Escuchas</div>
+        <div>${topDaysHtml}</div>
+    `;
 }

@@ -1,0 +1,219 @@
+{
+  "habits": {
+    "hourly": [
+      3635,
+      1843,
+      580,
+      164,
+      29,
+      63,
+      223,
+      1373,
+      981,
+      1670,
+      2903,
+      4447,
+      4731,
+      4515,
+      3699,
+      3413,
+      3294,
+      2803,
+      3716,
+      4213,
+      3655,
+      3426,
+      3771,
+      4177
+    ],
+    "peakHour": 12,
+    "weekday": [
+      8932,
+      8633,
+      8527,
+      9776,
+      8961,
+      9031,
+      9464
+    ],
+    "peakWeekday": "Miércoles",
+    "weekdayNames": [
+      "Domingo",
+      "Lunes",
+      "Martes",
+      "Miércoles",
+      "Jueves",
+      "Viernes",
+      "Sábado"
+    ]
+  },
+  "records": {
+    "topDay": {
+      "date": "2026-08-06",
+      "count": 155
+    },
+    "topDaysList": [
+      {
+        "date": "2026-08-06",
+        "count": 155
+      },
+      {
+        "date": "2026-08-05",
+        "count": 151
+      },
+      {
+        "date": "2026-09-09",
+        "count": 149
+      },
+      {
+        "date": "2025-07-19",
+        "count": 147
+      },
+      {
+        "date": "2026-10-05",
+        "count": 147
+      }
+    ],
+    "marathonArtist": {
+      "artist": "Megadeth",
+      "date": "2025-07-27",
+      "count": 96
+    },
+    "totalDaysActive": 1800,
+    "avgPlaysPerDay": "35.2"
+  },
+  "forgottenArtists": [
+    {
+      "name": "Billie Eilish",
+      "plays": 63,
+      "last": "2023-12-17T18:10:38Z",
+      "topTrack": "bad guy"
+    },
+    {
+      "name": "Ale ASMR",
+      "plays": 49,
+      "last": "2021-08-20T23:00:47Z",
+      "topTrack": "MASAJE relajante en tu CARITA Pt.1"
+    },
+    {
+      "name": "Blaximental",
+      "plays": 48,
+      "last": "2025-03-28T22:25:54Z",
+      "topTrack": "One Sesh 5"
+    },
+    {
+      "name": "Yolo Aventuras",
+      "plays": 39,
+      "last": "2022-11-30T22:59:41Z",
+      "topTrack": "Roast Yourself Challenge"
+    },
+    {
+      "name": "Marshmello",
+      "plays": 39,
+      "last": "2024-02-24T14:58:20Z",
+      "topTrack": "FRIENDS"
+    },
+    {
+      "name": "Ice Spice",
+      "plays": 37,
+      "last": "2025-05-14T04:30:17Z",
+      "topTrack": "In Ha Mood"
+    },
+    {
+      "name": "Calvin Harris",
+      "plays": 36,
+      "last": "2025-04-18T22:15:01Z",
+      "topTrack": "One Kiss (with Dua Lipa)"
+    },
+    {
+      "name": "Ultimate Heroes",
+      "plays": 32,
+      "last": "2024-10-06T05:28:30Z",
+      "topTrack": "Ghost Riders in the Sky"
+    },
+    {
+      "name": "Supermerk2",
+      "plays": 26,
+      "last": "2025-01-19T13:51:51Z",
+      "topTrack": "La resaka"
+    },
+    {
+      "name": "Junior Senior",
+      "plays": 26,
+      "last": "2024-11-10T15:59:37Z",
+      "topTrack": "Move Your Feet"
+    },
+    {
+      "name": "Laura Shigihara",
+      "plays": 25,
+      "last": "2025-04-24T17:55:37Z",
+      "topTrack": "Watery Graves - Fast Version"
+    },
+    {
+      "name": "Chris Turner",
+      "plays": 25,
+      "last": "2024-05-10T16:17:23Z",
+      "topTrack": "PSYCHO"
+    },
+    {
+      "name": "KAROL G",
+      "plays": 23,
+      "last": "2024-11-30T19:11:24Z",
+      "topTrack": "Tusa"
+    },
+    {
+      "name": "Megan Thee Stallion",
+      "plays": 22,
+      "last": "2025-05-14T04:28:17Z",
+      "topTrack": "Sweetest Pie"
+    },
+    {
+      "name": "Bad Gyal",
+      "plays": 22,
+      "last": "2024-01-19T05:04:12Z",
+      "topTrack": "Chulo pt.2"
+    },
+    {
+      "name": "NATTI NATASHA",
+      "plays": 21,
+      "last": "2024-06-14T21:21:11Z",
+      "topTrack": "Pa' Mala Yo"
+    },
+    {
+      "name": "DNCE",
+      "plays": 21,
+      "last": "2025-02-12T05:29:25Z",
+      "topTrack": "Cake By The Ocean"
+    },
+    {
+      "name": "John Cena",
+      "plays": 19,
+      "last": "2022-04-07T22:44:29Z",
+      "topTrack": "The Time Is Now"
+    },
+    {
+      "name": "CRACKS",
+      "plays": 18,
+      "last": "2022-08-06T05:08:45Z",
+      "topTrack": "Rap de Free Fire"
+    },
+    {
+      "name": "Myuu",
+      "plays": 18,
+      "last": "2025-05-14T04:17:58Z",
+      "topTrack": "Jeff The Killer (Piano Version) [Sweet Dreams Are Made Of Screams]"
+    },
+    {
+      "name": "Pitbull",
+      "plays": 15,
+      "last": "2025-03-27T21:05:29Z",
+      "topTrack": "Hotel Room Service"
+    },
+    {
+      "name": "6ix9ine",
+      "plays": 15,
+      "last": "2024-05-26T06:33:48Z",
+      "topTrack": "GOOBA"
+    }
+  ]
+}
