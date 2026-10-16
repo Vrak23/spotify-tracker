@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spotitracker-v16';
+const CACHE_NAME = 'spotitracker-v17';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -50,13 +50,14 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       })
       .catch(() => {
-        return caches.match(event.request).then((cachedResponse) => {
+        return caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
           if (cachedResponse) {
             return cachedResponse;
           }
           if (event.request.mode === 'navigate') {
             return caches.match('/index.html');
           }
+          return new Response('', { status: 404, statusText: 'Offline - Not in cache' });
         });
       })
   );

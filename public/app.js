@@ -25,6 +25,16 @@ let currentLimit = 50;
 let userProfileData = null;
 let currentLoadedItems = []; // Para compartir en tarjeta
 
+// Fallback visual inline para carátulas sin internet (0 peticiones de red, previene bucles)
+const FALLBACK_ART_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40' width='40' height='40'%3E%3Crect width='40' height='40' fill='%231c1c24' rx='6'/%3E%3Cpath d='M16 14v12l10-6z' fill='%2364748b'/%3E%3C/svg%3e";
+
+function safeImgError(img) {
+    if (!img) return;
+    img.onerror = null; // Rompe de inmediato cualquier bucle de reintento
+    img.src = FALLBACK_ART_SVG;
+}
+window.safeImgError = safeImgError;
+
 // PWA: Registrar Service Worker con detección de actualizaciones
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -784,6 +794,7 @@ let currentlyPlayingTimer = null;
 let lastPlayingTrackKey = null;
 
 async function fetchCurrentlyPlaying() {
+    if (!navigator.onLine) return; // Si no hay internet, no consultar Last.fm
     const { user, key } = getLastFmCredentials();
     if (user && key) {
         try {
@@ -802,13 +813,13 @@ async function fetchCurrentlyPlaying() {
                 }
                 lastPlayingTrackKey = trackKey;
 
-                const cover = firstTrack.image?.[1]?.['#text'] || 'https://via.placeholder.com/42';
+                const cover = firstTrack.image?.[1]?.['#text'] || FALLBACK_ART_SVG;
                 const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(trackName + ' ' + artistName)}`;
 
                 if (currentlyPlayingContainer) {
                     currentlyPlayingContainer.innerHTML = `
                         <div class="card-uniform border-primary border-opacity-40" style="background: linear-gradient(90deg, rgba(20, 16, 30, 0.95) 0%, rgba(38, 22, 60, 0.85) 100%);">
-                            <img src="${cover}" class="img-thumb" alt="Cover" onerror="this.src='/logo.png'">
+                            <img src="${cover}" class="img-thumb" alt="Cover" onerror="safeImgError(this)">
                             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                                 <div class="d-flex align-items-center gap-1.5">
                                     <span class="badge bg-primary bg-opacity-25 text-white border border-primary border-opacity-30" style="font-size: 0.65rem;">
@@ -1426,6 +1437,8 @@ function saveArtCache() {
 }
 
 async function resolveSpotifyArtwork(name, artist, type = 'track', elementId) {
+    if (!navigator.onLine) return; // Si no hay conexión a internet, no consultar APIs externas
+
     const key = `${type}::${normalizeKey(name)}::${normalizeKey(artist || '')}`;
 
     if (artCache[key]) {
@@ -1491,11 +1504,11 @@ function getInitialImage(item, name, artist, type) {
             return candidate;
         }
     }
-    return '/logo.png';
+    return FALLBACK_ART_SVG;
 }
 
 function getImageFromItem(item) {
-    if (!item) return '/logo.png';
+    if (!item) return FALLBACK_ART_SVG;
     const artistName = item.artist ? (item.artist.name || item.artist['#text'] || item.artist) : '';
     const itemType = currentType === 'artists' ? 'artist' : (currentType === 'albums' ? 'album' : 'track');
     const key = `${itemType}::${normalizeKey(item.name)}::${normalizeKey(artistName)}`;
@@ -1516,7 +1529,7 @@ function renderTracks(tracks) {
 
         item.innerHTML = `
             <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
-            <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Cover" onerror="this.src='/logo.png'">
+            <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Cover" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
@@ -1560,7 +1573,7 @@ function renderArtists(artists) {
 
         item.innerHTML = `
             <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
-            <img id="${imgId}" src="${initialImg}" class="img-thumb rounded-circle" alt="Artist" onerror="this.src='/logo.png'">
+            <img id="${imgId}" src="${initialImg}" class="img-thumb rounded-circle" alt="Artist" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${artistName}">${artistName}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">Artista</small>
@@ -1603,7 +1616,7 @@ function renderAlbums(albums) {
 
         item.innerHTML = `
             <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
-            <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Album" onerror="this.src='/logo.png'">
+            <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Album" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${album.name}">${album.name}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
@@ -1647,7 +1660,7 @@ function renderRecent(tracks) {
 
         item.innerHTML = `
             <span class="card-rank">#${index + 1}</span>
-            <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Cover" onerror="this.src='/logo.png'">
+            <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Cover" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
@@ -1791,7 +1804,7 @@ async function showItemStats(type, name, artist) {
     if (!data) {
         modalBody.innerHTML = `
             <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06);">
-                <img src="${coverImg}" class="rounded ${type === 'artist' ? 'rounded-circle' : ''}" style="width: 56px; height: 56px; object-fit: cover;" onerror="this.src='/logo.png'">
+                <img src="${coverImg}" class="rounded ${type === 'artist' ? 'rounded-circle' : ''}" style="width: 56px; height: 56px; object-fit: cover;" onerror="safeImgError(this)">
                 <div class="overflow-hidden flex-grow-1">
                     <h6 class="fw-bold mb-0 text-white text-truncate">${name}</h6>
                     <small class="text-secondary text-truncate d-block">${artist || 'Artista'}</small>
@@ -1928,7 +1941,7 @@ async function showItemStats(type, name, artist) {
     modalBody.innerHTML = `
         <!-- Hero Header -->
         <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06);">
-            <img src="${coverImg}" class="rounded ${type === 'artist' ? 'rounded-circle' : ''}" style="width: 58px; height: 58px; object-fit: cover; flex-shrink: 0;" alt="Cover" onerror="this.src='/logo.png'">
+            <img src="${coverImg}" class="rounded ${type === 'artist' ? 'rounded-circle' : ''}" style="width: 58px; height: 58px; object-fit: cover; flex-shrink: 0;" alt="Cover" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="d-flex align-items-center gap-1.5 mb-0.5">
                     <h6 class="fw-bold mb-0 text-white text-truncate" style="font-size: 0.95rem;" title="${name}">${name}</h6>
@@ -2158,7 +2171,7 @@ async function prepareShareCard() {
         row.className = 'd-flex align-items-center gap-2 py-1';
         row.innerHTML = `
             <span class="fw-bold" style="width: 20px; font-size: 0.8rem; color: var(--brand-primary);">#${idx + 1}</span>
-            <img src="${img}" class="rounded" style="width: 32px; height: 32px; object-fit: cover;" alt="cover" onerror="this.src='https://via.placeholder.com/32'">
+            <img src="${img}" class="rounded" style="width: 32px; height: 32px; object-fit: cover;" alt="cover" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1 text-start">
                 <div class="fw-bold text-truncate" style="font-size: 0.8rem;">${name}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.7rem;">${sub}</small>
