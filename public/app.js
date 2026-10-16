@@ -12,7 +12,10 @@ function getLastFmCredentials() {
 }
 
 let accessToken = localStorage.getItem('spotify_access_token') || null;
-let currentRange = '1month'; // 7day, 1month, 3month, 6month, 12month, overall, custom
+let currentSource = 'spotify'; // 'spotify' (Historial extendido 2019-2026) | 'lastfm' (En vivo)
+let spotifyDb = null;
+let isSpotifyDbLoading = false;
+let currentRange = 'overall'; // 'overall', 'year-YYYY', 'month-YYYY-M' o Last.fm periods
 let currentType = 'tracks';  // tracks, artists, albums, recent
 let currentLimit = 50;
 let userProfileData = null;
@@ -56,9 +59,16 @@ const loader = document.getElementById('loader');
 const currentlyPlayingContainer = document.getElementById('currently-playing-container');
 const timeRangeContainer = document.getElementById('time-range-container');
 
+// Data Source Switcher DOM
+const btnSrcSpotify = document.getElementById('btn-src-spotify');
+const btnSrcLastfm = document.getElementById('btn-src-lastfm');
+
 // Stat Strip DOM
 const statStrip = document.getElementById('stat-strip');
 const stripPlaycount = document.getElementById('strip-playcount');
+const stripHoursWrapper = document.getElementById('strip-hours-wrapper');
+const stripHoursDot = document.getElementById('strip-hours-dot');
+const stripHours = document.getElementById('strip-hours');
 const stripArtists = document.getElementById('strip-artists');
 const stripAlbums = document.getElementById('strip-albums');
 
@@ -278,6 +288,224 @@ function setupEventListeners() {
     if (btnInstallFab) {
         btnInstallFab.addEventListener('click', triggerInstallFlow);
     }
+
+    // Switcher de fuente de datos (Historial Spotify vs Last.fm en Vivo)
+    if (btnSrcSpotify) {
+        btnSrcSpotify.addEventListener('click', () => switchDataSource('spotify'));
+    }
+    if (btnSrcLastfm) {
+        btnSrcLastfm.addEventListener('click', () => switchDataSource('lastfm'));
+    }
+}
+
+// ----------------------------------------------------
+// GESTIÓN DE FUENTES DE DATOS: SPOTIFY EXTENDIDO VS LAST.FM
+// ----------------------------------------------------
+async function loadSpotifyDatabase() {
+    if (spotifyDb) return spotifyDb;
+    if (isSpotifyDbLoading) {
+        while (isSpotifyDbLoading) {
+            await new Promise(r => setTimeout(r, 100));
+        }
+        return spotifyDb;
+    }
+    isSpotifyDbLoading = true;
+    try {
+        const res = await fetch('/data/spotify_history.json');
+        if (res.ok) {
+            spotifyDb = await res.json();
+            console.log('Base de datos Spotify extendida cargada:', spotifyDb.summary);
+        }
+    } catch (e) {
+        console.warn('Error al cargar spotify_history.json:', e);
+    } finally {
+        isSpotifyDbLoading = false;
+    }
+    return spotifyDb;
+}
+
+async function switchDataSource(source) {
+    if (currentSource === source) return;
+    currentSource = source;
+
+    if (btnSrcSpotify && btnSrcLastfm) {
+        if (currentSource === 'spotify') {
+            btnSrcSpotify.className = 'btn btn-sm flex-fill rounded-pill py-1 px-2 d-flex align-items-center justify-content-center gap-1.5 fw-semibold active-source-btn';
+            btnSrcLastfm.className = 'btn btn-sm flex-fill rounded-pill py-1 px-2 d-flex align-items-center justify-content-center gap-1.5 fw-semibold inactive-source-btn';
+            if (stripHoursWrapper) stripHoursWrapper.classList.remove('d-none');
+            if (stripHoursDot) stripHoursDot.classList.remove('d-none');
+        } else {
+            btnSrcSpotify.className = 'btn btn-sm flex-fill rounded-pill py-1 px-2 d-flex align-items-center justify-content-center gap-1.5 fw-semibold inactive-source-btn';
+            btnSrcLastfm.className = 'btn btn-sm flex-fill rounded-pill py-1 px-2 d-flex align-items-center justify-content-center gap-1.5 fw-semibold active-source-btn';
+            if (stripHoursWrapper) stripHoursWrapper.classList.add('d-none');
+            if (stripHoursDot) stripHoursDot.classList.add('d-none');
+        }
+    }
+
+    currentRange = (currentSource === 'spotify') ? 'overall' : '1month';
+
+    // Sincronizar botones de tabs relativas
+    document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => {
+        b.classList.toggle('active', b.getAttribute('data-range') === currentRange);
+    });
+
+    if (currentSource === 'spotify') {
+        renderSpotifyYearsFilter();
+        updateSpotifyStatStrip();
+    } else {
+        fetchLastFmGlobalStats();
+    }
+
+    loadStats();
+}
+
+function updateSpotifyStatStrip() {
+    if (!statStrip) return;
+    statStrip.classList.remove('d-none');
+    statStrip.classList.add('d-flex');
+    if (stripHoursWrapper) stripHoursWrapper.classList.remove('d-none');
+    if (stripHoursDot) stripHoursDot.classList.remove('d-none');
+
+    if (!spotifyDb) {
+        if (stripPlaycount) stripPlaycount.textContent = '63.1K';
+        if (stripHours) stripHours.textContent = '3,192';
+        if (stripArtists) stripArtists.textContent = '1,654';
+        if (stripAlbums) stripAlbums.textContent = '3,465';
+        return;
+    }
+
+    // Si hay un año seleccionado
+    if (currentRange.startsWith('year-')) {
+        const y = currentRange.replace('year-', '');
+        const yData = spotifyDb.yearlyTops?.[y];
+        if (yData) {
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(yData.plays);
+            if (stripHours) stripHours.textContent = Math.round(parseFloat(yData.hours || 0)).toLocaleString();
+            if (stripArtists) stripArtists.textContent = formatNumber(yData.artists?.length || 0);
+            if (stripAlbums) stripAlbums.textContent = formatNumber(yData.albums?.length || 0);
+            return;
+        }
+    }
+
+    // Si hay un mes seleccionado (ej: month-2024-5)
+    if (currentRange.startsWith('month-')) {
+        const parts = currentRange.split('-');
+        const y = parts[1];
+        const m = parts[2];
+        const mData = spotifyDb.yearlyTops?.[y]?.months?.[m];
+        if (mData) {
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(mData.plays);
+            if (stripHours) stripHours.textContent = (parseFloat(mData.hours || 0)).toFixed(1);
+            if (stripArtists) stripArtists.textContent = formatNumber(mData.artists?.length || 0);
+            if (stripAlbums) stripAlbums.textContent = formatNumber(mData.albums?.length || 0);
+            return;
+        }
+    }
+
+    // Resumen global histórico
+    const s = spotifyDb.summary;
+    if (stripPlaycount) stripPlaycount.textContent = formatNumber(s.validStreams);
+    if (stripHours) stripHours.textContent = Math.round(parseFloat(s.totalHours)).toLocaleString();
+    if (stripArtists) stripArtists.textContent = formatNumber(spotifyDb.yearlyTops?.overall?.artists?.length || 1654);
+    if (stripAlbums) stripAlbums.textContent = formatNumber(spotifyDb.yearlyTops?.overall?.albums?.length || 3465);
+}
+
+function renderSpotifyYearsFilter() {
+    if (!yearsFilterContainer || !yearsPillList) return;
+    yearsPillList.innerHTML = '';
+    yearsFilterContainer.classList.remove('d-none');
+    yearsFilterContainer.classList.add('d-flex');
+
+    const years = (spotifyDb && spotifyDb.summary && spotifyDb.summary.years) ?
+        spotifyDb.summary.years :
+        ['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019'];
+
+    // Botón Histórico Total
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    const isOverall = currentRange === 'overall' || currentRange === 'all';
+    allBtn.className = `pill-btn year-pill-btn ${isOverall ? 'active' : ''}`;
+    allBtn.textContent = 'Histórico Total';
+    allBtn.addEventListener('click', () => {
+        document.querySelectorAll('.year-pill-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
+        const overallTab = document.querySelector('#time-range-tabs .pill-btn[data-range="overall"]');
+        if (overallTab) overallTab.classList.add('active');
+        allBtn.classList.add('active');
+        if (monthsFilterContainer) {
+            monthsFilterContainer.classList.add('d-none');
+            monthsFilterContainer.classList.remove('d-flex');
+        }
+        currentRange = 'overall';
+        updateSpotifyStatStrip();
+        loadStats();
+    });
+    yearsPillList.appendChild(allBtn);
+
+    years.forEach(year => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const isYearActive = currentRange.startsWith(`year-${year}`) || currentRange.startsWith(`month-${year}-`);
+        btn.className = `pill-btn year-pill-btn ${isYearActive ? 'active' : ''}`;
+        btn.setAttribute('data-year', year);
+        btn.textContent = year;
+
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.year-pill-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            currentRange = `year-${year}`;
+            renderSpotifyMonthsFilter(year);
+            updateSpotifyStatStrip();
+            loadStats();
+        });
+
+        yearsPillList.appendChild(btn);
+    });
+}
+
+function renderSpotifyMonthsFilter(year) {
+    if (!monthsFilterContainer || !monthsPillList) return;
+    monthsPillList.innerHTML = '';
+    monthsFilterContainer.classList.remove('d-none');
+    monthsFilterContainer.classList.add('d-flex');
+
+    const availableMonths = (spotifyDb?.yearlyTops?.[year]?.months) ?
+        Object.keys(spotifyDb.yearlyTops[year].months).map(m => parseInt(m, 10)).sort((a, b) => a - b) :
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+    // Botón Todo el año
+    const allYearBtn = document.createElement('button');
+    allYearBtn.type = 'button';
+    allYearBtn.className = `pill-btn month-pill-btn ${currentRange === `year-${year}` ? 'active' : ''}`;
+    allYearBtn.textContent = 'Todo el año';
+    allYearBtn.addEventListener('click', () => {
+        document.querySelectorAll('.month-pill-btn').forEach(b => b.classList.remove('active'));
+        allYearBtn.classList.add('active');
+        currentRange = `year-${year}`;
+        updateSpotifyStatStrip();
+        loadStats();
+    });
+    monthsPillList.appendChild(allYearBtn);
+
+    availableMonths.forEach(m => {
+        const mBtn = document.createElement('button');
+        mBtn.type = 'button';
+        mBtn.className = `pill-btn month-pill-btn ${currentRange === `month-${year}-${m}` ? 'active' : ''}`;
+        mBtn.textContent = MONTH_SHORT_NAMES[m - 1];
+        mBtn.setAttribute('title', `${MONTH_NAMES[m - 1]} ${year}`);
+
+        mBtn.addEventListener('click', () => {
+            document.querySelectorAll('.month-pill-btn').forEach(b => b.classList.remove('active'));
+            mBtn.classList.add('active');
+            currentRange = `month-${year}-${m}`;
+            updateSpotifyStatStrip();
+            loadStats();
+        });
+
+        monthsPillList.appendChild(mBtn);
+    });
 }
 
 async function forceAppUpdate() {
@@ -333,14 +561,24 @@ async function showDashboard() {
     }
 
     initLastFmState();
-    fetchLastFmGlobalStats();
     fetchCurrentlyPlaying();
 
     if (accessToken) {
         fetchUserProfile();
     }
 
-    loadStats();
+    if (currentSource === 'spotify') {
+        renderSpotifyYearsFilter();
+        updateSpotifyStatStrip();
+        loadSpotifyDatabase().then(() => {
+            renderSpotifyYearsFilter();
+            updateSpotifyStatStrip();
+            loadStats();
+        });
+    } else {
+        fetchLastFmGlobalStats();
+        loadStats();
+    }
 }
 
 // ----------------------------------------------------
@@ -557,6 +795,105 @@ async function loadStats() {
     statsList.innerHTML = '';
     loader.classList.remove('d-none');
 
+    // ====================================================
+    // MODO HISTORIAL EXTENDIDO SPOTIFY (2019 - 2026)
+    // ====================================================
+    if (currentSource === 'spotify') {
+        if (!spotifyDb) {
+            await loadSpotifyDatabase();
+        }
+        loader.classList.add('d-none');
+
+        if (!spotifyDb) {
+            statsList.innerHTML = '<div class="text-center text-danger py-5">Error al cargar la base de datos de Spotify.</div>';
+            return;
+        }
+
+        updateSpotifyStatStrip();
+
+        let topData = spotifyDb.yearlyTops?.overall;
+        if (currentRange.startsWith('year-')) {
+            const y = currentRange.replace('year-', '');
+            topData = spotifyDb.yearlyTops?.[y] || spotifyDb.yearlyTops?.overall;
+        } else if (currentRange.startsWith('month-')) {
+            const parts = currentRange.split('-');
+            const y = parts[1];
+            const m = parts[2];
+            topData = spotifyDb.yearlyTops?.[y]?.months?.[m] || spotifyDb.yearlyTops?.overall;
+        }
+
+        if (currentType === 'tracks') {
+            const rawTracks = topData?.tracks || [];
+            if (rawTracks.length === 0) {
+                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron canciones registradas para este periodo.</div>';
+                return;
+            }
+            const tracks = rawTracks.slice(0, currentLimit).map(t => ({
+                name: t.name,
+                artist: { name: t.artist },
+                album: { name: t.album },
+                playcount: t.plays,
+                uri: t.uri
+            }));
+            currentLoadedItems = tracks;
+            renderTracks(tracks);
+            return;
+        }
+
+        if (currentType === 'artists') {
+            const rawArtists = topData?.artists || [];
+            if (rawArtists.length === 0) {
+                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron artistas registrados para este periodo.</div>';
+                return;
+            }
+            const artists = rawArtists.slice(0, currentLimit).map(a => ({
+                name: a.name,
+                playcount: a.plays
+            }));
+            currentLoadedItems = artists;
+            renderArtists(artists);
+            return;
+        }
+
+        if (currentType === 'albums') {
+            const rawAlbums = topData?.albums || [];
+            if (rawAlbums.length === 0) {
+                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron álbumes registrados para este periodo.</div>';
+                return;
+            }
+            const albums = rawAlbums.slice(0, currentLimit).map(al => ({
+                name: al.name,
+                artist: { name: al.artist },
+                playcount: al.plays
+            }));
+            currentLoadedItems = albums;
+            renderAlbums(albums);
+            return;
+        }
+
+        if (currentType === 'recent') {
+            const rawRecent = spotifyDb.recent || [];
+            if (rawRecent.length === 0) {
+                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron reproducciones registradas.</div>';
+                return;
+            }
+            const recent = rawRecent.slice(0, currentLimit).map(r => ({
+                name: r.name,
+                artist: { name: r.artist },
+                album: { name: r.album },
+                date: { uts: Math.floor(new Date(r.ts).getTime() / 1000) },
+                uri: r.uri
+            }));
+            currentLoadedItems = recent;
+            renderRecent(recent);
+            return;
+        }
+        return;
+    }
+
+    // ====================================================
+    // MODO EN VIVO LAST.FM
+    // ====================================================
     const { user, key } = getLastFmCredentials();
 
     if (!user || !key) {
@@ -566,7 +903,7 @@ async function loadStats() {
                 <i class="fa-brands fa-lastfm text-danger mb-3" style="font-size: 2.8rem;"></i>
                 <h5 class="fw-bold mb-2">Conecta tu cuenta de Last.fm</h5>
                 <p class="text-secondary small mx-auto mb-3" style="max-width: 420px;">
-                    Para ver tus tops de canciones, artistas y álbumes ordenados por streams y scrobbles reales, ingresa tus datos de Last.fm.
+                    Para ver tus datos en vivo de Last.fm, ingresa tus credenciales.
                 </p>
                 <button class="btn btn-sm btn-danger px-3 py-2 rounded-pill fw-semibold" onclick="openLastFmModal()">
                     <i class="fa-brands fa-lastfm me-1"></i> Conectar con Last.fm
@@ -913,12 +1250,21 @@ function getInitialImage(item, name, artist, type) {
     return '/logo.png';
 }
 
+function getImageFromItem(item) {
+    if (!item) return '/logo.png';
+    const artistName = item.artist ? (item.artist.name || item.artist['#text'] || item.artist) : '';
+    const itemType = currentType === 'artists' ? 'artist' : (currentType === 'albums' ? 'album' : 'track');
+    const key = `${itemType}::${normalizeKey(item.name)}::${normalizeKey(artistName)}`;
+    if (artCache[key]) return artCache[key];
+    return getInitialImage(item, item.name, artistName, itemType);
+}
+
 function renderTracks(tracks) {
     statsList.innerHTML = '';
     tracks.forEach((track, index) => {
         const item = document.createElement('div');
         item.className = 'card-uniform';
-        const artistName = track.artist ? (track.artist.name || track.artist['#text']) : '';
+        const artistName = track.artist ? (track.artist.name || track.artist['#text'] || track.artist) : '';
         const playcount = formatNumber(track.playcount);
         const imgId = `art-track-${index}`;
         const initialImg = getInitialImage(track, track.name, artistName, 'track');
@@ -936,6 +1282,18 @@ function renderTracks(tracks) {
                 <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
             </a>
         `;
+
+        // Click en la tarjeta para ver el apartado de estadísticas
+        item.addEventListener('click', () => {
+            showItemStats('track', track.name, artistName);
+        });
+
+        // Prevenir que el click en el enlace de Spotify abra el modal
+        const spLink = item.querySelector('.btn-card-action');
+        if (spLink) {
+            spLink.addEventListener('click', (e) => e.stopPropagation());
+        }
+
         statsList.appendChild(item);
 
         const key = `track::${normalizeKey(track.name)}::${normalizeKey(artistName)}`;
@@ -968,6 +1326,17 @@ function renderArtists(artists) {
                 <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
             </a>
         `;
+
+        // Click en la tarjeta para ver estadísticas
+        item.addEventListener('click', () => {
+            showItemStats('artist', artistName, '');
+        });
+
+        const spLink = item.querySelector('.btn-card-action');
+        if (spLink) {
+            spLink.addEventListener('click', (e) => e.stopPropagation());
+        }
+
         statsList.appendChild(item);
 
         const key = `artist::${normalizeKey(artistName)}::`;
@@ -982,7 +1351,7 @@ function renderAlbums(albums) {
     albums.forEach((album, index) => {
         const item = document.createElement('div');
         item.className = 'card-uniform';
-        const artistName = album.artist ? (album.artist.name || album.artist['#text']) : '';
+        const artistName = album.artist ? (album.artist.name || album.artist['#text'] || album.artist) : '';
         const playcount = formatNumber(album.playcount);
         const imgId = `art-album-${index}`;
         const initialImg = getInitialImage(album, album.name, artistName, 'album');
@@ -1000,6 +1369,17 @@ function renderAlbums(albums) {
                 <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
             </a>
         `;
+
+        // Click en la tarjeta para ver estadísticas del álbum
+        item.addEventListener('click', () => {
+            showItemStats('album', album.name, artistName);
+        });
+
+        const spLink = item.querySelector('.btn-card-action');
+        if (spLink) {
+            spLink.addEventListener('click', (e) => e.stopPropagation());
+        }
+
         statsList.appendChild(item);
 
         const key = `album::${normalizeKey(album.name)}::${normalizeKey(artistName)}`;
@@ -1014,7 +1394,7 @@ function renderRecent(tracks) {
     tracks.forEach((track, index) => {
         const item = document.createElement('div');
         item.className = 'card-uniform';
-        const artistName = track.artist ? (track.artist['#text'] || track.artist.name) : '';
+        const artistName = track.artist ? (track.artist['#text'] || track.artist.name || track.artist) : '';
         const isNowPlaying = track['@attr']?.nowplaying === 'true';
         const playedAtStr = isNowPlaying ? 'En vivo' : formatDate(track.date?.uts);
         const imgId = `art-recent-${index}`;
@@ -1035,6 +1415,16 @@ function renderRecent(tracks) {
                 <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
             </a>
         `;
+
+        item.addEventListener('click', () => {
+            showItemStats('track', track.name, artistName);
+        });
+
+        const spLink = item.querySelector('.btn-card-action');
+        if (spLink) {
+            spLink.addEventListener('click', (e) => e.stopPropagation());
+        }
+
         statsList.appendChild(item);
 
         const key = `track::${normalizeKey(track.name)}::${normalizeKey(artistName)}`;
@@ -1042,6 +1432,268 @@ function renderRecent(tracks) {
             resolveSpotifyArtwork(track.name, artistName, 'track', imgId);
         }
     });
+}
+
+// ----------------------------------------------------
+// MODAL: APARTADO DE ESTADÍSTICAS DE MIS ESCUCHAS
+// ----------------------------------------------------
+async function showItemStats(type, name, artist) {
+    if (!spotifyDb) {
+        await loadSpotifyDatabase();
+    }
+
+    const modalTitle = document.getElementById('item-stats-type-title');
+    const modalBody = document.getElementById('item-stats-body');
+    const spotifyBtn = document.getElementById('item-stats-spotify-btn');
+
+    if (!modalBody) return;
+
+    const normName = (name || '').trim().toLowerCase();
+    const normArt = (artist || '').trim().toLowerCase();
+
+    let data = null;
+
+    if (type === 'track') {
+        if (modalTitle) modalTitle.innerHTML = '<i class="fa-solid fa-music text-primary me-2"></i>Estadísticas de Canción';
+        const key = `${normName}:::${normArt}`;
+        data = spotifyDb?.tracksLookup?.[key];
+        if (!data && spotifyDb?.tracksLookup) {
+            const foundKey = Object.keys(spotifyDb.tracksLookup).find(k => k.startsWith(normName + ':::') || k.includes(normName));
+            if (foundKey) data = spotifyDb.tracksLookup[foundKey];
+        }
+    } else if (type === 'album') {
+        if (modalTitle) modalTitle.innerHTML = '<i class="fa-solid fa-compact-disc text-info me-2"></i>Estadísticas de Álbum';
+        const key = `${normName}:::${normArt}`;
+        data = spotifyDb?.albumsLookup?.[key];
+        if (!data && spotifyDb?.albumsLookup) {
+            const foundKey = Object.keys(spotifyDb.albumsLookup).find(k => k.startsWith(normName + ':::') || k.includes(normName));
+            if (foundKey) data = spotifyDb.albumsLookup[foundKey];
+        }
+    } else if (type === 'artist') {
+        if (modalTitle) modalTitle.innerHTML = '<i class="fa-solid fa-user-group text-warning me-2"></i>Estadísticas de Artista';
+        data = spotifyDb?.artistsLookup?.[normName] || spotifyDb?.artistsLookup?.[normArt];
+        if (!data && spotifyDb?.artistsLookup) {
+            const foundKey = Object.keys(spotifyDb.artistsLookup).find(k => k.includes(normName) || k.includes(normArt));
+            if (foundKey) data = spotifyDb.artistsLookup[foundKey];
+        }
+    }
+
+    // Cover artwork resolution
+    const artKey = `${type}::${normalizeKey(name)}::${normalizeKey(artist || '')}`;
+    const coverImg = artCache[artKey] || '/logo.png';
+
+    // Spotify Link
+    const spotifyQuery = encodeURIComponent(`${name} ${artist || ''}`.trim());
+    let spotifyUrl = `https://open.spotify.com/search/${spotifyQuery}`;
+    if (data?.uri) {
+        const parts = data.uri.split(':');
+        if (parts.length === 3) {
+            spotifyUrl = `https://open.spotify.com/${parts[1]}/${parts[2]}`;
+        }
+    }
+    if (spotifyBtn) {
+        spotifyBtn.href = spotifyUrl;
+    }
+
+    function formatSimpleDate(isoStr) {
+        if (!isoStr) return 'N/A';
+        try {
+            const d = new Date(isoStr);
+            return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch (e) {
+            return (isoStr || '').split('T')[0] || 'N/A';
+        }
+    }
+
+    if (!data) {
+        modalBody.innerHTML = `
+            <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06);">
+                <img src="${coverImg}" class="rounded ${type === 'artist' ? 'rounded-circle' : ''}" style="width: 56px; height: 56px; object-fit: cover;" onerror="this.src='/logo.png'">
+                <div class="overflow-hidden flex-grow-1">
+                    <h6 class="fw-bold mb-0 text-white text-truncate">${name}</h6>
+                    <small class="text-secondary text-truncate d-block">${artist || 'Artista'}</small>
+                </div>
+            </div>
+            <div class="p-3 rounded border border-secondary border-opacity-20 text-center" style="background-color: rgba(255, 255, 255, 0.02);">
+                <i class="fa-solid fa-clock-rotate-left text-secondary mb-2" style="font-size: 1.8rem;"></i>
+                <p class="mb-1 text-white fw-semibold">Sin registro en el historial exportado</p>
+                <small class="text-secondary d-block">Esta pista fue registrada recientemente o con ortografía distinta en Last.fm. Las estadísticas detalladas de 2019 a 2026 corresponden a tu archivo oficial de Spotify.</small>
+            </div>
+        `;
+        const modal = new bootstrap.Modal(document.getElementById('itemStatsModal'));
+        modal.show();
+        return;
+    }
+
+    // Métricas principales
+    const totalPlays = data.plays || 0;
+    const totalMs = data.ms || 0;
+    const hours = (totalMs / (1000 * 60 * 60));
+    const timeFormatted = hours >= 1 ? `${hours.toFixed(1)} hrs` : `${Math.max(1, Math.round(totalMs / 60000))} mins`;
+    const skips = data.skips || 0;
+    const firstDate = formatSimpleDate(data.first);
+    const lastDate = formatSimpleDate(data.last);
+
+    // Barras de evolución anual (2019-2026)
+    const yearsObj = data.years || {};
+    const yearsList = ['2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'];
+    const maxYearPlays = Math.max(1, ...Object.values(yearsObj));
+
+    const annualBarsHtml = yearsList.map(y => {
+        const yPlays = yearsObj[y] || 0;
+        const pct = Math.round((yPlays / maxYearPlays) * 100);
+        const barColor = yPlays > 0 ? 'linear-gradient(90deg, #a855f7 0%, #c084fc 100%)' : 'rgba(255, 255, 255, 0.05)';
+        return `
+            <div class="d-flex align-items-center gap-2 mb-1.5" style="font-size: 0.74rem;">
+                <span class="text-secondary fw-semibold" style="width: 34px;">${y}</span>
+                <div class="progress flex-grow-1" style="height: 7px; background-color: rgba(255, 255, 255, 0.06); border-radius: 4px;">
+                    <div class="progress-bar" style="width: ${pct}%; background: ${barColor}; border-radius: 4px;"></div>
+                </div>
+                <span class="text-end fw-semibold ${yPlays > 0 ? 'text-white' : 'text-muted'}" style="width: 48px; font-size: 0.72rem;">${yPlays}</span>
+            </div>
+        `;
+    }).join('');
+
+    // Meses con mayor actividad (Top 3)
+    let peakMonthsHtml = '';
+    if (data.months && Object.keys(data.months).length > 0) {
+        const sortedMonths = Object.entries(data.months).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        peakMonthsHtml = `
+            <div class="mt-2.5 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05);">
+                <div class="fw-semibold text-secondary mb-1.5" style="font-size: 0.72rem;"><i class="fa-solid fa-fire text-warning me-1"></i> Meses pico de más escuchas</div>
+                <div class="d-flex flex-wrap gap-1.5">
+                    ${sortedMonths.map(([mKey, count]) => {
+                        const [y, m] = mKey.split('-');
+                        const mLabel = `${MONTH_SHORT_NAMES[parseInt(m, 10) - 1]} ${y}`;
+                        return `<span class="badge border border-secondary border-opacity-20 text-white" style="background-color: rgba(168, 85, 247, 0.15); font-size: 0.72rem;"><strong class="text-info">${mLabel}:</strong> ${count} reps</span>`;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Plataformas (para track)
+    let platformsHtml = '';
+    if (data.platforms && Object.keys(data.platforms).length > 0) {
+        const sortedPlatforms = Object.entries(data.platforms).sort((a, b) => b[1] - a[1]);
+        platformsHtml = `
+            <div class="mt-2.5 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05);">
+                <div class="fw-semibold text-secondary mb-1.5" style="font-size: 0.72rem;"><i class="fa-solid fa-mobile-screen-button text-success me-1"></i> Dispositivos y Plataformas</div>
+                <div class="d-flex flex-wrap gap-1">
+                    ${sortedPlatforms.map(([plat, count]) => {
+                        const cleanPlat = plat.includes('Android') ? 'Android' : (plat.includes('Windows') ? 'Windows' : plat);
+                        return `<span class="badge bg-dark border border-secondary border-opacity-25 text-secondary" style="font-size: 0.68rem;">${cleanPlat}: <strong class="text-white">${count}</strong></span>`;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Canciones de este Álbum (para álbum)
+    let albumTracksHtml = '';
+    if (type === 'album' && data.tracks && data.tracks.length > 0) {
+        albumTracksHtml = `
+            <div class="mt-3 pt-2.5 border-top border-secondary border-opacity-15">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-white" style="font-size: 0.78rem;"><i class="fa-solid fa-list-ol text-info me-1.5"></i> Canciones de este Álbum</span>
+                    <small class="text-secondary">${data.tracks.length} canciones</small>
+                </div>
+                <div class="d-flex flex-column gap-1" style="max-height: 180px; overflow-y: auto;">
+                    ${data.tracks.map((t, idx) => `
+                        <div class="d-flex align-items-center justify-content-between py-1 px-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); font-size: 0.72rem;">
+                            <span class="text-truncate me-2"><strong class="text-secondary me-1.5">#${idx + 1}</strong> <span class="text-white">${t.name}</span></span>
+                            <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0">${formatNumber(t.plays)} reps</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // Top Canciones de este Artista (para artista)
+    let artistTracksHtml = '';
+    if (type === 'artist' && data.tracks && data.tracks.length > 0) {
+        artistTracksHtml = `
+            <div class="mt-3 pt-2.5 border-top border-secondary border-opacity-15">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-white" style="font-size: 0.78rem;"><i class="fa-solid fa-fire text-warning me-1.5"></i> Canciones Top de este Artista</span>
+                    <small class="text-secondary">${data.tracks.length} destacadas</small>
+                </div>
+                <div class="d-flex flex-column gap-1" style="max-height: 180px; overflow-y: auto;">
+                    ${data.tracks.map((t, idx) => `
+                        <div class="d-flex align-items-center justify-content-between py-1 px-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); font-size: 0.72rem;">
+                            <span class="text-truncate me-2"><strong class="text-secondary me-1.5">#${idx + 1}</strong> <span class="text-white">${t.name}</span></span>
+                            <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0">${formatNumber(t.plays)} reps</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    modalBody.innerHTML = `
+        <!-- Hero Header -->
+        <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06);">
+            <img src="${coverImg}" class="rounded ${type === 'artist' ? 'rounded-circle' : ''}" style="width: 58px; height: 58px; object-fit: cover; flex-shrink: 0;" alt="Cover" onerror="this.src='/logo.png'">
+            <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                <h6 class="fw-bold mb-0.5 text-white text-truncate" style="font-size: 0.95rem;" title="${name}">${name}</h6>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.76rem;">${artist || (type === 'artist' ? 'Artista' : '')}</small>
+                ${data.album && data.album !== name ? `<small class="text-muted text-truncate d-block" style="font-size: 0.68rem;"><i class="fa-solid fa-compact-disc me-1"></i>${data.album}</small>` : ''}
+            </div>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="row g-2 mb-3">
+            <div class="col-6 col-sm-3">
+                <div class="p-2 rounded text-center" style="background-color: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.25);">
+                    <small class="text-secondary d-block" style="font-size: 0.66rem;">Reproducciones</small>
+                    <strong class="text-white fs-6">${formatNumber(totalPlays)}</strong>
+                </div>
+            </div>
+            <div class="col-6 col-sm-3">
+                <div class="p-2 rounded text-center" style="background-color: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.25);">
+                    <small class="text-secondary d-block" style="font-size: 0.66rem;">Tiempo Total</small>
+                    <strong class="text-white fs-6">${timeFormatted}</strong>
+                </div>
+            </div>
+            <div class="col-6 col-sm-3">
+                <div class="p-2 rounded text-center" style="background-color: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25);">
+                    <small class="text-secondary d-block" style="font-size: 0.66rem;">Primera Escucha</small>
+                    <strong class="text-white" style="font-size: 0.74rem;">${firstDate}</strong>
+                </div>
+            </div>
+            <div class="col-6 col-sm-3">
+                <div class="p-2 rounded text-center" style="background-color: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.25);">
+                    <small class="text-secondary d-block" style="font-size: 0.66rem;">Última Escucha</small>
+                    <strong class="text-white" style="font-size: 0.74rem;">${lastDate}</strong>
+                </div>
+            </div>
+        </div>
+
+        ${type === 'track' && skips > 0 ? `
+            <div class="d-flex align-items-center justify-content-between p-1.5 px-2.5 mb-2.5 rounded border border-secondary border-opacity-15" style="background-color: rgba(255, 255, 255, 0.02); font-size: 0.72rem;">
+                <span class="text-secondary"><i class="fa-solid fa-forward me-1 text-muted"></i> Veces salteada antes de tiempo:</span>
+                <span class="badge bg-secondary bg-opacity-25 text-white">${skips} skips</span>
+            </div>
+        ` : ''}
+
+        <!-- Annual Evolution Bars -->
+        <div class="p-2.5 rounded border border-secondary border-opacity-15" style="background-color: rgba(255, 255, 255, 0.02);">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="fw-bold text-white" style="font-size: 0.76rem;"><i class="fa-solid fa-chart-column text-primary me-1.5"></i> Evolución por Años (2019-2026)</span>
+                <small class="text-secondary" style="font-size: 0.68rem;">streams / año</small>
+            </div>
+            ${annualBarsHtml}
+        </div>
+
+        ${peakMonthsHtml}
+        ${platformsHtml}
+        ${albumTracksHtml}
+        ${artistTracksHtml}
+    `;
+
+    const modal = new bootstrap.Modal(document.getElementById('itemStatsModal'));
+    modal.show();
 }
 
 // ----------------------------------------------------
