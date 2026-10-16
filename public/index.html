@@ -68,34 +68,34 @@
 
         @media (min-width: 768px) {
             .app-container {
-                max-width: 860px;
+                max-width: 900px;
                 padding: 0 16px;
             }
             .stats-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-                gap: 8px !important;
+                gap: 6px !important;
             }
         }
 
-        @media (min-width: 1024px) {
+        @media (min-width: 1080px) {
             .app-container {
-                max-width: 1100px;
-                padding: 0 24px;
+                max-width: 1180px;
+                padding: 0 20px;
             }
             .stats-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-                gap: 10px !important;
+                gap: 6px !important;
             }
         }
 
-        @media (min-width: 1400px) {
+        @media (min-width: 1320px) {
             .app-container {
-                max-width: 1320px;
-                padding: 0 32px;
+                max-width: 1420px;
+                padding: 0 24px;
             }
             .stats-grid {
                 grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-                gap: 12px !important;
+                gap: 6px !important;
             }
         }
 
@@ -212,18 +212,18 @@
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr;
-            gap: 6px;
+            gap: 5px;
         }
 
         .card-uniform {
             background-color: var(--bg-surface);
             border: 1px solid var(--border-subtle);
-            border-radius: 12px;
-            padding: 7px 10px;
-            min-height: 56px;
+            border-radius: 8px;
+            padding: 4px 8px;
+            min-height: 44px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 7px;
             transition: all 0.15s ease;
             width: 100%;
             max-width: 100%;
@@ -236,12 +236,20 @@
             border-color: rgba(168, 85, 247, 0.35);
             transform: translateY(-1px);
         }
+        .card-uniform .fw-bold {
+            font-size: 0.80rem !important;
+            line-height: 1.2;
+        }
+        .card-uniform small {
+            font-size: 0.68rem !important;
+            line-height: 1.2;
+        }
 
         /* Filter Toolbar and Custom Selects */
         .filter-toolbar {
             background-color: var(--bg-surface);
             border: 1px solid var(--border-subtle);
-            border-radius: 12px;
+            border-radius: 10px;
         }
         .filter-label {
             display: flex;
@@ -260,7 +268,7 @@
             font-weight: 500 !important;
             border-radius: 8px !important;
             padding: 4px 24px 4px 8px !important;
-            height: 32px !important;
+            height: 30px !important;
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23a855f7' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
             background-size: 10px 10px !important;
             background-position: right 8px center !important;
@@ -282,9 +290,9 @@
         }
 
         .card-rank {
-            width: 20px;
+            width: 18px;
             text-align: center;
-            font-size: 0.78rem;
+            font-size: 0.72rem;
             font-weight: 700;
             color: #64748b;
             flex-shrink: 0;
@@ -294,10 +302,10 @@
         }
 
         .img-thumb {
-            width: 40px;
-            height: 40px;
+            width: 34px;
+            height: 34px;
             object-fit: cover;
-            border-radius: 8px;
+            border-radius: 6px;
             flex-shrink: 0;
             background-color: #121215;
         }
@@ -308,10 +316,10 @@
         .badge-scrobble {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            padding: 2px 7px;
-            border-radius: 20px;
-            font-size: 0.68rem;
+            gap: 3px;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 0.65rem;
             font-weight: 600;
             color: #d8b4fe;
             background: rgba(168, 85, 247, 0.12);
@@ -321,12 +329,12 @@
         }
 
         .btn-card-action {
-            width: 28px;
-            height: 28px;
-            min-width: 28px;
-            min-height: 28px;
-            max-width: 28px;
-            max-height: 28px;
+            width: 25px;
+            height: 25px;
+            min-width: 25px;
+            min-height: 25px;
+            max-width: 25px;
+            max-height: 25px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -343,6 +351,9 @@
             background-color: rgba(30, 215, 96, 0.15);
             color: #ffffff;
         }
+        .btn-card-action i {
+            font-size: 0.78rem !important;
+        }
 
         @media (max-width: 480px) {
             .app-container {
@@ -356,34 +367,36 @@
                 display: none;
             }
             .card-uniform {
-                padding: 5px 7px;
-                gap: 6px;
-                min-height: 50px;
+                padding: 3px 6px;
+                gap: 5px;
+                min-height: 40px;
+                border-radius: 6px;
             }
             .img-thumb {
-                width: 36px;
-                height: 36px;
+                width: 30px;
+                height: 30px;
+                border-radius: 5px;
             }
             .badge-scrobble {
-                padding: 2px 5px;
-                font-size: 0.62rem;
+                padding: 1px 4px;
+                font-size: 0.60rem;
                 gap: 2px;
             }
             .badge-scrobble i {
-                font-size: 0.58rem;
+                font-size: 0.55rem;
             }
             .card-rank {
-                width: 18px;
-                font-size: 0.7rem;
+                width: 16px;
+                font-size: 0.66rem;
             }
             .btn-card-action {
-                width: 26px;
-                height: 26px;
-                min-width: 26px;
-                min-height: 26px;
+                width: 23px;
+                height: 23px;
+                min-width: 23px;
+                min-height: 23px;
             }
             .btn-card-action i {
-                font-size: 0.78rem !important;
+                font-size: 0.72rem !important;
             }
         }
 
@@ -837,6 +850,6 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=13"></script>
+    <script src="/app.js?v=14"></script>
 </body>
 </html>
