@@ -12,9 +12,11 @@ function getLastFmCredentials() {
 }
 
 let accessToken = localStorage.getItem('spotify_access_token') || null;
-let currentSource = 'spotify'; // 'spotify' (Historial extendido 2019-2026) | 'lastfm' (En vivo)
+let currentSource = 'unified'; // 'unified' (Historial Unificado Spotify + Last.fm) | 'spotify' | 'lastfm'
 let spotifyDb = null;
 let isSpotifyDbLoading = false;
+let lastFmRecentDelta = [];
+let hasFetchedLastFmDelta = false;
 let currentRange = 'overall'; // 'overall', 'year-YYYY', 'month-YYYY-M' o Last.fm periods
 let currentType = 'tracks';  // tracks, artists, albums, recent
 let currentLimit = 50;
@@ -57,11 +59,12 @@ const btnLogin = document.getElementById('btn-login');
 const statsList = document.getElementById('stats-list');
 const loader = document.getElementById('loader');
 const currentlyPlayingContainer = document.getElementById('currently-playing-container');
-const timeRangeContainer = document.getElementById('time-range-container');
 
-// Data Source Switcher DOM
-const btnSrcSpotify = document.getElementById('btn-src-spotify');
-const btnSrcLastfm = document.getElementById('btn-src-lastfm');
+// Toolbar Desplegables DOM
+const selectDataSource = document.getElementById('select-data-source');
+const selectTimePeriod = document.getElementById('select-time-period');
+const selectMonth = document.getElementById('select-month');
+const selectLimit = document.getElementById('select-limit');
 
 // Stat Strip DOM
 const statStrip = document.getElementById('stat-strip');
@@ -71,12 +74,6 @@ const stripHoursDot = document.getElementById('strip-hours-dot');
 const stripHours = document.getElementById('strip-hours');
 const stripArtists = document.getElementById('strip-artists');
 const stripAlbums = document.getElementById('strip-albums');
-
-// Years & Months Filter DOM
-const yearsFilterContainer = document.getElementById('years-filter-container');
-const yearsPillList = document.getElementById('years-pill-list');
-const monthsFilterContainer = document.getElementById('months-filter-container');
-const monthsPillList = document.getElementById('months-pill-list');
 
 // PWA Update DOM
 const updateToast = document.getElementById('update-toast');
@@ -216,32 +213,51 @@ function setupEventListeners() {
         });
     });
 
-    // Pestañas de periodo (.pill-btn)
-    document.querySelectorAll('#time-range-tabs .pill-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const range = e.currentTarget.getAttribute('data-range');
-            document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.year-pill-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.month-pill-btn').forEach(b => b.classList.remove('active'));
-            if (monthsFilterContainer) {
-                monthsFilterContainer.classList.add('d-none');
-                monthsFilterContainer.classList.remove('d-flex');
-            }
-            e.currentTarget.classList.add('active');
-            currentRange = range;
-            loadStats();
+    // Toolbar Desplegables
+    if (selectDataSource) {
+        selectDataSource.addEventListener('change', (e) => {
+            switchDataSource(e.target.value);
         });
-    });
+    }
 
-    // Selector de límite (20 / 50)
-    document.querySelectorAll('#limit-container .limit-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('#limit-container .limit-btn').forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            currentLimit = parseInt(e.currentTarget.getAttribute('data-limit'), 10);
+    if (selectTimePeriod) {
+        selectTimePeriod.addEventListener('change', (e) => {
+            handleTimePeriodChange(e.target.value);
+        });
+    }
+
+    if (selectMonth) {
+        selectMonth.addEventListener('change', (e) => {
+            handleMonthChange(e.target.value);
+        });
+    }
+
+    if (selectLimit) {
+        selectLimit.addEventListener('change', (e) => {
+            currentLimit = parseInt(e.target.value, 10);
             loadStats();
         });
+    }
+
+    // Modal: Bloquear scroll de la parte de atrás completamente
+    document.addEventListener('show.bs.modal', () => {
+        document.documentElement.classList.add('modal-open');
+        document.body.classList.add('modal-open');
+        document.body.style.overflow = 'hidden';
     });
+    document.addEventListener('hidden.bs.modal', () => {
+        document.documentElement.classList.remove('modal-open');
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+    });
+    // Prevenir touchmove detrás del modal en dispositivos táctiles
+    document.addEventListener('touchmove', function(e) {
+        if (document.body.classList.contains('modal-open')) {
+            if (!e.target.closest('.modal-body') && !e.target.closest('.modal-dialog')) {
+                e.preventDefault();
+            }
+        }
+    }, { passive: false });
 
     // Acciones de Actualización PWA / Forzar Limpieza
     if (menuForceUpdate) {
@@ -288,18 +304,10 @@ function setupEventListeners() {
     if (btnInstallFab) {
         btnInstallFab.addEventListener('click', triggerInstallFlow);
     }
-
-    // Switcher de fuente de datos (Historial Spotify vs Last.fm en Vivo)
-    if (btnSrcSpotify) {
-        btnSrcSpotify.addEventListener('click', () => switchDataSource('spotify'));
-    }
-    if (btnSrcLastfm) {
-        btnSrcLastfm.addEventListener('click', () => switchDataSource('lastfm'));
-    }
 }
 
 // ----------------------------------------------------
-// GESTIÓN DE FUENTES DE DATOS: SPOTIFY EXTENDIDO VS LAST.FM
+// GESTIÓN DE FUENTES DE DATOS: UNIFICADO / SPOTIFY / LAST.FM
 // ----------------------------------------------------
 async function loadSpotifyDatabase() {
     if (spotifyDb) return spotifyDb;
@@ -324,45 +332,139 @@ async function loadSpotifyDatabase() {
     return spotifyDb;
 }
 
+async function fetchLastFmDelta() {
+    if (hasFetchedLastFmDelta) return lastFmRecentDelta;
+    const { user, key } = getLastFmCredentials();
+    if (!user || !key) return [];
+    try {
+        const cutoffUTS = Math.floor(new Date('2026-10-14T21:59:34Z').getTime() / 1000);
+        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(user)}&from=${cutoffUTS}&api_key=${encodeURIComponent(key)}&limit=200&format=json`);
+        if (res.ok) {
+            const data = await res.json();
+            const tracks = data?.recenttracks?.track || [];
+            lastFmRecentDelta = Array.isArray(tracks) ? tracks : (tracks ? [tracks] : []);
+            hasFetchedLastFmDelta = true;
+        }
+    } catch (e) {
+        console.warn('Error al consultar delta de Last.fm:', e);
+    }
+    return lastFmRecentDelta;
+}
+
 async function switchDataSource(source) {
     if (currentSource === source) return;
     currentSource = source;
 
-    if (btnSrcSpotify && btnSrcLastfm) {
-        if (currentSource === 'spotify') {
-            btnSrcSpotify.className = 'btn btn-sm flex-fill rounded-pill py-1 px-2 d-flex align-items-center justify-content-center gap-1.5 fw-semibold active-source-btn';
-            btnSrcLastfm.className = 'btn btn-sm flex-fill rounded-pill py-1 px-2 d-flex align-items-center justify-content-center gap-1.5 fw-semibold inactive-source-btn';
-            if (stripHoursWrapper) stripHoursWrapper.classList.remove('d-none');
-            if (stripHoursDot) stripHoursDot.classList.remove('d-none');
-        } else {
-            btnSrcSpotify.className = 'btn btn-sm flex-fill rounded-pill py-1 px-2 d-flex align-items-center justify-content-center gap-1.5 fw-semibold inactive-source-btn';
-            btnSrcLastfm.className = 'btn btn-sm flex-fill rounded-pill py-1 px-2 d-flex align-items-center justify-content-center gap-1.5 fw-semibold active-source-btn';
-            if (stripHoursWrapper) stripHoursWrapper.classList.add('d-none');
-            if (stripHoursDot) stripHoursDot.classList.add('d-none');
+    if (source === 'lastfm') {
+        if (stripHoursWrapper) stripHoursWrapper.classList.add('d-none');
+        if (stripHoursDot) stripHoursDot.classList.add('d-none');
+
+        if (selectTimePeriod) {
+            selectTimePeriod.innerHTML = `
+                <option value="overall" selected>Histórico Total</option>
+                <option value="7day">Últimos 7 Días</option>
+                <option value="1month">Último Mes</option>
+                <option value="3month">Últimos 3 Meses</option>
+                <option value="6month">Últimos 6 Meses</option>
+                <option value="12month">Último Año</option>
+                <option value="year-2026">Año 2026</option>
+                <option value="year-2025">Año 2025</option>
+            `;
+            selectTimePeriod.value = 'overall';
         }
-    }
-
-    currentRange = (currentSource === 'spotify') ? 'overall' : '1month';
-
-    // Sincronizar botones de tabs relativas
-    document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => {
-        b.classList.toggle('active', b.getAttribute('data-range') === currentRange);
-    });
-
-    if (currentSource === 'spotify') {
-        renderSpotifyYearsFilter();
-        updateSpotifyStatStrip();
-    } else {
+        if (selectMonth) {
+            selectMonth.disabled = true;
+            selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
+        }
+        currentRange = 'overall';
         fetchLastFmGlobalStats();
+    } else {
+        // 'unified' o 'spotify'
+        if (stripHoursWrapper) stripHoursWrapper.classList.remove('d-none');
+        if (stripHoursDot) stripHoursDot.classList.remove('d-none');
+
+        if (selectTimePeriod) {
+            selectTimePeriod.innerHTML = `
+                <option value="overall" selected>Histórico Total</option>
+                <option value="year-2026">Año 2026</option>
+                <option value="year-2025">Año 2025</option>
+                <option value="year-2024">Año 2024</option>
+                <option value="year-2023">Año 2023</option>
+                <option value="year-2022">Año 2022</option>
+                <option value="year-2021">Año 2021</option>
+                <option value="year-2020">Año 2020</option>
+                <option value="year-2019">Año 2019</option>
+            `;
+            selectTimePeriod.value = 'overall';
+        }
+        if (selectMonth) {
+            selectMonth.disabled = true;
+            selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
+        }
+        currentRange = 'overall';
+        updateStatStrip();
     }
 
     loadStats();
 }
 
-function updateSpotifyStatStrip() {
+function handleTimePeriodChange(val) {
+    if (val.startsWith('year-')) {
+        const year = val.replace('year-', '');
+        updateMonthDropdown(year);
+        if (selectMonth) {
+            selectMonth.disabled = false;
+            selectMonth.value = 'all';
+        }
+        currentRange = val;
+    } else {
+        if (selectMonth) {
+            selectMonth.disabled = true;
+            selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
+        }
+        currentRange = val;
+    }
+    updateStatStrip();
+    loadStats();
+}
+
+function handleMonthChange(val) {
+    if (val === 'all') {
+        currentRange = selectTimePeriod?.value || 'overall';
+    } else {
+        const year = (selectTimePeriod?.value || 'year-2026').replace('year-', '');
+        currentRange = `month-${year}-${val}`;
+    }
+    updateStatStrip();
+    loadStats();
+}
+
+function updateMonthDropdown(year) {
+    if (!selectMonth) return;
+    const availableMonths = (spotifyDb?.yearlyTops?.[year]?.months) ?
+        Object.keys(spotifyDb.yearlyTops[year].months).map(m => parseInt(m, 10)).sort((a, b) => a - b) :
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+    selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
+    availableMonths.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = MONTH_NAMES[m - 1];
+        selectMonth.appendChild(opt);
+    });
+}
+
+function updateStatStrip() {
     if (!statStrip) return;
     statStrip.classList.remove('d-none');
     statStrip.classList.add('d-flex');
+
+    if (currentSource === 'lastfm') {
+        if (stripHoursWrapper) stripHoursWrapper.classList.add('d-none');
+        if (stripHoursDot) stripHoursDot.classList.add('d-none');
+        return;
+    }
+
     if (stripHoursWrapper) stripHoursWrapper.classList.remove('d-none');
     if (stripHoursDot) stripHoursDot.classList.remove('d-none');
 
@@ -374,138 +476,50 @@ function updateSpotifyStatStrip() {
         return;
     }
 
-    // Si hay un año seleccionado
+    const deltaCount = (currentSource === 'unified') ? lastFmRecentDelta.length : 0;
+    const deltaHours = deltaCount * (3.5 / 60);
+
+    // Periodo: Año específico
     if (currentRange.startsWith('year-')) {
         const y = currentRange.replace('year-', '');
         const yData = spotifyDb.yearlyTops?.[y];
         if (yData) {
-            if (stripPlaycount) stripPlaycount.textContent = formatNumber(yData.plays);
-            if (stripHours) stripHours.textContent = Math.round(parseFloat(yData.hours || 0)).toLocaleString();
+            const extra = (y === '2026') ? deltaCount : 0;
+            const extraH = (y === '2026') ? deltaHours : 0;
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(yData.plays + extra);
+            if (stripHours) stripHours.textContent = Math.round(parseFloat(yData.hours || 0) + extraH).toLocaleString();
             if (stripArtists) stripArtists.textContent = formatNumber(yData.artists?.length || 0);
             if (stripAlbums) stripAlbums.textContent = formatNumber(yData.albums?.length || 0);
             return;
         }
     }
 
-    // Si hay un mes seleccionado (ej: month-2024-5)
+    // Periodo: Mes específico (month-YYYY-M)
     if (currentRange.startsWith('month-')) {
         const parts = currentRange.split('-');
         const y = parts[1];
         const m = parts[2];
         const mData = spotifyDb.yearlyTops?.[y]?.months?.[m];
         if (mData) {
-            if (stripPlaycount) stripPlaycount.textContent = formatNumber(mData.plays);
-            if (stripHours) stripHours.textContent = (parseFloat(mData.hours || 0)).toFixed(1);
+            const extra = (y === '2026' && m === '10') ? deltaCount : 0;
+            const extraH = (y === '2026' && m === '10') ? deltaHours : 0;
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(mData.plays + extra);
+            if (stripHours) stripHours.textContent = (parseFloat(mData.hours || 0) + extraH).toFixed(1);
             if (stripArtists) stripArtists.textContent = formatNumber(mData.artists?.length || 0);
             if (stripAlbums) stripAlbums.textContent = formatNumber(mData.albums?.length || 0);
             return;
         }
     }
 
-    // Resumen global histórico
+    // Apartado General / Histórico Total Unificado
     const s = spotifyDb.summary;
-    if (stripPlaycount) stripPlaycount.textContent = formatNumber(s.validStreams);
-    if (stripHours) stripHours.textContent = Math.round(parseFloat(s.totalHours)).toLocaleString();
+    const totalStreams = s.validStreams + deltaCount;
+    const totalH = Math.round(parseFloat(s.totalHours) + deltaHours);
+
+    if (stripPlaycount) stripPlaycount.textContent = formatNumber(totalStreams);
+    if (stripHours) stripHours.textContent = totalH.toLocaleString();
     if (stripArtists) stripArtists.textContent = formatNumber(spotifyDb.yearlyTops?.overall?.artists?.length || 1654);
     if (stripAlbums) stripAlbums.textContent = formatNumber(spotifyDb.yearlyTops?.overall?.albums?.length || 3465);
-}
-
-function renderSpotifyYearsFilter() {
-    if (!yearsFilterContainer || !yearsPillList) return;
-    yearsPillList.innerHTML = '';
-    yearsFilterContainer.classList.remove('d-none');
-    yearsFilterContainer.classList.add('d-flex');
-
-    const years = (spotifyDb && spotifyDb.summary && spotifyDb.summary.years) ?
-        spotifyDb.summary.years :
-        ['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019'];
-
-    // Botón Histórico Total
-    const allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    const isOverall = currentRange === 'overall' || currentRange === 'all';
-    allBtn.className = `pill-btn year-pill-btn ${isOverall ? 'active' : ''}`;
-    allBtn.textContent = 'Histórico Total';
-    allBtn.addEventListener('click', () => {
-        document.querySelectorAll('.year-pill-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
-        const overallTab = document.querySelector('#time-range-tabs .pill-btn[data-range="overall"]');
-        if (overallTab) overallTab.classList.add('active');
-        allBtn.classList.add('active');
-        if (monthsFilterContainer) {
-            monthsFilterContainer.classList.add('d-none');
-            monthsFilterContainer.classList.remove('d-flex');
-        }
-        currentRange = 'overall';
-        updateSpotifyStatStrip();
-        loadStats();
-    });
-    yearsPillList.appendChild(allBtn);
-
-    years.forEach(year => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        const isYearActive = currentRange.startsWith(`year-${year}`) || currentRange.startsWith(`month-${year}-`);
-        btn.className = `pill-btn year-pill-btn ${isYearActive ? 'active' : ''}`;
-        btn.setAttribute('data-year', year);
-        btn.textContent = year;
-
-        btn.addEventListener('click', () => {
-            document.querySelectorAll('#time-range-tabs .pill-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.year-pill-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            currentRange = `year-${year}`;
-            renderSpotifyMonthsFilter(year);
-            updateSpotifyStatStrip();
-            loadStats();
-        });
-
-        yearsPillList.appendChild(btn);
-    });
-}
-
-function renderSpotifyMonthsFilter(year) {
-    if (!monthsFilterContainer || !monthsPillList) return;
-    monthsPillList.innerHTML = '';
-    monthsFilterContainer.classList.remove('d-none');
-    monthsFilterContainer.classList.add('d-flex');
-
-    const availableMonths = (spotifyDb?.yearlyTops?.[year]?.months) ?
-        Object.keys(spotifyDb.yearlyTops[year].months).map(m => parseInt(m, 10)).sort((a, b) => a - b) :
-        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-
-    // Botón Todo el año
-    const allYearBtn = document.createElement('button');
-    allYearBtn.type = 'button';
-    allYearBtn.className = `pill-btn month-pill-btn ${currentRange === `year-${year}` ? 'active' : ''}`;
-    allYearBtn.textContent = 'Todo el año';
-    allYearBtn.addEventListener('click', () => {
-        document.querySelectorAll('.month-pill-btn').forEach(b => b.classList.remove('active'));
-        allYearBtn.classList.add('active');
-        currentRange = `year-${year}`;
-        updateSpotifyStatStrip();
-        loadStats();
-    });
-    monthsPillList.appendChild(allYearBtn);
-
-    availableMonths.forEach(m => {
-        const mBtn = document.createElement('button');
-        mBtn.type = 'button';
-        mBtn.className = `pill-btn month-pill-btn ${currentRange === `month-${year}-${m}` ? 'active' : ''}`;
-        mBtn.textContent = MONTH_SHORT_NAMES[m - 1];
-        mBtn.setAttribute('title', `${MONTH_NAMES[m - 1]} ${year}`);
-
-        mBtn.addEventListener('click', () => {
-            document.querySelectorAll('.month-pill-btn').forEach(b => b.classList.remove('active'));
-            mBtn.classList.add('active');
-            currentRange = `month-${year}-${m}`;
-            updateSpotifyStatStrip();
-            loadStats();
-        });
-
-        monthsPillList.appendChild(mBtn);
-    });
 }
 
 async function forceAppUpdate() {
@@ -567,13 +581,18 @@ async function showDashboard() {
         fetchUserProfile();
     }
 
-    if (currentSource === 'spotify') {
-        renderSpotifyYearsFilter();
-        updateSpotifyStatStrip();
+    // Inicializar selects de la barra de herramientas
+    if (selectDataSource) selectDataSource.value = currentSource;
+    if (selectLimit) selectLimit.value = String(currentLimit);
+
+    updateStatStrip();
+
+    if (currentSource === 'unified' || currentSource === 'spotify') {
         loadSpotifyDatabase().then(() => {
-            renderSpotifyYearsFilter();
-            updateSpotifyStatStrip();
-            loadStats();
+            fetchLastFmDelta().then(() => {
+                updateStatStrip();
+                loadStats();
+            });
         });
     } else {
         fetchLastFmGlobalStats();
@@ -796,11 +815,14 @@ async function loadStats() {
     loader.classList.remove('d-none');
 
     // ====================================================
-    // MODO HISTORIAL EXTENDIDO SPOTIFY (2019 - 2026)
+    // MODO HISTORIAL EXTENDIDO SPOTIFY (2019 - 2026) / UNIFICADO
     // ====================================================
-    if (currentSource === 'spotify') {
+    if (currentSource === 'spotify' || currentSource === 'unified') {
         if (!spotifyDb) {
             await loadSpotifyDatabase();
+        }
+        if (currentSource === 'unified' && !hasFetchedLastFmDelta) {
+            await fetchLastFmDelta();
         }
         loader.classList.add('d-none');
 
@@ -809,7 +831,7 @@ async function loadStats() {
             return;
         }
 
-        updateSpotifyStatStrip();
+        updateStatStrip();
 
         let topData = spotifyDb.yearlyTops?.overall;
         if (currentRange.startsWith('year-')) {
@@ -822,13 +844,55 @@ async function loadStats() {
             topData = spotifyDb.yearlyTops?.[y]?.months?.[m] || spotifyDb.yearlyTops?.overall;
         }
 
+        const appliesDelta = (currentSource === 'unified' && lastFmRecentDelta.length > 0 &&
+            (currentRange === 'overall' || currentRange === 'year-2026' || currentRange === 'month-2026-10'));
+
         if (currentType === 'tracks') {
             const rawTracks = topData?.tracks || [];
-            if (rawTracks.length === 0) {
+            if (rawTracks.length === 0 && (!appliesDelta || lastFmRecentDelta.length === 0)) {
                 statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron canciones registradas para este periodo.</div>';
                 return;
             }
-            const tracks = rawTracks.slice(0, currentLimit).map(t => ({
+
+            let combinedTracks = rawTracks.map(t => ({
+                name: t.name,
+                artist: t.artist,
+                album: t.album,
+                plays: t.plays,
+                uri: t.uri
+            }));
+
+            if (appliesDelta) {
+                const trackMap = new Map();
+                combinedTracks.forEach(t => {
+                    const key = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+                    trackMap.set(key, t);
+                });
+
+                lastFmRecentDelta.forEach(dt => {
+                    const dtName = dt.name;
+                    const dtArtist = dt.artist ? (dt.artist['#text'] || dt.artist.name || '') : '';
+                    const dtAlbum = dt.album ? (dt.album['#text'] || dt.album.name || '') : '';
+                    const key = `${normalizeKey(dtName)}:::${normalizeKey(dtArtist)}`;
+                    if (trackMap.has(key)) {
+                        trackMap.get(key).plays += 1;
+                    } else {
+                        const newEntry = {
+                            name: dtName,
+                            artist: dtArtist,
+                            album: dtAlbum,
+                            plays: 1,
+                            uri: null
+                        };
+                        trackMap.set(key, newEntry);
+                        combinedTracks.push(newEntry);
+                    }
+                });
+
+                combinedTracks.sort((a, b) => b.plays - a.plays);
+            }
+
+            const tracks = combinedTracks.slice(0, currentLimit).map(t => ({
                 name: t.name,
                 artist: { name: t.artist },
                 album: { name: t.album },
@@ -842,11 +906,39 @@ async function loadStats() {
 
         if (currentType === 'artists') {
             const rawArtists = topData?.artists || [];
-            if (rawArtists.length === 0) {
+            if (rawArtists.length === 0 && (!appliesDelta || lastFmRecentDelta.length === 0)) {
                 statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron artistas registrados para este periodo.</div>';
                 return;
             }
-            const artists = rawArtists.slice(0, currentLimit).map(a => ({
+
+            let combinedArtists = rawArtists.map(a => ({
+                name: a.name,
+                plays: a.plays
+            }));
+
+            if (appliesDelta) {
+                const artistMap = new Map();
+                combinedArtists.forEach(a => {
+                    artistMap.set(normalizeKey(a.name), a);
+                });
+
+                lastFmRecentDelta.forEach(dt => {
+                    const dtArtist = dt.artist ? (dt.artist['#text'] || dt.artist.name || '') : '';
+                    if (!dtArtist) return;
+                    const key = normalizeKey(dtArtist);
+                    if (artistMap.has(key)) {
+                        artistMap.get(key).plays += 1;
+                    } else {
+                        const newEntry = { name: dtArtist, plays: 1 };
+                        artistMap.set(key, newEntry);
+                        combinedArtists.push(newEntry);
+                    }
+                });
+
+                combinedArtists.sort((a, b) => b.plays - a.plays);
+            }
+
+            const artists = combinedArtists.slice(0, currentLimit).map(a => ({
                 name: a.name,
                 playcount: a.plays
             }));
@@ -857,11 +949,42 @@ async function loadStats() {
 
         if (currentType === 'albums') {
             const rawAlbums = topData?.albums || [];
-            if (rawAlbums.length === 0) {
+            if (rawAlbums.length === 0 && (!appliesDelta || lastFmRecentDelta.length === 0)) {
                 statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron álbumes registrados para este periodo.</div>';
                 return;
             }
-            const albums = rawAlbums.slice(0, currentLimit).map(al => ({
+
+            let combinedAlbums = rawAlbums.map(al => ({
+                name: al.name,
+                artist: al.artist,
+                plays: al.plays
+            }));
+
+            if (appliesDelta) {
+                const albumMap = new Map();
+                combinedAlbums.forEach(al => {
+                    const key = `${normalizeKey(al.name)}:::${normalizeKey(al.artist || '')}`;
+                    albumMap.set(key, al);
+                });
+
+                lastFmRecentDelta.forEach(dt => {
+                    const dtAlbum = dt.album ? (dt.album['#text'] || dt.album.name || '') : '';
+                    const dtArtist = dt.artist ? (dt.artist['#text'] || dt.artist.name || '') : '';
+                    if (!dtAlbum) return;
+                    const key = `${normalizeKey(dtAlbum)}:::${normalizeKey(dtArtist)}`;
+                    if (albumMap.has(key)) {
+                        albumMap.get(key).plays += 1;
+                    } else {
+                        const newEntry = { name: dtAlbum, artist: dtArtist, plays: 1 };
+                        albumMap.set(key, newEntry);
+                        combinedAlbums.push(newEntry);
+                    }
+                });
+
+                combinedAlbums.sort((a, b) => b.plays - a.plays);
+            }
+
+            const albums = combinedAlbums.slice(0, currentLimit).map(al => ({
                 name: al.name,
                 artist: { name: al.artist },
                 playcount: al.plays
@@ -873,17 +996,34 @@ async function loadStats() {
 
         if (currentType === 'recent') {
             const rawRecent = spotifyDb.recent || [];
-            if (rawRecent.length === 0) {
-                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron reproducciones registradas.</div>';
-                return;
+
+            let deltaFormatted = [];
+            if (currentSource === 'unified' && lastFmRecentDelta.length > 0) {
+                deltaFormatted = lastFmRecentDelta.map(dt => ({
+                    name: dt.name,
+                    artist: { name: dt.artist ? (dt.artist['#text'] || dt.artist.name || '') : '' },
+                    album: { name: dt.album ? (dt.album['#text'] || dt.album.name || '') : '' },
+                    date: dt.date?.uts ? { uts: parseInt(dt.date.uts, 10) } : { uts: Math.floor(Date.now() / 1000) },
+                    uri: null,
+                    '@attr': dt['@attr']
+                }));
             }
-            const recent = rawRecent.slice(0, currentLimit).map(r => ({
+
+            const spotifyFormatted = rawRecent.map(r => ({
                 name: r.name,
                 artist: { name: r.artist },
                 album: { name: r.album },
                 date: { uts: Math.floor(new Date(r.ts).getTime() / 1000) },
                 uri: r.uri
             }));
+
+            const combinedRecent = [...deltaFormatted, ...spotifyFormatted];
+            if (combinedRecent.length === 0) {
+                statsList.innerHTML = '<div class="text-center text-secondary py-5">No se encontraron reproducciones registradas.</div>';
+                return;
+            }
+
+            const recent = combinedRecent.slice(0, currentLimit);
             currentLoadedItems = recent;
             renderRecent(recent);
             return;
@@ -1478,6 +1618,47 @@ async function showItemStats(type, name, artist) {
         }
     }
 
+    // Integración de escuchas en vivo de Last.fm en modo unificado
+    let deltaItemPlays = 0;
+    let lastDeltaIso = null;
+    if (currentSource === 'unified' && lastFmRecentDelta.length > 0) {
+        const normN = normalizeKey(name);
+        const normA = normalizeKey(artist || '');
+        lastFmRecentDelta.forEach(t => {
+            const tName = normalizeKey(t.name);
+            const tArtist = normalizeKey(t.artist ? (t.artist['#text'] || t.artist.name || '') : '');
+            const tAlbum = normalizeKey(t.album ? (t.album['#text'] || t.album.name || '') : '');
+            let match = false;
+            if (type === 'track') {
+                if (tName === normN && (!normA || !tArtist || tArtist.includes(normA) || normA.includes(tArtist))) match = true;
+            } else if (type === 'artist') {
+                if (tArtist && (tArtist === normN || tArtist.includes(normN) || normN.includes(tArtist))) match = true;
+            } else if (type === 'album') {
+                if (tAlbum === normN && (!normA || !tArtist || tArtist.includes(normA) || normA.includes(tArtist))) match = true;
+            }
+            if (match) {
+                deltaItemPlays++;
+                if (!lastDeltaIso && t.date?.uts) {
+                    lastDeltaIso = new Date(parseInt(t.date.uts, 10) * 1000).toISOString();
+                }
+            }
+        });
+    }
+
+    if (!data && deltaItemPlays > 0) {
+        data = {
+            name: name,
+            artist: artist,
+            plays: 0,
+            ms: deltaItemPlays * 210000,
+            skips: 0,
+            first: lastDeltaIso,
+            last: lastDeltaIso,
+            years: { '2026': deltaItemPlays },
+            months: { '2026-10': deltaItemPlays }
+        };
+    }
+
     // Cover artwork resolution
     const artKey = `${type}::${normalizeKey(name)}::${normalizeKey(artist || '')}`;
     const coverImg = artCache[artKey] || '/logo.png';
@@ -1525,17 +1706,20 @@ async function showItemStats(type, name, artist) {
         return;
     }
 
-    // Métricas principales
-    const totalPlays = data.plays || 0;
-    const totalMs = data.ms || 0;
+    // Métricas principales unificadas
+    const totalPlays = (data.plays || 0) + deltaItemPlays;
+    const totalMs = (data.ms || 0) + (deltaItemPlays * 210000);
     const hours = (totalMs / (1000 * 60 * 60));
     const timeFormatted = hours >= 1 ? `${hours.toFixed(1)} hrs` : `${Math.max(1, Math.round(totalMs / 60000))} mins`;
     const skips = data.skips || 0;
-    const firstDate = formatSimpleDate(data.first);
-    const lastDate = formatSimpleDate(data.last);
+    const firstDate = formatSimpleDate(data.first || lastDeltaIso);
+    const lastDate = lastDeltaIso ? `${formatSimpleDate(lastDeltaIso)} (En vivo)` : formatSimpleDate(data.last);
 
-    // Barras de evolución anual (2019-2026)
-    const yearsObj = data.years || {};
+    // Barras de evolución anual (2019-2026) con suma en vivo
+    const yearsObj = { ...(data.years || {}) };
+    if (deltaItemPlays > 0) {
+        yearsObj['2026'] = (yearsObj['2026'] || 0) + deltaItemPlays;
+    }
     const yearsList = ['2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'];
     const maxYearPlays = Math.max(1, ...Object.values(yearsObj));
 
@@ -1636,7 +1820,10 @@ async function showItemStats(type, name, artist) {
         <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06);">
             <img src="${coverImg}" class="rounded ${type === 'artist' ? 'rounded-circle' : ''}" style="width: 58px; height: 58px; object-fit: cover; flex-shrink: 0;" alt="Cover" onerror="this.src='/logo.png'">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
-                <h6 class="fw-bold mb-0.5 text-white text-truncate" style="font-size: 0.95rem;" title="${name}">${name}</h6>
+                <div class="d-flex align-items-center gap-1.5 mb-0.5">
+                    <h6 class="fw-bold mb-0 text-white text-truncate" style="font-size: 0.95rem;" title="${name}">${name}</h6>
+                    ${currentSource === 'unified' ? `<span class="badge border border-success border-opacity-30 text-success flex-shrink-0" style="background-color: rgba(34, 197, 94, 0.12); font-size: 0.62rem; padding: 2px 6px;"><i class="fa-solid fa-sparkles me-1"></i>Unificado</span>` : ''}
+                </div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.76rem;">${artist || (type === 'artist' ? 'Artista' : '')}</small>
                 ${data.album && data.album !== name ? `<small class="text-muted text-truncate d-block" style="font-size: 0.68rem;"><i class="fa-solid fa-compact-disc me-1"></i>${data.album}</small>` : ''}
             </div>
