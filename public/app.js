@@ -13,6 +13,8 @@ function getLastFmCredentials() {
 
 let accessToken = localStorage.getItem('spotify_access_token') || null;
 let currentSource = 'unified'; // 'unified' (Historial Unificado Spotify + Last.fm) | 'spotify' | 'lastfm'
+let unifiedDb = null;
+let isUnifiedDbLoading = false;
 let spotifyDb = null;
 let isSpotifyDbLoading = false;
 let lastFmRecentDelta = [];
@@ -309,6 +311,29 @@ function setupEventListeners() {
 // ----------------------------------------------------
 // GESTIÓN DE FUENTES DE DATOS: UNIFICADO / SPOTIFY / LAST.FM
 // ----------------------------------------------------
+async function loadUnifiedDatabase() {
+    if (unifiedDb) return unifiedDb;
+    if (isUnifiedDbLoading) {
+        while (isUnifiedDbLoading) {
+            await new Promise(r => setTimeout(r, 100));
+        }
+        return unifiedDb;
+    }
+    isUnifiedDbLoading = true;
+    try {
+        const res = await fetch('/data/unified_history.json');
+        if (res.ok) {
+            unifiedDb = await res.json();
+            console.log('Base de datos Unificada (Spotify + Last.fm) cargada:', unifiedDb.summary);
+        }
+    } catch (e) {
+        console.warn('Error al cargar unified_history.json:', e);
+    } finally {
+        isUnifiedDbLoading = false;
+    }
+    return unifiedDb;
+}
+
 async function loadSpotifyDatabase() {
     if (spotifyDb) return spotifyDb;
     if (isSpotifyDbLoading) {
@@ -330,6 +355,14 @@ async function loadSpotifyDatabase() {
         isSpotifyDbLoading = false;
     }
     return spotifyDb;
+}
+
+async function getActiveDatabase() {
+    if (currentSource === 'unified') {
+        const u = await loadUnifiedDatabase();
+        if (u) return u;
+    }
+    return await loadSpotifyDatabase();
 }
 
 async function fetchLastFmDelta() {
@@ -441,8 +474,9 @@ function handleMonthChange(val) {
 
 function updateMonthDropdown(year) {
     if (!selectMonth) return;
-    const availableMonths = (spotifyDb?.yearlyTops?.[year]?.months) ?
-        Object.keys(spotifyDb.yearlyTops[year].months).map(m => parseInt(m, 10)).sort((a, b) => a - b) :
+    const activeDb = (currentSource === 'unified') ? (unifiedDb || spotifyDb) : spotifyDb;
+    const availableMonths = (activeDb?.yearlyTops?.[year]?.months) ?
+        Object.keys(activeDb.yearlyTops[year].months).map(m => parseInt(m, 10)).sort((a, b) => a - b) :
         [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
     selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
@@ -468,11 +502,20 @@ function updateStatStrip() {
     if (stripHoursWrapper) stripHoursWrapper.classList.remove('d-none');
     if (stripHoursDot) stripHoursDot.classList.remove('d-none');
 
-    if (!spotifyDb) {
-        if (stripPlaycount) stripPlaycount.textContent = '63.1K';
-        if (stripHours) stripHours.textContent = '3,192';
-        if (stripArtists) stripArtists.textContent = '1,654';
-        if (stripAlbums) stripAlbums.textContent = '3,465';
+    const activeDb = (currentSource === 'unified') ? (unifiedDb || spotifyDb) : spotifyDb;
+
+    if (!activeDb) {
+        if (currentSource === 'unified') {
+            if (stripPlaycount) stripPlaycount.textContent = '71.7K';
+            if (stripHours) stripHours.textContent = '3,691';
+            if (stripArtists) stripArtists.textContent = '1,676';
+            if (stripAlbums) stripAlbums.textContent = '3,500+';
+        } else {
+            if (stripPlaycount) stripPlaycount.textContent = '63.1K';
+            if (stripHours) stripHours.textContent = '3,192';
+            if (stripArtists) stripArtists.textContent = '1,654';
+            if (stripAlbums) stripAlbums.textContent = '3,465';
+        }
         return;
     }
 
@@ -482,7 +525,7 @@ function updateStatStrip() {
     // Periodo: Año específico
     if (currentRange.startsWith('year-')) {
         const y = currentRange.replace('year-', '');
-        const yData = spotifyDb.yearlyTops?.[y];
+        const yData = activeDb.yearlyTops?.[y];
         if (yData) {
             const extra = (y === '2026') ? deltaCount : 0;
             const extraH = (y === '2026') ? deltaHours : 0;
@@ -499,7 +542,7 @@ function updateStatStrip() {
         const parts = currentRange.split('-');
         const y = parts[1];
         const m = parts[2];
-        const mData = spotifyDb.yearlyTops?.[y]?.months?.[m];
+        const mData = activeDb.yearlyTops?.[y]?.months?.[m];
         if (mData) {
             const extra = (y === '2026' && m === '10') ? deltaCount : 0;
             const extraH = (y === '2026' && m === '10') ? deltaHours : 0;
@@ -511,15 +554,15 @@ function updateStatStrip() {
         }
     }
 
-    // Apartado General / Histórico Total Unificado
-    const s = spotifyDb.summary;
+    // Apartado General / Histórico Total Unificado o Spotify
+    const s = activeDb.summary;
     const totalStreams = s.validStreams + deltaCount;
     const totalH = Math.round(parseFloat(s.totalHours) + deltaHours);
 
     if (stripPlaycount) stripPlaycount.textContent = formatNumber(totalStreams);
     if (stripHours) stripHours.textContent = totalH.toLocaleString();
-    if (stripArtists) stripArtists.textContent = formatNumber(spotifyDb.yearlyTops?.overall?.artists?.length || 1654);
-    if (stripAlbums) stripAlbums.textContent = formatNumber(spotifyDb.yearlyTops?.overall?.albums?.length || 3465);
+    if (stripArtists) stripArtists.textContent = formatNumber(activeDb.yearlyTops?.overall?.artists?.length || s.totalArtists || 1654);
+    if (stripAlbums) stripAlbums.textContent = formatNumber(activeDb.yearlyTops?.overall?.albums?.length || s.totalAlbums || 3465);
 }
 
 async function forceAppUpdate() {
@@ -587,12 +630,17 @@ async function showDashboard() {
 
     updateStatStrip();
 
-    if (currentSource === 'unified' || currentSource === 'spotify') {
-        loadSpotifyDatabase().then(() => {
+    if (currentSource === 'unified') {
+        loadUnifiedDatabase().then(() => {
             fetchLastFmDelta().then(() => {
                 updateStatStrip();
                 loadStats();
             });
+        });
+    } else if (currentSource === 'spotify') {
+        loadSpotifyDatabase().then(() => {
+            updateStatStrip();
+            loadStats();
         });
     } else {
         fetchLastFmGlobalStats();
@@ -818,30 +866,28 @@ async function loadStats() {
     // MODO HISTORIAL EXTENDIDO SPOTIFY (2019 - 2026) / UNIFICADO
     // ====================================================
     if (currentSource === 'spotify' || currentSource === 'unified') {
-        if (!spotifyDb) {
-            await loadSpotifyDatabase();
-        }
+        const activeDb = await getActiveDatabase();
         if (currentSource === 'unified' && !hasFetchedLastFmDelta) {
             await fetchLastFmDelta();
         }
         loader.classList.add('d-none');
 
-        if (!spotifyDb) {
-            statsList.innerHTML = '<div class="text-center text-danger py-5">Error al cargar la base de datos de Spotify.</div>';
+        if (!activeDb) {
+            statsList.innerHTML = '<div class="text-center text-danger py-5">Error al cargar la base de datos de música.</div>';
             return;
         }
 
         updateStatStrip();
 
-        let topData = spotifyDb.yearlyTops?.overall;
+        let topData = activeDb.yearlyTops?.overall;
         if (currentRange.startsWith('year-')) {
             const y = currentRange.replace('year-', '');
-            topData = spotifyDb.yearlyTops?.[y] || spotifyDb.yearlyTops?.overall;
+            topData = activeDb.yearlyTops?.[y] || activeDb.yearlyTops?.overall;
         } else if (currentRange.startsWith('month-')) {
             const parts = currentRange.split('-');
             const y = parts[1];
             const m = parts[2];
-            topData = spotifyDb.yearlyTops?.[y]?.months?.[m] || spotifyDb.yearlyTops?.overall;
+            topData = activeDb.yearlyTops?.[y]?.months?.[m] || activeDb.yearlyTops?.overall;
         }
 
         const appliesDelta = (currentSource === 'unified' && lastFmRecentDelta.length > 0 &&
@@ -995,7 +1041,7 @@ async function loadStats() {
         }
 
         if (currentType === 'recent') {
-            const rawRecent = spotifyDb.recent || [];
+            const rawRecent = activeDb.recent || [];
 
             let deltaFormatted = [];
             if (currentSource === 'unified' && lastFmRecentDelta.length > 0) {
@@ -1578,9 +1624,7 @@ function renderRecent(tracks) {
 // MODAL: APARTADO DE ESTADÍSTICAS DE MIS ESCUCHAS
 // ----------------------------------------------------
 async function showItemStats(type, name, artist) {
-    if (!spotifyDb) {
-        await loadSpotifyDatabase();
-    }
+    const activeDb = await getActiveDatabase();
 
     const modalTitle = document.getElementById('item-stats-type-title');
     const modalBody = document.getElementById('item-stats-body');
@@ -1596,25 +1640,25 @@ async function showItemStats(type, name, artist) {
     if (type === 'track') {
         if (modalTitle) modalTitle.innerHTML = '<i class="fa-solid fa-music text-primary me-2"></i>Estadísticas de Canción';
         const key = `${normName}:::${normArt}`;
-        data = spotifyDb?.tracksLookup?.[key];
-        if (!data && spotifyDb?.tracksLookup) {
-            const foundKey = Object.keys(spotifyDb.tracksLookup).find(k => k.startsWith(normName + ':::') || k.includes(normName));
-            if (foundKey) data = spotifyDb.tracksLookup[foundKey];
+        data = activeDb?.tracksLookup?.[key];
+        if (!data && activeDb?.tracksLookup) {
+            const foundKey = Object.keys(activeDb.tracksLookup).find(k => k.startsWith(normName + ':::') || k.includes(normName));
+            if (foundKey) data = activeDb.tracksLookup[foundKey];
         }
     } else if (type === 'album') {
         if (modalTitle) modalTitle.innerHTML = '<i class="fa-solid fa-compact-disc text-info me-2"></i>Estadísticas de Álbum';
         const key = `${normName}:::${normArt}`;
-        data = spotifyDb?.albumsLookup?.[key];
-        if (!data && spotifyDb?.albumsLookup) {
-            const foundKey = Object.keys(spotifyDb.albumsLookup).find(k => k.startsWith(normName + ':::') || k.includes(normName));
-            if (foundKey) data = spotifyDb.albumsLookup[foundKey];
+        data = activeDb?.albumsLookup?.[key];
+        if (!data && activeDb?.albumsLookup) {
+            const foundKey = Object.keys(activeDb.albumsLookup).find(k => k.startsWith(normName + ':::') || k.includes(normName));
+            if (foundKey) data = activeDb.albumsLookup[foundKey];
         }
     } else if (type === 'artist') {
         if (modalTitle) modalTitle.innerHTML = '<i class="fa-solid fa-user-group text-warning me-2"></i>Estadísticas de Artista';
-        data = spotifyDb?.artistsLookup?.[normName] || spotifyDb?.artistsLookup?.[normArt];
-        if (!data && spotifyDb?.artistsLookup) {
-            const foundKey = Object.keys(spotifyDb.artistsLookup).find(k => k.includes(normName) || k.includes(normArt));
-            if (foundKey) data = spotifyDb.artistsLookup[foundKey];
+        data = activeDb?.artistsLookup?.[normName] || activeDb?.artistsLookup?.[normArt];
+        if (!data && activeDb?.artistsLookup) {
+            const foundKey = Object.keys(activeDb.artistsLookup).find(k => k.includes(normName) || k.includes(normArt));
+            if (foundKey) data = activeDb.artistsLookup[foundKey];
         }
     }
 
@@ -1828,6 +1872,16 @@ async function showItemStats(type, name, artist) {
                 ${data.album && data.album !== name ? `<small class="text-muted text-truncate d-block" style="font-size: 0.68rem;"><i class="fa-solid fa-compact-disc me-1"></i>${data.album}</small>` : ''}
             </div>
         </div>
+
+        ${(currentSource === 'unified' && data.gap > 0) ? `
+            <div class="d-flex align-items-center gap-2 p-2 px-2.5 mb-2.5 rounded border border-info border-opacity-25" style="background-color: rgba(6, 182, 212, 0.08); font-size: 0.74rem;">
+                <i class="fa-solid fa-sparkles text-info fs-6 flex-shrink-0"></i>
+                <div class="overflow-hidden">
+                    <strong class="text-white">+${formatNumber(data.gap)} reproducciones unificadas</strong>
+                    <span class="text-secondary d-block" style="font-size: 0.68rem;">Escuchadas en YouTube / otras plataformas (vía Last.fm) y sumadas al historial.</span>
+                </div>
+            </div>
+        ` : ''}
 
         <!-- Metrics Grid -->
         <div class="row g-2 mb-3">
