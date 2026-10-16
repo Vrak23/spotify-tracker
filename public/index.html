@@ -68,7 +68,7 @@
 
         @media (min-width: 768px) {
             .app-container {
-                max-width: 900px;
+                max-width: 880px;
                 padding: 0 16px;
             }
             .stats-grid {
@@ -77,24 +77,13 @@
             }
         }
 
-        @media (min-width: 1080px) {
+        @media (min-width: 1024px) {
             .app-container {
-                max-width: 1180px;
+                max-width: 1020px;
                 padding: 0 20px;
             }
             .stats-grid {
                 grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-                gap: 6px !important;
-            }
-        }
-
-        @media (min-width: 1320px) {
-            .app-container {
-                max-width: 1420px;
-                padding: 0 24px;
-            }
-            .stats-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
                 gap: 6px !important;
             }
         }
@@ -242,6 +231,31 @@
             font-size: 0.69rem !important;
             line-height: 1.2;
             color: #8e8ea0;
+        }
+
+        /* Clean Search Input (Sin diseño ni caja detrás) */
+        .search-input {
+            background-color: transparent !important;
+            border: 1px solid var(--border-subtle) !important;
+            color: #f1f5f9 !important;
+            font-size: 0.76rem !important;
+            font-weight: 500 !important;
+            border-radius: 8px !important;
+            padding: 5px 12px 5px 32px !important;
+            height: 34px !important;
+            width: 100% !important;
+            background-image: none !important;
+            outline: none !important;
+            transition: all 0.15s ease;
+        }
+        .search-input:focus {
+            border-color: #555566 !important;
+            background-color: rgba(255, 255, 255, 0.02) !important;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06) !important;
+            color: #ffffff !important;
+        }
+        .search-input::placeholder {
+            color: #64748b !important;
         }
 
         /* Filter Toolbar and Custom Selects */
@@ -581,13 +595,14 @@
                 <button class="segmented-tab" data-type="recent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</button>
             </div>
 
-            <!-- Toolbar con Buscador y Desplegables -->
-            <div class="filter-toolbar p-2.5 mb-2.5 rounded-3">
-                <!-- Buscador en tiempo real -->
-                <div class="position-relative mb-2">
-                    <i class="fa-solid fa-magnifying-glass position-absolute text-muted" style="left: 10px; top: 50%; transform: translateY(-50%); font-size: 0.74rem;"></i>
-                    <input type="text" id="filter-search-input" class="form-control form-control-sm filter-select" placeholder="Buscar canciones, artistas o álbumes en este listado..." style="padding-left: 28px !important; height: 32px !important;">
-                </div>
+            <!-- Buscador en tiempo real (Limpio y directo, sin diseño detrás) -->
+            <div class="position-relative mb-2">
+                <i class="fa-solid fa-magnifying-glass position-absolute text-muted" style="left: 12px; top: 50%; transform: translateY(-50%); font-size: 0.74rem;"></i>
+                <input type="text" id="filter-search-input" class="search-input" placeholder="Buscar canciones, artistas o álbumes en este listado..." autocomplete="off">
+            </div>
+
+            <!-- Toolbar con Desplegables -->
+            <div class="filter-toolbar p-2 mb-2 rounded-3">
                 <div class="row g-2 align-items-center">
                     <!-- Desplegable 1: Fuente de Datos -->
                     <div class="col-6 col-sm-3">
@@ -992,6 +1007,6 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=15"></script>
+    <script src="/app.js?v=16"></script>
 </body>
 </html>
