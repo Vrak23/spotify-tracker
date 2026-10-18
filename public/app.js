@@ -90,6 +90,10 @@ const selectDataSource = document.getElementById('select-data-source');
 const selectTimePeriod = document.getElementById('select-time-period');
 const selectMonth = document.getElementById('select-month');
 const selectLimit = document.getElementById('select-limit');
+const customDatePickerContainer = document.getElementById('custom-date-picker-container');
+const inputDateFrom = document.getElementById('input-date-from');
+const inputDateTo = document.getElementById('input-date-to');
+const btnApplyCustomDates = document.getElementById('btn-apply-custom-dates');
 
 // Stat Strip DOM
 const statStrip = document.getElementById('stat-strip');
@@ -194,6 +198,16 @@ const MONTH_NAMES = [
 const MONTH_SHORT_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 function getRangeLabel(range) {
+    if (range === 'era-spotify') return 'Era Spotify (2019 - Ago 2025)';
+    if (range === 'era-lastfm') return 'Nueva Era / Streaming (Ago 2025 - Actualidad)';
+    if (range && range.startsWith('dates_')) {
+        const [fromD, toD] = range.replace('dates_', '').split('_to_');
+        const [fy, fm, fd] = fromD.split('-');
+        const [ty, tm, td] = toD.split('-');
+        const fMonth = MONTH_SHORT_NAMES[parseInt(fm, 10) - 1] || fm;
+        const tMonth = MONTH_SHORT_NAMES[parseInt(tm, 10) - 1] || tm;
+        return `${parseInt(fd, 10)} ${fMonth} ${fy} — ${parseInt(td, 10)} ${tMonth} ${ty}`;
+    }
     if (range && range.startsWith('month-')) {
         const parts = range.split('-'); // ['month', '2026', '9']
         const year = parts[1];
@@ -288,6 +302,24 @@ function setupEventListeners() {
         selectLimit.addEventListener('change', (e) => {
             currentLimit = parseInt(e.target.value, 10);
             loadStats();
+        });
+    }
+
+    if (btnApplyCustomDates) {
+        btnApplyCustomDates.addEventListener('click', applyCustomDateRange);
+    }
+    if (inputDateFrom) {
+        inputDateFrom.addEventListener('change', () => {
+            if (selectTimePeriod && selectTimePeriod.value === 'custom') {
+                applyCustomDateRange();
+            }
+        });
+    }
+    if (inputDateTo) {
+        inputDateTo.addEventListener('change', () => {
+            if (selectTimePeriod && selectTimePeriod.value === 'custom') {
+                applyCustomDateRange();
+            }
         });
     }
 
@@ -460,6 +492,7 @@ async function switchDataSource(source) {
     if (source === 'lastfm') {
         if (stripHoursWrapper) stripHoursWrapper.classList.add('d-none');
         if (stripHoursDot) stripHoursDot.classList.add('d-none');
+        if (customDatePickerContainer) customDatePickerContainer.classList.add('d-none');
 
         if (selectTimePeriod) {
             selectTimePeriod.innerHTML = `
@@ -484,10 +517,14 @@ async function switchDataSource(source) {
         // 'unified' o 'spotify'
         if (stripHoursWrapper) stripHoursWrapper.classList.remove('d-none');
         if (stripHoursDot) stripHoursDot.classList.remove('d-none');
+        if (customDatePickerContainer) customDatePickerContainer.classList.add('d-none');
 
         if (selectTimePeriod) {
             selectTimePeriod.innerHTML = `
-                <option value="overall" selected>Histórico Total</option>
+                <option value="overall" selected>✨ Histórico Total</option>
+                <option value="era-spotify">🟢 Era Spotify (2019 - Ago 2025)</option>
+                <option value="era-lastfm">🟣 Nueva Era (Ago 2025 - Hoy)</option>
+                <option value="custom">📅 Elegir Fechas (Rango libre)...</option>
                 <option value="year-2026">Año 2026</option>
                 <option value="year-2025">Año 2025</option>
                 <option value="year-2024">Año 2024</option>
@@ -511,7 +548,31 @@ async function switchDataSource(source) {
 }
 
 function handleTimePeriodChange(val) {
-    if (val.startsWith('year-')) {
+    if (val === 'custom') {
+        if (customDatePickerContainer) customDatePickerContainer.classList.remove('d-none');
+        if (selectMonth) {
+            selectMonth.disabled = true;
+            selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
+        }
+        applyCustomDateRange();
+        return;
+    }
+
+    if (customDatePickerContainer) customDatePickerContainer.classList.add('d-none');
+
+    if (val === 'era-spotify') {
+        if (selectMonth) {
+            selectMonth.disabled = true;
+            selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
+        }
+        currentRange = 'era-spotify';
+    } else if (val === 'era-lastfm') {
+        if (selectMonth) {
+            selectMonth.disabled = true;
+            selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
+        }
+        currentRange = 'era-lastfm';
+    } else if (val.startsWith('year-')) {
         const year = val.replace('year-', '');
         updateMonthDropdown(year);
         if (selectMonth) {
@@ -528,6 +589,100 @@ function handleTimePeriodChange(val) {
     }
     updateStatStrip();
     loadStats();
+}
+
+function applyCustomDateRange() {
+    let from = inputDateFrom?.value || '2025-08-01';
+    let to = inputDateTo?.value || '2026-10-18';
+
+    if (from > to) {
+        const tmp = from;
+        from = to;
+        to = tmp;
+        if (inputDateFrom) inputDateFrom.value = from;
+        if (inputDateTo) inputDateTo.value = to;
+    }
+
+    currentRange = `dates_${from}_to_${to}`;
+    updateStatStrip();
+    loadStats();
+}
+
+function getRangeTopData(activeDb, fromDateStr, toDateStr) {
+    if (!activeDb || !activeDb.yearlyTops) return null;
+
+    const fromYM = (fromDateStr || '2019-05-01').slice(0, 7);
+    const toYM = (toDateStr || '2026-12-31').slice(0, 7);
+
+    const trackMap = new Map();
+    const artistMap = new Map();
+    const albumMap = new Map();
+    let totalPlays = 0;
+
+    const startYear = parseInt(fromYM.split('-')[0], 10);
+    const endYear = parseInt(toYM.split('-')[0], 10);
+
+    for (let y = startYear; y <= endYear; y++) {
+        const yData = activeDb.yearlyTops[String(y)];
+        if (!yData || !yData.months) continue;
+
+        for (let m = 1; m <= 12; m++) {
+            const ymKey = `${y}-${String(m).padStart(2, '0')}`;
+            if (ymKey < fromYM || ymKey > toYM) continue;
+
+            const mData = yData.months[String(m)];
+            if (!mData) continue;
+
+            totalPlays += (mData.plays || 0);
+
+            (mData.tracks || []).forEach(t => {
+                const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+                const cur = trackMap.get(k) || {
+                    name: t.name,
+                    artist: t.artist,
+                    album: t.album,
+                    plays: 0,
+                    uri: t.uri
+                };
+                cur.plays += t.plays;
+                trackMap.set(k, cur);
+            });
+
+            (mData.artists || []).forEach(a => {
+                const k = normalizeKey(a.name);
+                const cur = artistMap.get(k) || {
+                    name: a.name,
+                    plays: 0
+                };
+                cur.plays += a.plays;
+                artistMap.set(k, cur);
+            });
+
+            (mData.albums || []).forEach(al => {
+                const k = `${normalizeKey(al.name)}:::${normalizeKey(al.artist || '')}`;
+                const cur = albumMap.get(k) || {
+                    name: al.name,
+                    artist: al.artist,
+                    plays: 0
+                };
+                cur.plays += al.plays;
+                albumMap.set(k, cur);
+            });
+        }
+    }
+
+    const sortedTracks = Array.from(trackMap.values()).sort((a, b) => b.plays - a.plays);
+    const sortedArtists = Array.from(artistMap.values()).sort((a, b) => b.plays - a.plays);
+    const sortedAlbums = Array.from(albumMap.values()).sort((a, b) => b.plays - a.plays);
+    const approxHours = (totalPlays * 3.4 / 60).toFixed(1);
+
+    return {
+        plays: totalPlays,
+        hours: approxHours,
+        tracks: sortedTracks,
+        artists: sortedArtists,
+        albums: sortedAlbums
+    };
 }
 
 function handleMonthChange(val) {
@@ -590,6 +745,47 @@ function updateStatStrip() {
 
     const deltaCount = (currentSource === 'unified') ? lastFmRecentDelta.length : 0;
     const deltaHours = deltaCount * (3.5 / 60);
+
+    // Periodo: Era Spotify (2019 - Ago 2025)
+    if (currentRange === 'era-spotify') {
+        const rData = getRangeTopData(activeDb, '2019-05-01', '2025-08-31');
+        if (rData) {
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(rData.plays);
+            if (stripHours) stripHours.textContent = Math.round(parseFloat(rData.hours)).toLocaleString();
+            if (stripArtists) stripArtists.textContent = formatNumber(rData.artists.length);
+            if (stripAlbums) stripAlbums.textContent = formatNumber(rData.albums.length);
+            return;
+        }
+    }
+
+    // Periodo: Nueva Era Last.fm / Otras plataformas (Ago 2025 - Actualidad)
+    if (currentRange === 'era-lastfm') {
+        const rData = getRangeTopData(activeDb, '2025-08-01', '2026-12-31');
+        if (rData) {
+            const extra = (currentSource === 'unified') ? deltaCount : 0;
+            const extraH = (currentSource === 'unified') ? deltaHours : 0;
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(rData.plays + extra);
+            if (stripHours) stripHours.textContent = Math.round(parseFloat(rData.hours) + extraH).toLocaleString();
+            if (stripArtists) stripArtists.textContent = formatNumber(rData.artists.length);
+            if (stripAlbums) stripAlbums.textContent = formatNumber(rData.albums.length);
+            return;
+        }
+    }
+
+    // Periodo: Rango de fechas personalizado (dates_YYYY-MM-DD_to_YYYY-MM-DD)
+    if (currentRange && currentRange.startsWith('dates_')) {
+        const [fromD, toD] = currentRange.replace('dates_', '').split('_to_');
+        const rData = getRangeTopData(activeDb, fromD, toD);
+        if (rData) {
+            const extra = (currentSource === 'unified' && toD >= '2026-10-01') ? deltaCount : 0;
+            const extraH = (currentSource === 'unified' && toD >= '2026-10-01') ? deltaHours : 0;
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(rData.plays + extra);
+            if (stripHours) stripHours.textContent = Math.round(parseFloat(rData.hours) + extraH).toLocaleString();
+            if (stripArtists) stripArtists.textContent = formatNumber(rData.artists.length);
+            if (stripAlbums) stripAlbums.textContent = formatNumber(rData.albums.length);
+            return;
+        }
+    }
 
     // Periodo: Año específico
     if (currentRange.startsWith('year-')) {
@@ -1113,7 +1309,21 @@ async function loadStats() {
         updateStatStrip();
 
         let topData = activeDb.yearlyTops?.overall;
-        if (currentRange.startsWith('year-')) {
+        let isDateRange = false;
+        let dateRangeTo = '';
+
+        if (currentRange === 'era-spotify') {
+            topData = getRangeTopData(activeDb, '2019-05-01', '2025-08-31');
+        } else if (currentRange === 'era-lastfm') {
+            topData = getRangeTopData(activeDb, '2025-08-01', '2026-12-31');
+            isDateRange = true;
+            dateRangeTo = '2026-12-31';
+        } else if (currentRange && currentRange.startsWith('dates_')) {
+            const [fromD, toD] = currentRange.replace('dates_', '').split('_to_');
+            topData = getRangeTopData(activeDb, fromD, toD);
+            isDateRange = true;
+            dateRangeTo = toD;
+        } else if (currentRange.startsWith('year-')) {
             const y = currentRange.replace('year-', '');
             topData = activeDb.yearlyTops?.[y] || activeDb.yearlyTops?.overall;
         } else if (currentRange.startsWith('month-')) {
@@ -1124,7 +1334,8 @@ async function loadStats() {
         }
 
         const appliesDelta = (currentSource === 'unified' && lastFmRecentDelta.length > 0 &&
-            (currentRange === 'overall' || currentRange === 'year-2026' || currentRange === 'month-2026-10'));
+            (currentRange === 'overall' || currentRange === 'year-2026' || currentRange === 'month-2026-10' ||
+             (isDateRange && dateRangeTo >= '2026-10-01')));
 
         if (currentType === 'tracks') {
             const rawTracks = topData?.tracks || [];
