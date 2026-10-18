@@ -2556,10 +2556,6 @@ async function handleSavePlaylist() {
     }
 
     try {
-        if (!userProfileData) {
-            await fetchUserProfile();
-        }
-
         if (!currentLoadedItems || currentLoadedItems.length === 0) {
             alert('No hay canciones cargadas en este momento.');
             return;
@@ -2572,7 +2568,7 @@ async function handleSavePlaylist() {
             public: false
         };
 
-        const createRes = await spotifyFetch(`users/${userProfileData.id}/playlists`, {
+        const createRes = await spotifyFetch('me/playlists', {
             method: 'POST',
             body: JSON.stringify(payload)
         });
@@ -3497,17 +3493,13 @@ async function createCuratorSpotifyPlaylist() {
     const halfName = half === '1' ? '1ra Mitad' : '2da Mitad';
 
     try {
-        if (!userProfileData) {
-            await fetchUserProfile();
-        }
-
         const payload = {
             name: `Top ${year} - ${halfName} (SpotiTracker)`,
             description: `Playlist semestral curada (${periodStr}) con ${curatorSelectedTracks.length} temas. Generada en SpotiTracker.`,
             public: false
         };
 
-        const createRes = await spotifyFetch(`users/${userProfileData.id}/playlists`, {
+        const createRes = await spotifyFetch('me/playlists', {
             method: 'POST',
             body: JSON.stringify(payload)
         });
@@ -3584,4 +3576,3 @@ async function exportCuratorYouTubeMusic() {
 
 window.clearCuratorSelection = clearCuratorSelection;
 window.exportCuratorYouTubeMusic = exportCuratorYouTubeMusic;
-
