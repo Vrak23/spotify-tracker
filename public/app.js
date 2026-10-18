@@ -3166,7 +3166,30 @@ async function generateCuratorSelection() {
 
         if (periodPlays > 0) {
             const firstDate = t.first || '';
-            const isPastYear = Boolean(firstDate && firstDate < cycleStart);
+            const isPastDiscovered = Boolean(firstDate && firstDate < cycleStart);
+
+            let isTrulyPastYear = false;
+            let isSurgeOrPeak = false;
+
+            if (isPastDiscovered) {
+                const curYPlays = t.years?.[year] || 0;
+                const prevYPlays = t.years?.[String(yNum - 1)] || 0;
+
+                let maxPrior = 0;
+                for (const [yr, p] of Object.entries(t.years || {})) {
+                    if (parseInt(yr, 10) < yNum && p > maxPrior) {
+                        maxPrior = p;
+                    }
+                }
+
+                // Regla del usuario: Si la canción fue más escuchada este año que el año pasado
+                // o alcanzó su mayor número de streams históricos, PUEDE entrar a pesar de ser de un año pasado.
+                if (curYPlays > prevYPlays || curYPlays >= maxPrior) {
+                    isSurgeOrPeak = true;
+                } else {
+                    isTrulyPastYear = true;
+                }
+            }
 
             allCandidates.push({
                 name: t.name,
@@ -3175,7 +3198,8 @@ async function generateCuratorSelection() {
                 uri: t.uri,
                 plays: periodPlays,
                 first: t.first,
-                isPastYear
+                isPastYear: isTrulyPastYear,
+                isSurgeOrPeak
             });
         }
     }
@@ -3211,11 +3235,17 @@ function renderCuratorView() {
     if (curatorCounterBadge) {
         curatorCounterBadge.textContent = `${selectedCount} / ${targetCount} seleccionadas`;
         if (selectedCount === targetCount) {
-            curatorCounterBadge.className = 'badge bg-success bg-opacity-25 text-success border border-success border-opacity-30';
+            curatorCounterBadge.style.color = '#4ade80';
+            curatorCounterBadge.style.background = 'rgba(34, 197, 94, 0.14)';
+            curatorCounterBadge.style.borderColor = 'rgba(34, 197, 94, 0.35)';
         } else if (selectedCount < targetCount) {
-            curatorCounterBadge.className = 'badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-30';
+            curatorCounterBadge.style.color = '#fde047';
+            curatorCounterBadge.style.background = 'rgba(234, 179, 8, 0.14)';
+            curatorCounterBadge.style.borderColor = 'rgba(234, 179, 8, 0.35)';
         } else {
-            curatorCounterBadge.className = 'badge bg-info bg-opacity-25 text-info border border-info border-opacity-30';
+            curatorCounterBadge.style.color = '#38bdf8';
+            curatorCounterBadge.style.background = 'rgba(56, 189, 248, 0.14)';
+            curatorCounterBadge.style.borderColor = 'rgba(56, 189, 248, 0.35)';
         }
     }
 
@@ -3254,10 +3284,10 @@ function renderCuratorSelectedList() {
                     <div class="fw-bold text-white text-truncate" style="font-size: 0.82rem;">${t.name}</div>
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
                         <small class="text-secondary text-truncate" style="font-size: 0.72rem;">${t.artist}</small>
-                        ${t.isPastYear ? '<span class="badge bg-secondary bg-opacity-30 text-light border border-secondary border-opacity-20 px-1 py-0" style="font-size: 0.62rem;">Año Pasado</span>' : ''}
+                        ${t.isSurgeOrPeak ? `<span class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-30 px-1.5 py-0.5" style="font-size: 0.62rem;" title="Fue más escuchada este año que el anterior"><i class="fa-solid fa-arrow-trend-up me-1"></i>Pico en ${curatorCurrentCycleInfo.year}</span>` : (t.isPastYear ? '<span class="badge bg-secondary bg-opacity-30 text-light border border-secondary border-opacity-20 px-1 py-0" style="font-size: 0.62rem;">Año Pasado</span>' : '')}
                     </div>
                 </div>
-                <span class="badge bg-primary bg-opacity-20 text-primary border border-primary border-opacity-25 flex-shrink-0" style="font-size: 0.72rem;">
+                <span class="curator-badge-plays">
                     ${t.plays} ${t.plays === 1 ? 'play' : 'plays'}
                 </span>
                 <div class="d-flex align-items-center gap-0.5 flex-shrink-0">
@@ -3319,10 +3349,10 @@ function renderCuratorBenchList() {
                     <div class="fw-bold text-white text-truncate" style="font-size: 0.80rem;">${t.name}</div>
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
                         <small class="text-secondary text-truncate" style="font-size: 0.70rem;">${t.artist}</small>
-                        ${t.isPastYear ? '<span class="badge bg-secondary bg-opacity-30 text-light border border-secondary border-opacity-20 px-1 py-0" style="font-size: 0.60rem;">Año Pasado</span>' : ''}
+                        ${t.isSurgeOrPeak ? `<span class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-30 px-1.5 py-0.5" style="font-size: 0.60rem;"><i class="fa-solid fa-arrow-trend-up me-1"></i>Pico en ${curatorCurrentCycleInfo.year}</span>` : (t.isPastYear ? '<span class="badge bg-secondary bg-opacity-30 text-light border border-secondary border-opacity-20 px-1 py-0" style="font-size: 0.60rem;">Año Pasado</span>' : '')}
                     </div>
                 </div>
-                <span class="badge bg-secondary bg-opacity-25 text-light border border-secondary border-opacity-20 flex-shrink-0" style="font-size: 0.70rem;">
+                <span class="curator-badge-plays">
                     ${t.plays} ${t.plays === 1 ? 'play' : 'plays'}
                 </span>
                 <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-2.5 py-0.5 fw-semibold flex-shrink-0" style="font-size: 0.72rem;" onclick="addCuratorTrackFromBench('${encodeURIComponent(t.name)}', '${encodeURIComponent(t.artist)}')">
