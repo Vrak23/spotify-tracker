@@ -3157,10 +3157,10 @@ async function generateCuratorSelection() {
     let periodStr = '';
 
     if (half === '1') {
-        cycleStart = `${yNum - 1}-11-21`;
+        cycleStart = `${yNum - 1}-11-01`;
         periodStr = `21 Nov ${yNum - 1} — 20 May ${year}`;
     } else {
-        cycleStart = `${year}-05-21`;
+        cycleStart = `${year}-05-01`;
         periodStr = `21 May ${year} — 20 Nov ${year}`;
     }
 
