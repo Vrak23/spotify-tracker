@@ -38,6 +38,16 @@ function safeImgError(img) {
 }
 window.safeImgError = safeImgError;
 
+// Fallback visual para avatares de usuario (perfil siempre nítido, sin icono roto)
+const DEFAULT_AVATAR_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44' width='44' height='44'%3E%3Crect width='44' height='44' fill='%2318181c' rx='22'/%3E%3Ccircle cx='22' cy='16' r='6' fill='%23a855f7'/%3E%3Cpath d='M10 34c0-5 5.5-8 12-8s12 3 12 8z' fill='%23a855f7'/%3E%3C/svg%3e";
+
+function safeAvatarError(img) {
+    if (!img) return;
+    img.onerror = null;
+    img.src = DEFAULT_AVATAR_SVG;
+}
+window.safeAvatarError = safeAvatarError;
+
 // PWA: Registrar Service Worker con detección de actualizaciones
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -647,6 +657,8 @@ async function forceAppUpdate() {
 
 function handleLogout() {
     localStorage.removeItem('spotify_access_token');
+    localStorage.removeItem('spotify_refresh_token');
+    localStorage.removeItem('spotify_token_expires_at');
     localStorage.removeItem('code_verifier');
     localStorage.removeItem('lastfm_user');
     localStorage.removeItem('lastfm_key');
@@ -662,8 +674,8 @@ function handleLogout() {
     // Resetear datos visuales del perfil
     if (drawerUserName) drawerUserName.textContent = 'Usuario';
     if (drawerUserFollowers) drawerUserFollowers.textContent = '';
-    if (drawerUserImg) drawerUserImg.src = FALLBACK_ART_SVG;
-    if (userImg) userImg.src = FALLBACK_ART_SVG;
+    if (drawerUserImg) drawerUserImg.src = DEFAULT_AVATAR_SVG;
+    if (userImg) userImg.src = DEFAULT_AVATAR_SVG;
     if (drawerLastFmStatus) {
         drawerLastFmStatus.textContent = 'Opcional';
         drawerLastFmStatus.className = 'badge bg-secondary bg-opacity-25';
@@ -703,9 +715,8 @@ async function showDashboard() {
     initLastFmState();
     startCurrentlyPlayingPolling();
 
-    if (accessToken) {
-        fetchUserProfile();
-    }
+    // Sincronizar perfil con auto-refresh de token y fallback a Last.fm
+    syncUserProfile();
 
     // Inicializar selects de la barra de herramientas
     if (selectDataSource) selectDataSource.value = currentSource;
@@ -726,7 +737,6 @@ async function showDashboard() {
             loadStats();
         });
     } else {
-        fetchLastFmGlobalStats();
         loadStats();
     }
 }
@@ -790,6 +800,12 @@ async function fetchAccessToken(code) {
         if (data.access_token) {
             accessToken = data.access_token;
             localStorage.setItem('spotify_access_token', accessToken);
+            if (data.refresh_token) {
+                localStorage.setItem('spotify_refresh_token', data.refresh_token);
+            }
+            const expiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
+            localStorage.setItem('spotify_token_expires_at', String(expiresAt));
+            localStorage.removeItem('spoti_logged_out');
             window.history.replaceState({}, document.title, "/");
             showDashboard();
         } else {
@@ -800,23 +816,112 @@ async function fetchAccessToken(code) {
     }
 }
 
+let isRefreshingToken = false;
+let refreshPromise = null;
+
+async function refreshAccessToken() {
+    const refreshToken = localStorage.getItem('spotify_refresh_token');
+    if (!refreshToken) return null;
+
+    if (isRefreshingToken && refreshPromise) {
+        return refreshPromise;
+    }
+
+    isRefreshingToken = true;
+    refreshPromise = (async () => {
+        try {
+            const params = new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken,
+                client_id: CLIENT_ID
+            });
+
+            const response = await fetch('https://accounts.spotify.com/api/token', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params
+            });
+
+            const data = await response.json();
+            if (data.access_token) {
+                accessToken = data.access_token;
+                localStorage.setItem('spotify_access_token', accessToken);
+                if (data.refresh_token) {
+                    localStorage.setItem('spotify_refresh_token', data.refresh_token);
+                }
+                const expiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
+                localStorage.setItem('spotify_token_expires_at', String(expiresAt));
+                return accessToken;
+            } else {
+                console.warn('No se pudo refrescar el token de Spotify:', data);
+                if (data.error === 'invalid_grant') {
+                    localStorage.removeItem('spotify_access_token');
+                    localStorage.removeItem('spotify_refresh_token');
+                    localStorage.removeItem('spotify_token_expires_at');
+                    accessToken = null;
+                }
+                return null;
+            }
+        } catch (err) {
+            console.error('Error al refrescar token de Spotify:', err);
+            return null;
+        } finally {
+            isRefreshingToken = false;
+            refreshPromise = null;
+        }
+    })();
+
+    return refreshPromise;
+}
+
+async function getValidAccessToken() {
+    if (!accessToken) {
+        accessToken = localStorage.getItem('spotify_access_token') || null;
+    }
+    const expiresAt = parseInt(localStorage.getItem('spotify_token_expires_at') || '0', 10);
+    const refreshToken = localStorage.getItem('spotify_refresh_token');
+
+    // Si ya expiró o expira en menos de 90 segundos y tenemos refresh_token
+    if ((!accessToken || (expiresAt && Date.now() > expiresAt - 90000)) && refreshToken) {
+        const refreshedToken = await refreshAccessToken();
+        if (refreshedToken) return refreshedToken;
+    }
+    return accessToken;
+}
+
 async function spotifyFetch(endpoint, options = {}) {
-    if (!accessToken) return null;
+    let token = await getValidAccessToken();
+    if (!token) return null;
     try {
-        const res = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
+        let res = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
             ...options,
             headers: {
-                'Authorization': `Bearer ${accessToken}`,
+                'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
                 ...(options.headers || {})
             }
         });
+
         if (res.status === 401) {
-            localStorage.removeItem('spotify_access_token');
-            accessToken = null;
-            return null;
+            const newToken = await refreshAccessToken();
+            if (newToken) {
+                res = await fetch(`https://api.spotify.com/v1/${endpoint}`, {
+                    ...options,
+                    headers: {
+                        'Authorization': `Bearer ${newToken}`,
+                        'Content-Type': 'application/json',
+                        ...(options.headers || {})
+                    }
+                });
+            } else {
+                localStorage.removeItem('spotify_access_token');
+                accessToken = null;
+                return null;
+            }
         }
+
         if (res.status === 204) return null;
+        if (!res.ok) return null;
         return await res.json();
     } catch (err) {
         return null;
@@ -825,14 +930,27 @@ async function spotifyFetch(endpoint, options = {}) {
 
 async function fetchUserProfile() {
     const data = await spotifyFetch('me');
-    if (!data) return;
+    if (!data) return false;
     userProfileData = data;
     if (drawerUserName) drawerUserName.textContent = data.display_name || 'Usuario';
-    if (drawerUserFollowers) drawerUserFollowers.textContent = `${data.followers ? data.followers.total : 0} seguidores en Spotify`;
+    if (drawerUserFollowers) drawerUserFollowers.textContent = `${data.followers ? formatNumber(data.followers.total) : 0} seguidores en Spotify`;
     const avatarUrl = data.images && data.images.length > 0 ? data.images[0].url : null;
-    if (avatarUrl) {
-        if (userImg) userImg.src = avatarUrl;
-        if (drawerUserImg) drawerUserImg.src = avatarUrl;
+    if (userImg) userImg.src = avatarUrl || DEFAULT_AVATAR_SVG;
+    if (drawerUserImg) drawerUserImg.src = avatarUrl || DEFAULT_AVATAR_SVG;
+    return true;
+}
+
+async function syncUserProfile() {
+    let spotifySuccess = false;
+    const token = await getValidAccessToken();
+    if (token) {
+        spotifySuccess = await fetchUserProfile();
+    }
+
+    if (!spotifySuccess) {
+        await fetchLastFmGlobalStats({ updateProfileUI: true });
+    } else {
+        fetchLastFmGlobalStats({ updateProfileUI: false });
     }
 }
 
@@ -934,7 +1052,8 @@ function initLastFmState() {
     }
 }
 
-async function fetchLastFmGlobalStats() {
+async function fetchLastFmGlobalStats(options = {}) {
+    const { updateProfileUI = true } = options;
     const { user, key } = getLastFmCredentials();
     if (!user || !key) return;
 
@@ -950,16 +1069,12 @@ async function fetchLastFmGlobalStats() {
             if (stripArtists) stripArtists.textContent = formatNumber(data.user.artist_count);
             if (stripAlbums) stripAlbums.textContent = formatNumber(data.user.album_count);
 
-            const lfImg = data.user.image && data.user.image[1] && data.user.image[1]['#text'];
-            if (lfImg && !accessToken) {
-                if (userImg) userImg.src = lfImg;
-                if (drawerUserImg) drawerUserImg.src = lfImg;
-            }
-            if (drawerUserName && !accessToken) {
-                drawerUserName.textContent = data.user.name;
-            }
-            if (drawerUserFollowers && !accessToken) {
-                drawerUserFollowers.textContent = `${formatNumber(data.user.playcount)} scrobbles en Last.fm`;
+            if (updateProfileUI && !userProfileData) {
+                const lfImg = data.user.image && data.user.image[1] && data.user.image[1]['#text'];
+                if (userImg) userImg.src = lfImg || DEFAULT_AVATAR_SVG;
+                if (drawerUserImg) drawerUserImg.src = lfImg || DEFAULT_AVATAR_SVG;
+                if (drawerUserName) drawerUserName.textContent = data.user.name || `@${user}`;
+                if (drawerUserFollowers) drawerUserFollowers.textContent = `${formatNumber(data.user.playcount)} scrobbles en Last.fm`;
             }
 
             const regUTS = parseInt(data.user.registered?.unixtime || data.user.registered?.['#text'] || 0, 10);
