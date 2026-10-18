@@ -1320,12 +1320,20 @@
                 </div>
 
                 <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3 justify-content-between flex-wrap gap-2">
-                    <button type="button" id="curator-btn-copy" class="btn btn-sm btn-outline-secondary rounded-pill px-3" style="font-size: 0.76rem;">
-                        <i class="fa-regular fa-copy me-1"></i> Copiar Lista Texto
-                    </button>
-                    <div class="d-flex align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                        <button type="button" id="curator-btn-copy" class="btn btn-sm btn-outline-secondary rounded-pill px-3" style="font-size: 0.76rem;">
+                            <i class="fa-regular fa-copy me-1"></i> Copiar Texto
+                        </button>
+                        <button type="button" id="curator-btn-clear" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5" style="font-size: 0.76rem;" title="Vaciar mi selección">
+                            <i class="fa-solid fa-eraser me-1"></i> Vaciar
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <button type="button" id="curator-btn-ytmusic" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold" style="font-size: 0.76rem;" title="Exportar o abrir en YouTube Music">
+                            <i class="fa-brands fa-youtube me-1"></i> YouTube Music
+                        </button>
                         <button type="button" id="curator-btn-spotify" class="btn btn-sm btn-brand rounded-pill px-3 fw-semibold" style="font-size: 0.76rem;">
-                            <i class="fa-brands fa-spotify me-1"></i> Crear Playlist en Spotify
+                            <i class="fa-brands fa-spotify me-1"></i> Crear en Spotify
                         </button>
                         <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-3" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
                     </div>
@@ -1337,6 +1345,6 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=28"></script>
+    <script src="/app.js?v=29"></script>
 </body>
 </html>

@@ -117,6 +117,8 @@ const curatorSelectedList = document.getElementById('curator-selected-list');
 const curatorBenchList = document.getElementById('curator-bench-list');
 const curatorBenchSearch = document.getElementById('curator-bench-search');
 const curatorBtnCopy = document.getElementById('curator-btn-copy');
+const curatorBtnClear = document.getElementById('curator-btn-clear');
+const curatorBtnYtMusic = document.getElementById('curator-btn-ytmusic');
 const curatorBtnSpotify = document.getElementById('curator-btn-spotify');
 
 // Stat Strip DOM
@@ -3033,7 +3035,8 @@ async function openPlaylistCuratorModal() {
     const modal = new bootstrap.Modal(modalEl);
     modal.show();
 
-    await generateCuratorSelection();
+    // Default vacío: la selección empieza vacía y la banca contiene las canciones del ciclo
+    await loadCuratorCandidates(false);
 }
 
 function initCuratorEvents() {
@@ -3041,13 +3044,22 @@ function initCuratorEvents() {
         curatorBtnGenerate.addEventListener('click', generateCuratorSelection);
     }
     if (curatorYear) {
-        curatorYear.addEventListener('change', generateCuratorSelection);
+        curatorYear.addEventListener('change', () => {
+            const shouldAutoSelect = curatorSelectedTracks.length > 0;
+            loadCuratorCandidates(shouldAutoSelect);
+        });
     }
     if (curatorHalf) {
-        curatorHalf.addEventListener('change', generateCuratorSelection);
+        curatorHalf.addEventListener('change', () => {
+            const shouldAutoSelect = curatorSelectedTracks.length > 0;
+            loadCuratorCandidates(shouldAutoSelect);
+        });
     }
     if (curatorExcludePast) {
-        curatorExcludePast.addEventListener('change', generateCuratorSelection);
+        curatorExcludePast.addEventListener('change', () => {
+            const shouldAutoSelect = curatorSelectedTracks.length > 0;
+            loadCuratorCandidates(shouldAutoSelect);
+        });
     }
     if (curatorTargetCount) {
         curatorTargetCount.addEventListener('change', () => {
@@ -3081,6 +3093,12 @@ function initCuratorEvents() {
 
     if (curatorBtnCopy) {
         curatorBtnCopy.addEventListener('click', copyCuratorPlaylistText);
+    }
+    if (curatorBtnClear) {
+        curatorBtnClear.addEventListener('click', clearCuratorSelection);
+    }
+    if (curatorBtnYtMusic) {
+        curatorBtnYtMusic.addEventListener('click', exportCuratorYouTubeMusic);
     }
     if (curatorBtnSpotify) {
         curatorBtnSpotify.addEventListener('click', createCuratorSpotifyPlaylist);
@@ -3138,11 +3156,11 @@ function getCuratorTrackPriorStageMax(t, currentYearNum, currentHalf) {
     return maxPlays;
 }
 
-async function generateCuratorSelection() {
+async function loadCuratorCandidates(autoSelect = true) {
     const activeDb = await getActiveDatabase();
     if (!activeDb || !activeDb.tracksLookup) return;
 
-    if (curatorSelectedList) {
+    if (curatorSelectedList && autoSelect) {
         curatorSelectedList.innerHTML = '<div class="text-center text-secondary py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i>Calculando candidatos de este periodo...</div>';
     }
 
@@ -3236,19 +3254,27 @@ async function generateCuratorSelection() {
     curatorSelectedTracks = [];
     curatorBenchTracks = [];
 
-    for (const item of allCandidates) {
-        if (excludePast && item.isPastYear) {
-            curatorBenchTracks.push(item);
-        } else {
-            if (curatorSelectedTracks.length < targetCount) {
-                curatorSelectedTracks.push(item);
-            } else {
+    if (autoSelect) {
+        for (const item of allCandidates) {
+            if (excludePast && item.isPastYear) {
                 curatorBenchTracks.push(item);
+            } else {
+                if (curatorSelectedTracks.length < targetCount) {
+                    curatorSelectedTracks.push(item);
+                } else {
+                    curatorBenchTracks.push(item);
+                }
             }
         }
+    } else {
+        curatorBenchTracks = allCandidates;
     }
 
     renderCuratorView();
+}
+
+async function generateCuratorSelection() {
+    await loadCuratorCandidates(true);
 }
 
 function renderCuratorView() {
@@ -3289,9 +3315,14 @@ function renderCuratorSelectedList() {
     if (curatorSelectedTracks.length === 0) {
         curatorSelectedList.innerHTML = `
             <div class="text-center py-4 text-secondary">
-                <i class="fa-solid fa-compact-disc fs-4 mb-2 opacity-50"></i>
-                <div>No hay canciones seleccionadas todavía.</div>
-                <small>Puedes añadir canciones desde la pestaña "Banca / Descarte".</small>
+                <i class="fa-solid fa-compact-disc fs-3 mb-2 opacity-50 text-brand"></i>
+                <div class="fw-semibold text-white mb-1">Tu lista está vacía</div>
+                <div class="small text-muted mb-3" style="max-width: 440px; margin: 0 auto; font-size: 0.76rem;">
+                    La playlist empieza limpia para que la armes a tu gusto. Puedes ir añadiendo temas desde la pestaña <b>"Banca / Descarte"</b> o presionar <b>"Generar Selección"</b> para que el curador la autocomplete con los temas más escuchados de este ciclo.
+                </div>
+                <button type="button" class="btn btn-sm btn-brand rounded-pill px-3 py-1 fw-semibold" onclick="generateCuratorSelection()" style="font-size: 0.76rem;">
+                    <i class="fa-solid fa-rotate me-1"></i> Generar Selección Automática
+                </button>
             </div>
         `;
         return;
@@ -3518,4 +3549,39 @@ async function createCuratorSpotifyPlaylist() {
         alert('Ocurrió un error al crear la playlist en Spotify.');
     }
 }
+
+function clearCuratorSelection() {
+    if (curatorSelectedTracks.length === 0) return;
+    for (const t of curatorSelectedTracks) {
+        curatorBenchTracks.push(t);
+    }
+    curatorBenchTracks.sort((a, b) => b.plays - a.plays);
+    curatorSelectedTracks = [];
+    renderCuratorView();
+}
+
+async function exportCuratorYouTubeMusic() {
+    if (curatorSelectedTracks.length === 0) {
+        alert('No hay canciones en la selección actual para exportar a YouTube Music.');
+        return;
+    }
+
+    const cleanList = curatorSelectedTracks.map(t => `${t.artist} - ${t.name}`).join('\n');
+    try {
+        await navigator.clipboard.writeText(cleanList);
+    } catch (e) {
+        // Fallback
+    }
+
+    const firstTrackQuery = encodeURIComponent(`${curatorSelectedTracks[0].name} ${curatorSelectedTracks[0].artist}`);
+    const ytMusicUrl = `https://music.youtube.com/search?q=${firstTrackQuery}`;
+
+    const msg = `🎵 Lista de ${curatorSelectedTracks.length} canciones copiada al portapapeles en formato "Artista - Canción".\n\nIdeal para importar en TuneMyMusic, Soundiiz o buscar en YouTube Music.\n\n¿Deseas abrir YouTube Music en una nueva pestaña?`;
+    if (confirm(msg)) {
+        window.open(ytMusicUrl, '_blank');
+    }
+}
+
+window.clearCuratorSelection = clearCuratorSelection;
+window.exportCuratorYouTubeMusic = exportCuratorYouTubeMusic;
 
