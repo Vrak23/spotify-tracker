@@ -1193,6 +1193,55 @@ async function spotifyFetch(endpoint, options = {}) {
     }
 }
 
+async function createSpotifyPlaylistWithDetails(payload) {
+    let token = await getValidAccessToken();
+    if (!token) {
+        throw new Error('Tu sesión de Spotify no es válida. Inicia sesión de nuevo.');
+    }
+
+    const requestCreate = async (authToken) => fetch('https://api.spotify.com/v1/me/playlists', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + authToken,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    });
+
+    let res = await requestCreate(token);
+    if (res.status === 401) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+            res = await requestCreate(newToken);
+        } else {
+            localStorage.removeItem('spotify_access_token');
+            accessToken = null;
+            throw new Error('Tu sesión de Spotify expiró. Inicia sesión nuevamente.');
+        }
+    }
+
+    if (res.ok) {
+        return await res.json();
+    }
+
+    let detailMessage = `Spotify devolvió un error (${res.status}).`;
+    try {
+        const errData = await res.json();
+        const spotifyMessage = errData?.error?.message || errData?.message;
+        if (spotifyMessage) {
+            detailMessage = `Spotify: ${spotifyMessage}`;
+        } else if (res.statusText) {
+            detailMessage = `Spotify (${res.status}): ${res.statusText}`;
+        }
+    } catch (e) {
+        if (res.statusText) {
+            detailMessage = `Spotify (${res.status}): ${res.statusText}`;
+        }
+    }
+
+    throw new Error(detailMessage);
+}
+
 async function fetchUserProfile() {
     const data = await spotifyFetch('me');
     if (!data) return false;
@@ -2568,14 +2617,10 @@ async function handleSavePlaylist() {
             public: false
         };
 
-        const createRes = await spotifyFetch('me/playlists', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
+        const createRes = await createSpotifyPlaylistWithDetails(payload);
 
         if (!createRes || !createRes.id) {
-            alert('Error al crear la playlist en Spotify.');
-            return;
+            throw new Error('Spotify no devolvió un identificador de playlist.');
         }
 
         alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify!`);
@@ -2584,7 +2629,7 @@ async function handleSavePlaylist() {
         }
     } catch (err) {
         console.error(err);
-        alert('Ocurrió un error al guardar la playlist.');
+        alert(err?.message || 'Ocurrió un error al guardar la playlist.');
     }
 }
 
@@ -3499,14 +3544,10 @@ async function createCuratorSpotifyPlaylist() {
             public: false
         };
 
-        const createRes = await spotifyFetch('me/playlists', {
-            method: 'POST',
-            body: JSON.stringify(payload)
-        });
+        const createRes = await createSpotifyPlaylistWithDetails(payload);
 
         if (!createRes || !createRes.id) {
-            alert('Error al crear la playlist en Spotify.');
-            return;
+            throw new Error('Spotify no devolvió un identificador de playlist.');
         }
 
         const urisToAdd = [];
@@ -3538,7 +3579,7 @@ async function createCuratorSpotifyPlaylist() {
         }
     } catch (err) {
         console.error(err);
-        alert('Ocurrió un error al crear la playlist en Spotify.');
+        alert(err?.message || 'Ocurrió un error al crear la playlist en Spotify.');
     }
 }
 
