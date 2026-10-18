@@ -93,6 +93,7 @@ const selectLimit = document.getElementById('select-limit');
 const customDatePickerContainer = document.getElementById('custom-date-picker-container');
 const inputDateFrom = document.getElementById('input-date-from');
 const inputDateTo = document.getElementById('input-date-to');
+const btnSwapDates = document.getElementById('btn-swap-dates');
 const btnApplyCustomDates = document.getElementById('btn-apply-custom-dates');
 
 // Stat Strip DOM
@@ -308,31 +309,55 @@ function setupEventListeners() {
     if (btnApplyCustomDates) {
         btnApplyCustomDates.addEventListener('click', applyCustomDateRange);
     }
+    if (btnSwapDates) {
+        btnSwapDates.addEventListener('click', (e) => {
+            e.preventDefault();
+            const icon = btnSwapDates.querySelector('i');
+            if (icon) {
+                icon.style.transform = (icon.style.transform === 'rotate(180deg)') ? 'rotate(0deg)' : 'rotate(180deg)';
+                icon.style.transition = 'transform 0.25s ease';
+            }
+            if (inputDateFrom && inputDateTo) {
+                const currentTo = inputDateTo.value;
+                if (currentTo) {
+                    inputDateFrom.value = currentTo;
+                }
+                // Al hacerlo, que el seleccionador de la derecha se resetee
+                inputDateTo.value = '';
+                inputDateTo.focus();
+            }
+        });
+    }
     if (inputDateFrom) {
         inputDateFrom.addEventListener('change', () => {
-            if (selectTimePeriod && selectTimePeriod.value === 'custom') {
+            if (selectTimePeriod && selectTimePeriod.value === 'custom' && inputDateTo?.value) {
                 applyCustomDateRange();
             }
         });
     }
     if (inputDateTo) {
         inputDateTo.addEventListener('change', () => {
-            if (selectTimePeriod && selectTimePeriod.value === 'custom') {
+            if (selectTimePeriod && selectTimePeriod.value === 'custom' && inputDateTo.value) {
                 applyCustomDateRange();
             }
         });
     }
 
-    // Modal: Bloquear scroll de la parte de atrás completamente
+    // Modal: Preservar scroll de la página de fondo sin que se reinicie ni suba arriba
+    let savedModalScrollY = 0;
     document.addEventListener('show.bs.modal', () => {
-        document.documentElement.classList.add('modal-open');
-        document.body.classList.add('modal-open');
-        document.body.style.overflow = 'hidden';
+        savedModalScrollY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    });
+    document.addEventListener('shown.bs.modal', () => {
+        const currentY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+        if (savedModalScrollY > 0 && currentY === 0) {
+            window.scrollTo({ top: savedModalScrollY, behavior: 'instant' });
+        }
     });
     document.addEventListener('hidden.bs.modal', () => {
-        document.documentElement.classList.remove('modal-open');
-        document.body.classList.remove('modal-open');
-        document.body.style.overflow = '';
+        if (typeof savedModalScrollY === 'number') {
+            window.scrollTo({ top: savedModalScrollY, behavior: 'instant' });
+        }
     });
     // Prevenir touchmove detrás del modal en dispositivos táctiles
     document.addEventListener('touchmove', function(e) {
@@ -592,8 +617,14 @@ function handleTimePeriodChange(val) {
 }
 
 function applyCustomDateRange() {
-    let from = inputDateFrom?.value || '2025-08-01';
-    let to = inputDateTo?.value || '2026-10-18';
+    let from = inputDateFrom?.value || '2019-05-01';
+    let to = inputDateTo?.value;
+
+    if (!to) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        to = todayStr > '2026-12-31' ? '2026-12-31' : todayStr;
+        if (inputDateTo) inputDateTo.value = to;
+    }
 
     if (from > to) {
         const tmp = from;
