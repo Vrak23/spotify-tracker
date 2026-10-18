@@ -96,6 +96,29 @@ const inputDateTo = document.getElementById('input-date-to');
 const btnSwapDates = document.getElementById('btn-swap-dates');
 const btnApplyCustomDates = document.getElementById('btn-apply-custom-dates');
 
+// Playlist Curator DOM
+const playlistCuratorModalEl = document.getElementById('playlistCuratorModal');
+const btnOpenCuratorNav = document.getElementById('btn-open-curator-nav');
+const menuOpenCurator = document.getElementById('menu-open-curator');
+const curatorYear = document.getElementById('curator-year');
+const curatorHalf = document.getElementById('curator-half');
+const curatorTargetCount = document.getElementById('curator-target-count');
+const curatorExcludePast = document.getElementById('curator-exclude-past');
+const curatorBtnGenerate = document.getElementById('curator-btn-generate');
+const curatorPeriodBadge = document.getElementById('curator-period-badge');
+const curatorCounterBadge = document.getElementById('curator-counter-badge');
+const curatorTabSelected = document.getElementById('curator-tab-selected');
+const curatorTabBench = document.getElementById('curator-tab-bench');
+const curatorSelectedNum = document.getElementById('curator-selected-num');
+const curatorBenchNum = document.getElementById('curator-bench-num');
+const curatorSelectedView = document.getElementById('curator-selected-view');
+const curatorBenchView = document.getElementById('curator-bench-view');
+const curatorSelectedList = document.getElementById('curator-selected-list');
+const curatorBenchList = document.getElementById('curator-bench-list');
+const curatorBenchSearch = document.getElementById('curator-bench-search');
+const curatorBtnCopy = document.getElementById('curator-btn-copy');
+const curatorBtnSpotify = document.getElementById('curator-btn-spotify');
+
 // Stat Strip DOM
 const statStrip = document.getElementById('stat-strip');
 const stripPlaycount = document.getElementById('strip-playcount');
@@ -394,6 +417,12 @@ function setupEventListeners() {
     if (menuOpenRecords) {
         menuOpenRecords.addEventListener('click', openRecordsModal);
     }
+    if (menuOpenCurator) {
+        menuOpenCurator.addEventListener('click', openPlaylistCuratorModal);
+    }
+    if (btnOpenCuratorNav) {
+        btnOpenCuratorNav.addEventListener('click', openPlaylistCuratorModal);
+    }
 
     // Acciones del Menú Hamburguesa
     if (menuSavePlaylist) {
@@ -547,6 +576,7 @@ async function switchDataSource(source) {
         if (selectTimePeriod) {
             selectTimePeriod.innerHTML = `
                 <option value="overall" selected>✨ Histórico Total</option>
+                <option value="curator">🪄 Curador de Playlists Semestrales...</option>
                 <option value="era-spotify">🟢 Era Spotify (2019 - Ago 2025)</option>
                 <option value="era-lastfm">🟣 Nueva Era (Ago 2025 - Hoy)</option>
                 <option value="custom">📅 Elegir Fechas (Rango libre)...</option>
@@ -573,6 +603,12 @@ async function switchDataSource(source) {
 }
 
 function handleTimePeriodChange(val) {
+    if (val === 'curator') {
+        openPlaylistCuratorModal();
+        if (selectTimePeriod) selectTimePeriod.value = currentRange || 'overall';
+        return;
+    }
+
     if (val === 'custom') {
         if (customDatePickerContainer) customDatePickerContainer.classList.remove('d-none');
         if (selectMonth) {
@@ -2972,3 +3008,457 @@ async function openRecordsModal() {
         <div>${topDaysHtml}</div>
     `;
 }
+
+// ----------------------------------------------------
+// CURADOR DE PLAYLISTS SEMESTRALES
+// ----------------------------------------------------
+let curatorSelectedTracks = [];
+let curatorBenchTracks = [];
+let curatorCurrentCycleInfo = {
+    year: '2024',
+    half: '1',
+    periodStr: '',
+    cycleStart: ''
+};
+
+async function openPlaylistCuratorModal() {
+    const modalEl = document.getElementById('playlistCuratorModal');
+    if (!modalEl) return;
+
+    if (!window._curatorInitialized) {
+        window._curatorInitialized = true;
+        initCuratorEvents();
+    }
+
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+
+    await generateCuratorSelection();
+}
+
+function initCuratorEvents() {
+    if (curatorBtnGenerate) {
+        curatorBtnGenerate.addEventListener('click', generateCuratorSelection);
+    }
+    if (curatorYear) {
+        curatorYear.addEventListener('change', generateCuratorSelection);
+    }
+    if (curatorHalf) {
+        curatorHalf.addEventListener('change', generateCuratorSelection);
+    }
+    if (curatorExcludePast) {
+        curatorExcludePast.addEventListener('change', generateCuratorSelection);
+    }
+    if (curatorTargetCount) {
+        curatorTargetCount.addEventListener('change', () => {
+            const newTarget = parseInt(curatorTargetCount.value, 10) || 18;
+            if (newTarget < 5) curatorTargetCount.value = 5;
+            if (newTarget > 50) curatorTargetCount.value = 50;
+            renderCuratorView();
+        });
+    }
+
+    if (curatorTabSelected && curatorTabBench) {
+        curatorTabSelected.addEventListener('click', () => {
+            curatorTabSelected.classList.add('active');
+            curatorTabBench.classList.remove('active');
+            if (curatorSelectedView) curatorSelectedView.classList.remove('d-none');
+            if (curatorBenchView) curatorBenchView.classList.add('d-none');
+        });
+        curatorTabBench.addEventListener('click', () => {
+            curatorTabBench.classList.add('active');
+            curatorTabSelected.classList.remove('active');
+            if (curatorBenchView) curatorBenchView.classList.remove('d-none');
+            if (curatorSelectedView) curatorSelectedView.classList.add('d-none');
+        });
+    }
+
+    if (curatorBenchSearch) {
+        curatorBenchSearch.addEventListener('input', () => {
+            renderCuratorBenchList();
+        });
+    }
+
+    if (curatorBtnCopy) {
+        curatorBtnCopy.addEventListener('click', copyCuratorPlaylistText);
+    }
+    if (curatorBtnSpotify) {
+        curatorBtnSpotify.addEventListener('click', createCuratorSpotifyPlaylist);
+    }
+}
+
+async function generateCuratorSelection() {
+    const activeDb = await getActiveDatabase();
+    if (!activeDb || !activeDb.tracksLookup) return;
+
+    if (curatorSelectedList) {
+        curatorSelectedList.innerHTML = '<div class="text-center text-secondary py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i>Calculando candidatos de este periodo...</div>';
+    }
+
+    const year = curatorYear?.value || '2024';
+    const half = curatorHalf?.value || '1';
+    const targetCount = parseInt(curatorTargetCount?.value, 10) || 18;
+    const excludePast = curatorExcludePast ? curatorExcludePast.checked : true;
+
+    const yNum = parseInt(year, 10);
+    let months = [];
+    let cycleStart = '';
+    let periodStr = '';
+
+    if (half === '1') {
+        months = [
+            `${yNum - 1}-11`,
+            `${yNum - 1}-12`,
+            `${year}-01`,
+            `${year}-02`,
+            `${year}-03`,
+            `${year}-04`,
+            `${year}-05`
+        ];
+        cycleStart = `${yNum - 1}-11-21`;
+        periodStr = `21 Nov ${yNum - 1} — 20 May ${year}`;
+    } else {
+        months = [
+            `${year}-05`,
+            `${year}-06`,
+            `${year}-07`,
+            `${year}-08`,
+            `${year}-09`,
+            `${year}-10`,
+            `${year}-11`
+        ];
+        cycleStart = `${year}-05-21`;
+        periodStr = `21 May ${year} — 20 Nov ${year}`;
+    }
+
+    curatorCurrentCycleInfo = {
+        year,
+        half,
+        periodStr,
+        cycleStart
+    };
+
+    // Recorrer catálogo
+    const allCandidates = [];
+    const tracksArray = Object.values(activeDb.tracksLookup);
+
+    // Integración de escuchas delta en tiempo real de Last.fm si aplica
+    const deltaMap = new Map();
+    if (currentSource === 'unified' && year === '2026' && half === '2' && lastFmRecentDelta.length > 0) {
+        lastFmRecentDelta.forEach(t => {
+            const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist ? (t.artist['#text'] || t.artist.name || '') : '')}`;
+            deltaMap.set(k, (deltaMap.get(k) || 0) + 1);
+        });
+    }
+
+    for (const t of tracksArray) {
+        let periodPlays = 0;
+        for (const m of months) {
+            if (t.months && t.months[m]) {
+                periodPlays += t.months[m];
+            }
+        }
+
+        const trackKey = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+        if (deltaMap.has(trackKey)) {
+            periodPlays += deltaMap.get(trackKey);
+        }
+
+        if (periodPlays > 0) {
+            const firstDate = t.first || '';
+            const isPastYear = Boolean(firstDate && firstDate < cycleStart);
+
+            allCandidates.push({
+                name: t.name,
+                artist: t.artist,
+                album: t.album,
+                uri: t.uri,
+                plays: periodPlays,
+                first: t.first,
+                isPastYear
+            });
+        }
+    }
+
+    allCandidates.sort((a, b) => b.plays - a.plays);
+
+    curatorSelectedTracks = [];
+    curatorBenchTracks = [];
+
+    for (const item of allCandidates) {
+        if (excludePast && item.isPastYear) {
+            curatorBenchTracks.push(item);
+        } else {
+            if (curatorSelectedTracks.length < targetCount) {
+                curatorSelectedTracks.push(item);
+            } else {
+                curatorBenchTracks.push(item);
+            }
+        }
+    }
+
+    renderCuratorView();
+}
+
+function renderCuratorView() {
+    if (curatorPeriodBadge) {
+        curatorPeriodBadge.innerHTML = `<i class="fa-regular fa-clock me-1"></i> ${curatorCurrentCycleInfo.periodStr}`;
+    }
+
+    const targetCount = parseInt(curatorTargetCount?.value, 10) || 18;
+    const selectedCount = curatorSelectedTracks.length;
+
+    if (curatorCounterBadge) {
+        curatorCounterBadge.textContent = `${selectedCount} / ${targetCount} seleccionadas`;
+        if (selectedCount === targetCount) {
+            curatorCounterBadge.className = 'badge bg-success bg-opacity-25 text-success border border-success border-opacity-30';
+        } else if (selectedCount < targetCount) {
+            curatorCounterBadge.className = 'badge bg-warning bg-opacity-25 text-warning border border-warning border-opacity-30';
+        } else {
+            curatorCounterBadge.className = 'badge bg-info bg-opacity-25 text-info border border-info border-opacity-30';
+        }
+    }
+
+    if (curatorSelectedNum) curatorSelectedNum.textContent = selectedCount;
+    if (curatorBenchNum) curatorBenchNum.textContent = curatorBenchTracks.length;
+
+    renderCuratorSelectedList();
+    renderCuratorBenchList();
+}
+
+function renderCuratorSelectedList() {
+    if (!curatorSelectedList) return;
+
+    if (curatorSelectedTracks.length === 0) {
+        curatorSelectedList.innerHTML = `
+            <div class="text-center py-4 text-secondary">
+                <i class="fa-solid fa-compact-disc fs-4 mb-2 opacity-50"></i>
+                <div>No hay canciones seleccionadas todavía.</div>
+                <small>Puedes añadir canciones desde la pestaña "Banca / Descarte".</small>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    curatorSelectedTracks.forEach((t, i) => {
+        const artKey = `track::${normalizeKey(t.name)}::${normalizeKey(t.artist || '')}`;
+        const coverImg = artCache[artKey] || FALLBACK_ART_SVG;
+        const imgId = `curator-art-sel-${i}`;
+
+        html += `
+            <div class="curator-track-item">
+                <span class="fw-bold text-secondary text-end" style="width: 22px; font-size: 0.76rem;">#${i + 1}</span>
+                <img id="${imgId}" src="${coverImg}" class="rounded flex-shrink-0" style="width: 38px; height: 38px; object-fit: cover;" onerror="safeImgError(this)" alt="Cover">
+                <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                    <div class="fw-bold text-white text-truncate" style="font-size: 0.82rem;">${t.name}</div>
+                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                        <small class="text-secondary text-truncate" style="font-size: 0.72rem;">${t.artist}</small>
+                        ${t.isPastYear ? '<span class="badge bg-secondary bg-opacity-30 text-light border border-secondary border-opacity-20 px-1 py-0" style="font-size: 0.62rem;">Año Pasado</span>' : ''}
+                    </div>
+                </div>
+                <span class="badge bg-primary bg-opacity-20 text-primary border border-primary border-opacity-25 flex-shrink-0" style="font-size: 0.72rem;">
+                    ${t.plays} ${t.plays === 1 ? 'play' : 'plays'}
+                </span>
+                <div class="d-flex align-items-center gap-0.5 flex-shrink-0">
+                    <button type="button" class="curator-action-btn" onclick="moveCuratorTrack(${i}, -1)" ${i === 0 ? 'disabled' : ''} title="Subir">
+                        <i class="fa-solid fa-chevron-up" style="font-size: 0.74rem;"></i>
+                    </button>
+                    <button type="button" class="curator-action-btn" onclick="moveCuratorTrack(${i}, 1)" ${i === curatorSelectedTracks.length - 1 ? 'disabled' : ''} title="Bajar">
+                        <i class="fa-solid fa-chevron-down" style="font-size: 0.74rem;"></i>
+                    </button>
+                    <button type="button" class="curator-action-btn text-danger ms-1" onclick="removeCuratorTrack(${i})" title="Quitar de la lista">
+                        <i class="fa-solid fa-xmark" style="font-size: 0.82rem;"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        if (!artCache[artKey]) {
+            resolveSpotifyArtwork(t.name, t.artist, 'track', imgId);
+        }
+    });
+
+    curatorSelectedList.innerHTML = html;
+}
+
+function renderCuratorBenchList() {
+    if (!curatorBenchList) return;
+
+    const query = (curatorBenchSearch?.value || '').trim().toLowerCase();
+    let filtered = curatorBenchTracks;
+
+    if (query) {
+        filtered = curatorBenchTracks.filter(t =>
+            (t.name || '').toLowerCase().includes(query) ||
+            (t.artist || '').toLowerCase().includes(query) ||
+            (t.album || '').toLowerCase().includes(query)
+        );
+    }
+
+    if (filtered.length === 0) {
+        curatorBenchList.innerHTML = `
+            <div class="text-center py-4 text-secondary">
+                <i class="fa-solid fa-magnifying-glass fs-5 mb-1 opacity-50"></i>
+                <div>No se encontraron más canciones en la banca.</div>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    filtered.slice(0, 100).forEach((t, i) => {
+        const artKey = `track::${normalizeKey(t.name)}::${normalizeKey(t.artist || '')}`;
+        const coverImg = artCache[artKey] || FALLBACK_ART_SVG;
+        const imgId = `curator-art-bench-${i}`;
+
+        html += `
+            <div class="curator-track-item">
+                <img id="${imgId}" src="${coverImg}" class="rounded flex-shrink-0" style="width: 36px; height: 36px; object-fit: cover;" onerror="safeImgError(this)" alt="Cover">
+                <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                    <div class="fw-bold text-white text-truncate" style="font-size: 0.80rem;">${t.name}</div>
+                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                        <small class="text-secondary text-truncate" style="font-size: 0.70rem;">${t.artist}</small>
+                        ${t.isPastYear ? '<span class="badge bg-secondary bg-opacity-30 text-light border border-secondary border-opacity-20 px-1 py-0" style="font-size: 0.60rem;">Año Pasado</span>' : ''}
+                    </div>
+                </div>
+                <span class="badge bg-secondary bg-opacity-25 text-light border border-secondary border-opacity-20 flex-shrink-0" style="font-size: 0.70rem;">
+                    ${t.plays} ${t.plays === 1 ? 'play' : 'plays'}
+                </span>
+                <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-2.5 py-0.5 fw-semibold flex-shrink-0" style="font-size: 0.72rem;" onclick="addCuratorTrackFromBench('${encodeURIComponent(t.name)}', '${encodeURIComponent(t.artist)}')">
+                    <i class="fa-solid fa-plus me-1"></i> Añadir
+                </button>
+            </div>
+        `;
+
+        if (!artCache[artKey]) {
+            resolveSpotifyArtwork(t.name, t.artist, 'track', imgId);
+        }
+    });
+
+    curatorBenchList.innerHTML = html;
+}
+
+window.moveCuratorTrack = function(index, direction) {
+    const targetIdx = index + direction;
+    if (targetIdx < 0 || targetIdx >= curatorSelectedTracks.length) return;
+    const tmp = curatorSelectedTracks[index];
+    curatorSelectedTracks[index] = curatorSelectedTracks[targetIdx];
+    curatorSelectedTracks[targetIdx] = tmp;
+    renderCuratorSelectedList();
+};
+
+window.removeCuratorTrack = function(index) {
+    if (index < 0 || index >= curatorSelectedTracks.length) return;
+    const [removed] = curatorSelectedTracks.splice(index, 1);
+    if (removed) {
+        curatorBenchTracks.unshift(removed);
+        curatorBenchTracks.sort((a, b) => b.plays - a.plays);
+    }
+    renderCuratorView();
+};
+
+window.addCuratorTrackFromBench = function(encName, encArtist) {
+    const name = decodeURIComponent(encName);
+    const artist = decodeURIComponent(encArtist);
+    const idx = curatorBenchTracks.findIndex(t => t.name === name && t.artist === artist);
+    if (idx !== -1) {
+        const [item] = curatorBenchTracks.splice(idx, 1);
+        curatorSelectedTracks.push(item);
+        renderCuratorView();
+    }
+};
+
+async function copyCuratorPlaylistText() {
+    if (curatorSelectedTracks.length === 0) {
+        alert('No hay canciones en la selección actual para copiar.');
+        return;
+    }
+
+    const { year, half, periodStr } = curatorCurrentCycleInfo;
+    const halfName = half === '1' ? '1ra Mitad (Ene-May)' : '2da Mitad (Jun-Nov)';
+
+    let text = `🎵 Mi Playlist ${year} - ${halfName}\n📅 Periodo: ${periodStr}\n\n`;
+    curatorSelectedTracks.forEach((t, i) => {
+        text += `${i + 1}. ${t.artist} - ${t.name}\n`;
+    });
+    text += `\nGenerado con SpotiTracker`;
+
+    try {
+        await navigator.clipboard.writeText(text);
+        alert(`¡Lista copiada al portapapeles!\n\n${curatorSelectedTracks.length} canciones listas para pegar.`);
+    } catch (err) {
+        prompt('Copia tu lista manualmente:', text);
+    }
+}
+
+async function createCuratorSpotifyPlaylist() {
+    if (!accessToken) {
+        if (confirm('Para guardar la playlist directamente en tu cuenta de Spotify necesitas iniciar sesión con Spotify.\n\n¿Deseas iniciar sesión ahora?')) {
+            redirectToSpotifyLogin();
+        }
+        return;
+    }
+
+    if (curatorSelectedTracks.length === 0) {
+        alert('No hay canciones seleccionadas en la playlist.');
+        return;
+    }
+
+    const { year, half, periodStr } = curatorCurrentCycleInfo;
+    const halfName = half === '1' ? '1ra Mitad' : '2da Mitad';
+
+    try {
+        if (!userProfileData) {
+            await fetchUserProfile();
+        }
+
+        const payload = {
+            name: `Top ${year} - ${halfName} (SpotiTracker)`,
+            description: `Playlist semestral curada (${periodStr}) con ${curatorSelectedTracks.length} temas. Generada en SpotiTracker.`,
+            public: false
+        };
+
+        const createRes = await spotifyFetch(`users/${userProfileData.id}/playlists`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+
+        if (!createRes || !createRes.id) {
+            alert('Error al crear la playlist en Spotify.');
+            return;
+        }
+
+        const urisToAdd = [];
+        for (const t of curatorSelectedTracks) {
+            if (t.uri && t.uri.startsWith('spotify:track:')) {
+                urisToAdd.push(t.uri);
+            } else {
+                try {
+                    const q = encodeURIComponent(`${t.name} ${t.artist}`);
+                    const sRes = await spotifyFetch(`search?type=track&limit=1&q=${q}`);
+                    const foundUri = sRes?.tracks?.items?.[0]?.uri;
+                    if (foundUri) urisToAdd.push(foundUri);
+                } catch (e) {
+                    // Ignorar fallos de búsqueda individuales
+                }
+            }
+        }
+
+        if (urisToAdd.length > 0) {
+            await spotifyFetch(`playlists/${createRes.id}/tracks`, {
+                method: 'POST',
+                body: JSON.stringify({ uris: urisToAdd })
+            });
+        }
+
+        alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify con ${urisToAdd.length} canciones!`);
+        if (createRes.external_urls?.spotify) {
+            window.open(createRes.external_urls.spotify, '_blank');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Ocurrió un error al crear la playlist en Spotify.');
+    }
+}
+

@@ -562,6 +562,40 @@
                 max-width: 580px;
             }
         }
+        .modal-curator-dialog {
+            max-width: 680px;
+        }
+        .curator-track-item {
+            background-color: #121218;
+            border: 1px solid #252532;
+            border-radius: 8px;
+            padding: 6px 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.15s ease;
+        }
+        .curator-track-item:hover {
+            background-color: #171722;
+            border-color: #38384a;
+        }
+        .curator-action-btn {
+            background: transparent;
+            border: none;
+            color: #8e8ea0;
+            padding: 4px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: color 0.15s, background-color 0.15s;
+        }
+        .curator-action-btn:hover:not(:disabled) {
+            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+        .curator-action-btn:disabled {
+            opacity: 0.25;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -576,6 +610,10 @@
 
             <!-- Right Navbar Controls (Avatar + Burger Menu Button) -->
             <div id="nav-actions" class="d-none d-flex align-items-center gap-2">
+                <button id="btn-open-curator-nav" class="btn btn-sm btn-outline-brand rounded-pill px-2.5 py-1 fw-semibold d-flex align-items-center gap-1.5" style="font-size: 0.76rem;" title="Curador de Playlists Semestrales">
+                    <i class="fa-solid fa-wand-magic-sparkles text-primary"></i>
+                    <span class="d-none d-sm-inline">Playlists Semestrales</span>
+                </button>
                 <img id="user-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44' width='44' height='44'%3E%3Crect width='44' height='44' fill='%2318181c' rx='22'/%3E%3Ccircle cx='22' cy='16' r='6' fill='%23a855f7'/%3E%3Cpath d='M10 34c0-5 5.5-8 12-8s12 3 12 8z' fill='%23a855f7'/%3E%3C/svg%3e" alt="Avatar" class="img-avatar rounded-circle border" style="width: 32px; height: 32px; object-fit: cover; border-color: var(--brand-primary) !important;" onerror="safeAvatarError(this)">
                 <button class="btn btn-outline-brand rounded-pill px-2.5 py-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#burgerMenu" aria-controls="burgerMenu" title="Abrir Menú">
                     <i class="fa-solid fa-bars fs-6"></i>
@@ -671,6 +709,7 @@
                         <label class="filter-label"><i class="fa-regular fa-calendar-days me-1 text-muted"></i> Periodo</label>
                         <select id="select-time-period" class="form-select form-select-sm filter-select">
                             <option value="overall" selected>✨ Histórico Total</option>
+                            <option value="curator">🪄 Curador de Playlists Semestrales...</option>
                             <option value="era-spotify">🟢 Era Spotify (2019 - Ago 2025)</option>
                             <option value="era-lastfm">🟣 Nueva Era (Ago 2025 - Hoy)</option>
                             <option value="custom">📅 Elegir Fechas (Rango libre)...</option>
@@ -812,6 +851,14 @@
                 </button>
 
                 <div class="text-secondary px-2 mt-2 mb-1" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Herramientas</div>
+
+                <button class="offcanvas-menu-item" id="menu-open-curator" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-wand-magic-sparkles text-primary fs-5"></i>
+                    <div>
+                        <div>Curador de Playlists Semestrales</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Selección guiada ~18 canciones (Ene-May / Jun-Nov)</small>
+                    </div>
+                </button>
 
                 <button class="offcanvas-menu-item" id="menu-save-playlist" data-bs-dismiss="offcanvas">
                     <i class="fa-solid fa-plus text-success fs-5"></i>
@@ -1096,9 +1143,129 @@
         </div>
     </div>
 
+    <!-- Modal: Curador de Playlists Semestrales -->
+    <div class="modal fade" id="playlistCuratorModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-curator-dialog">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 14px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles text-primary fs-5"></i>
+                        <div>
+                            <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.95rem;">Curador de Playlists Semestrales</h6>
+                            <small class="text-secondary d-block" style="font-size: 0.72rem;">Selección inteligente (~18 temas): 1 Ene - 20 May / 1 Jun - 20 Nov</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                
+                <div class="modal-body p-3" style="font-size: 0.82rem;">
+                    <!-- Barra de Controles y Configuración -->
+                    <div class="p-3 mb-3 rounded-3 border border-secondary border-opacity-15" style="background: rgba(255, 255, 255, 0.02);">
+                        <div class="row g-2 align-items-end">
+                            <!-- Selector de Año -->
+                            <div class="col-6 col-sm-3">
+                                <label class="filter-label"><i class="fa-regular fa-calendar me-1 text-primary"></i> Año</label>
+                                <select id="curator-year" class="form-select form-select-sm filter-select">
+                                    <option value="2026">2026</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2024" selected>2024</option>
+                                    <option value="2023">2023</option>
+                                    <option value="2022">2022</option>
+                                    <option value="2021">2021</option>
+                                    <option value="2020">2020</option>
+                                    <option value="2019">2019</option>
+                                </select>
+                            </div>
+
+                            <!-- Selector de Mitad del Año -->
+                            <div class="col-6 col-sm-5">
+                                <label class="filter-label"><i class="fa-solid fa-timeline me-1 text-info"></i> Periodo</label>
+                                <select id="curator-half" class="form-select form-select-sm filter-select">
+                                    <option value="1" selected>1ra Mitad (1 Ene — 20 May)</option>
+                                    <option value="2">2da Mitad (1 Jun — 20 Nov)</option>
+                                </select>
+                            </div>
+
+                            <!-- Cantidad Objetivo -->
+                            <div class="col-6 col-sm-4">
+                                <label class="filter-label"><i class="fa-solid fa-list-ol me-1 text-warning"></i> Objetivo</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" id="curator-target-count" class="form-control form-control-sm text-center bg-dark text-white border-secondary border-opacity-30" value="18" min="5" max="40" style="font-size: 0.8rem; height: 32px;">
+                                    <span class="input-group-text bg-dark text-secondary border-secondary border-opacity-30 small" style="font-size: 0.75rem;">temas</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filtro de canciones de años pasados -->
+                        <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top border-secondary border-opacity-10 flex-wrap gap-2">
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="curator-exclude-past" checked>
+                                <label class="form-check-label text-secondary small" for="curator-exclude-past" style="font-size: 0.74rem;">
+                                    Excluir canciones de años anteriores <span class="text-muted">(priorizar música de esta etapa)</span>
+                                </label>
+                            </div>
+                            <button id="curator-btn-generate" class="btn btn-sm btn-brand rounded-pill px-3 py-1 fw-semibold text-nowrap" style="font-size: 0.76rem;">
+                                <i class="fa-solid fa-rotate me-1"></i> Generar Selección
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Resumen del Ciclo y Contador -->
+                    <div class="d-flex align-items-center justify-content-between mb-2 px-1 flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span id="curator-period-badge" class="badge bg-primary bg-opacity-20 text-primary border border-primary border-opacity-30" style="font-size: 0.72rem;">
+                                <i class="fa-regular fa-clock me-1"></i> 21 Nov 2023 — 20 May 2024
+                            </span>
+                            <span id="curator-counter-badge" class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-30" style="font-size: 0.72rem;">
+                                18 / 18 seleccionadas
+                            </span>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" id="curator-tab-selected" class="btn btn-sm btn-dark border border-secondary border-opacity-30 active" style="font-size: 0.74rem;">
+                                <i class="fa-solid fa-list-check me-1"></i> Mi Selección (<span id="curator-selected-num">18</span>)
+                            </button>
+                            <button type="button" id="curator-tab-bench" class="btn btn-sm btn-dark border border-secondary border-opacity-30" style="font-size: 0.74rem;">
+                                <i class="fa-solid fa-box-archive me-1"></i> Banca / Descarte (<span id="curator-bench-num">0</span>)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor 1: Lista Seleccionada -->
+                    <div id="curator-selected-view">
+                        <div id="curator-selected-list" class="d-flex flex-column gap-1.5 mb-2">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Contenedor 2: Banco de Canciones del Periodo -->
+                    <div id="curator-bench-view" class="d-none">
+                        <div class="mb-2">
+                            <input type="text" id="curator-bench-search" class="search-input" placeholder="Buscar entre las canciones restantes de este periodo..." autocomplete="off">
+                        </div>
+                        <div id="curator-bench-list" class="d-flex flex-column gap-1.5" style="max-height: 380px; overflow-y: auto;">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3 justify-content-between flex-wrap gap-2">
+                    <button type="button" id="curator-btn-copy" class="btn btn-sm btn-outline-secondary rounded-pill px-3" style="font-size: 0.76rem;">
+                        <i class="fa-regular fa-copy me-1"></i> Copiar Lista Texto
+                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" id="curator-btn-spotify" class="btn btn-sm btn-brand rounded-pill px-3 fw-semibold" style="font-size: 0.76rem;">
+                            <i class="fa-brands fa-spotify me-1"></i> Crear Playlist en Spotify
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-3" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=21"></script>
+    <script src="/app.js?v=22"></script>
 </body>
 </html>
