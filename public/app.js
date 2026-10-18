@@ -3284,7 +3284,7 @@ function renderCuratorSelectedList() {
                     <div class="fw-bold text-white text-truncate" style="font-size: 0.82rem;">${t.name}</div>
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
                         <small class="text-secondary text-truncate" style="font-size: 0.72rem;">${t.artist}</small>
-                        ${t.isSurgeOrPeak ? `<span class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-30 px-1.5 py-0.5" style="font-size: 0.62rem;" title="Fue más escuchada este año que el anterior"><i class="fa-solid fa-arrow-trend-up me-1"></i>Pico en ${curatorCurrentCycleInfo.year}</span>` : (t.isPastYear ? '<span class="badge bg-secondary bg-opacity-30 text-light border border-secondary border-opacity-20 px-1 py-0" style="font-size: 0.62rem;">Año Pasado</span>' : '')}
+                        ${t.isSurgeOrPeak ? `<span class="curator-badge-peak" title="Fue más escuchada este año que el anterior"><i class="fa-solid fa-arrow-trend-up"></i> Pico en ${curatorCurrentCycleInfo.year}</span>` : (t.isPastYear ? '<span class="curator-badge-past">Año Pasado</span>' : '')}
                     </div>
                 </div>
                 <span class="curator-badge-plays">
@@ -3349,7 +3349,7 @@ function renderCuratorBenchList() {
                     <div class="fw-bold text-white text-truncate" style="font-size: 0.80rem;">${t.name}</div>
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
                         <small class="text-secondary text-truncate" style="font-size: 0.70rem;">${t.artist}</small>
-                        ${t.isSurgeOrPeak ? `<span class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-30 px-1.5 py-0.5" style="font-size: 0.60rem;"><i class="fa-solid fa-arrow-trend-up me-1"></i>Pico en ${curatorCurrentCycleInfo.year}</span>` : (t.isPastYear ? '<span class="badge bg-secondary bg-opacity-30 text-light border border-secondary border-opacity-20 px-1 py-0" style="font-size: 0.60rem;">Año Pasado</span>' : '')}
+                        ${t.isSurgeOrPeak ? `<span class="curator-badge-peak"><i class="fa-solid fa-arrow-trend-up"></i> Pico en ${curatorCurrentCycleInfo.year}</span>` : (t.isPastYear ? '<span class="curator-badge-past">Año Pasado</span>' : '')}
                     </div>
                 </div>
                 <span class="curator-badge-plays">
