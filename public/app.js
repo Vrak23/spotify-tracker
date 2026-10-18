@@ -2610,6 +2610,20 @@ async function handleSavePlaylist() {
             return;
         }
 
+        const trackCandidates = (currentLoadedItems || [])
+            .map(item => ({
+                name: (item?.name || '').trim(),
+                artist: (typeof item?.artist === 'string'
+                    ? item.artist
+                    : (item?.artist?.name || item?.artist?.['#text'] || '')).trim(),
+                uri: (item?.uri || '').trim()
+            }))
+            .filter(t => t.name && t.artist);
+
+        if (trackCandidates.length === 0) {
+            throw new Error('La vista actual no contiene canciones exportables. Cambia a la vista de canciones o recientes.');
+        }
+
         const periodName = getRangeLabel(currentRange);
         const payload = {
             name: `Mi Top (${periodName}) - SpotiTracker`,
@@ -2623,7 +2637,50 @@ async function handleSavePlaylist() {
             throw new Error('Spotify no devolvió un identificador de playlist.');
         }
 
-        alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify!`);
+        const urisToAdd = [];
+        const seenUris = new Set();
+
+        for (const t of trackCandidates) {
+            let resolvedUri = '';
+
+            if (t.uri && t.uri.startsWith('spotify:track:')) {
+                resolvedUri = t.uri;
+            } else {
+                try {
+                    const q = encodeURIComponent(`${t.name} ${t.artist}`.trim());
+                    const sRes = await spotifyFetch(`search?type=track&limit=1&q=${q}`);
+                    const foundUri = sRes?.tracks?.items?.[0]?.uri;
+                    if (foundUri && foundUri.startsWith('spotify:track:')) {
+                        resolvedUri = foundUri;
+                    }
+                } catch (e) {
+                    // Ignorar fallos de búsqueda individuales
+                }
+            }
+
+            if (resolvedUri && !seenUris.has(resolvedUri)) {
+                seenUris.add(resolvedUri);
+                urisToAdd.push(resolvedUri);
+            }
+        }
+
+        if (urisToAdd.length === 0) {
+            throw new Error('Se creó la playlist, pero no se pudieron resolver canciones para agregar.');
+        }
+
+        for (let i = 0; i < urisToAdd.length; i += 100) {
+            const chunk = urisToAdd.slice(i, i + 100);
+            const addRes = await spotifyFetch(`playlists/${createRes.id}/tracks`, {
+                method: 'POST',
+                body: JSON.stringify({ uris: chunk })
+            });
+
+            if (!addRes || !addRes.snapshot_id) {
+                throw new Error('Se creó la playlist, pero Spotify devolvió un error al agregar canciones.');
+            }
+        }
+
+        alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify con ${urisToAdd.length} canciones!`);
         if (createRes.external_urls?.spotify) {
             window.open(createRes.external_urls.spotify, '_blank');
         }
