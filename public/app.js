@@ -3153,21 +3153,14 @@ async function generateCuratorSelection() {
 
     const yNum = parseInt(year, 10);
     const months = getCuratorStageMonths(year, half);
-    const allowedMonths = half === '1'
-        ? ['11', '12', '01', '02', '03', '04', '05']
-        : ['05', '06', '07', '08', '09', '10', '11'];
-
     let cycleStart = '';
-    let cycleEnd = '';
     let periodStr = '';
 
     if (half === '1') {
         cycleStart = `${yNum - 1}-11-01`;
-        cycleEnd = `${yNum}-05-31T23:59:59Z`;
         periodStr = `21 Nov ${yNum - 1} — 20 May ${year}`;
     } else {
         cycleStart = `${year}-05-01`;
-        cycleEnd = `${year}-11-30T23:59:59Z`;
         periodStr = `21 May ${year} — 20 Nov ${year}`;
     }
 
@@ -3206,18 +3199,21 @@ async function generateCuratorSelection() {
 
         if (periodPlays > 0) {
             const firstDate = t.first || '';
-            const firstMonth = firstDate ? firstDate.slice(5, 7) : '';
-            const matchesStageSeason = allowedMonths.includes(firstMonth);
-            const isNewToCycle = Boolean(firstDate && firstDate >= cycleStart && firstDate <= cycleEnd);
-            const isPastYear = !isNewToCycle;
+            const isPastDiscovered = Boolean(firstDate && firstDate < cycleStart);
 
+            let isTrulyPastYear = false;
             let isSurgeOrPeak = false;
             let priorMax = 0;
 
-            if (isPastYear) {
+            if (isPastDiscovered) {
                 priorMax = getCuratorTrackPriorStageMax(t, yNum, half);
+
+                // Criterio de picos de escuchas:
+                // Solo se considera pico si alcanzó su récord en su respectiva etapa semestral actual
                 if (periodPlays >= priorMax) {
                     isSurgeOrPeak = true;
+                } else {
+                    isTrulyPastYear = true;
                 }
             }
 
@@ -3228,10 +3224,7 @@ async function generateCuratorSelection() {
                 uri: t.uri,
                 plays: periodPlays,
                 first: t.first,
-                firstMonth,
-                matchesStageSeason,
-                isNewToCycle,
-                isPastYear,
+                isPastYear: isTrulyPastYear,
                 isSurgeOrPeak,
                 priorMax
             });
@@ -3244,24 +3237,14 @@ async function generateCuratorSelection() {
     curatorBenchTracks = [];
 
     for (const item of allCandidates) {
-        // Regla 1: Las canciones descubiertas fuera de la temporada de la etapa
-        // (ej. descubierta en agosto para la 1ra mitad) NUNCA van a la selección principal
-        if (!item.matchesStageSeason) {
-            curatorBenchTracks.push(item);
-            continue;
-        }
-
-        // Regla 2: Si el usuario tiene activado 'Excluir canciones de años anteriores',
-        // van a la banca todas las canciones que no hayan nacido en este ciclo
         if (excludePast && item.isPastYear) {
             curatorBenchTracks.push(item);
-            continue;
-        }
-
-        if (curatorSelectedTracks.length < targetCount) {
-            curatorSelectedTracks.push(item);
         } else {
-            curatorBenchTracks.push(item);
+            if (curatorSelectedTracks.length < targetCount) {
+                curatorSelectedTracks.push(item);
+            } else {
+                curatorBenchTracks.push(item);
+            }
         }
     }
 
@@ -3392,8 +3375,8 @@ function renderCuratorBenchList() {
                 <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                     <div class="fw-bold text-white text-truncate" style="font-size: 0.80rem;">${t.name}</div>
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                        ${t.isSurgeOrPeak ? `<span class="curator-badge-peak" title="Pico de escuchas en esta etapa (${t.plays} plays vs récord previo de ${t.priorMax || 0})"><i class="fa-solid fa-arrow-trend-up"></i> Pico en Etapa</span>` : ''}
-                        ${!t.matchesStageSeason ? `<span class="curator-badge-past" title="Primera escucha: ${t.first ? t.first.slice(0, 10) : ''} (temporada opuesta)">Etapa Opuesta</span>` : (t.isPastYear ? `<span class="curator-badge-past" title="Primera escucha: ${t.first ? t.first.slice(0, 10) : ''}">Año Pasado</span>` : '')}
+                        <small class="text-secondary text-truncate" style="font-size: 0.70rem;">${t.artist}</small>
+                        ${t.isSurgeOrPeak ? `<span class="curator-badge-peak" title="Pico de escuchas en esta etapa (${t.plays} plays vs récord previo de ${t.priorMax || 0})"><i class="fa-solid fa-arrow-trend-up"></i> Pico en Etapa</span>` : (t.isPastYear ? `<span class="curator-badge-past" title="Pico previo: ${t.priorMax || 0} plays en etapa anterior">Año Pasado</span>` : '')}
                     </div>
                 </div>
                 <span class="curator-badge-plays">
