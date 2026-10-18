@@ -3087,6 +3087,57 @@ function initCuratorEvents() {
     }
 }
 
+function getCuratorStageMonths(targetYear, targetHalf) {
+    const y = parseInt(targetYear, 10);
+    if (targetHalf === '1') {
+        return [
+            `${y - 1}-11`,
+            `${y - 1}-12`,
+            `${y}-01`,
+            `${y}-02`,
+            `${y}-03`,
+            `${y}-04`,
+            `${y}-05`
+        ];
+    } else {
+        return [
+            `${y}-05`,
+            `${y}-06`,
+            `${y}-07`,
+            `${y}-08`,
+            `${y}-09`,
+            `${y}-10`,
+            `${y}-11`
+        ];
+    }
+}
+
+function getCuratorTrackStagePlays(track, targetYear, targetHalf) {
+    if (!track || !track.months) return 0;
+    const mList = getCuratorStageMonths(targetYear, targetHalf);
+    let count = 0;
+    for (const m of mList) {
+        if (track.months[m]) count += track.months[m];
+    }
+    return count;
+}
+
+function getCuratorTrackPriorStageMax(t, currentYearNum, currentHalf) {
+    let maxPlays = 0;
+    for (let y = 2018; y <= currentYearNum; y++) {
+        for (const h of ['1', '2']) {
+            if (y === currentYearNum && h === currentHalf) {
+                return maxPlays;
+            }
+            const stagePlays = getCuratorTrackStagePlays(t, y, h);
+            if (stagePlays > maxPlays) {
+                maxPlays = stagePlays;
+            }
+        }
+    }
+    return maxPlays;
+}
+
 async function generateCuratorSelection() {
     const activeDb = await getActiveDatabase();
     if (!activeDb || !activeDb.tracksLookup) return;
@@ -3101,32 +3152,14 @@ async function generateCuratorSelection() {
     const excludePast = curatorExcludePast ? curatorExcludePast.checked : true;
 
     const yNum = parseInt(year, 10);
-    let months = [];
+    const months = getCuratorStageMonths(year, half);
     let cycleStart = '';
     let periodStr = '';
 
     if (half === '1') {
-        months = [
-            `${yNum - 1}-11`,
-            `${yNum - 1}-12`,
-            `${year}-01`,
-            `${year}-02`,
-            `${year}-03`,
-            `${year}-04`,
-            `${year}-05`
-        ];
         cycleStart = `${yNum - 1}-11-21`;
         periodStr = `21 Nov ${yNum - 1} — 20 May ${year}`;
     } else {
-        months = [
-            `${year}-05`,
-            `${year}-06`,
-            `${year}-07`,
-            `${year}-08`,
-            `${year}-09`,
-            `${year}-10`,
-            `${year}-11`
-        ];
         cycleStart = `${year}-05-21`;
         periodStr = `21 May ${year} — 20 Nov ${year}`;
     }
@@ -3170,21 +3203,14 @@ async function generateCuratorSelection() {
 
             let isTrulyPastYear = false;
             let isSurgeOrPeak = false;
+            let priorMax = 0;
 
             if (isPastDiscovered) {
-                const curYPlays = t.years?.[year] || 0;
-                const prevYPlays = t.years?.[String(yNum - 1)] || 0;
+                priorMax = getCuratorTrackPriorStageMax(t, yNum, half);
 
-                let maxPrior = 0;
-                for (const [yr, p] of Object.entries(t.years || {})) {
-                    if (parseInt(yr, 10) < yNum && p > maxPrior) {
-                        maxPrior = p;
-                    }
-                }
-
-                // Regla del usuario: Si la canción fue más escuchada este año que el año pasado
-                // o alcanzó su mayor número de streams históricos, PUEDE entrar a pesar de ser de un año pasado.
-                if (curYPlays > prevYPlays || curYPlays >= maxPrior) {
+                // Criterio de picos de escuchas:
+                // Solo se considera pico si alcanzó su récord en su respectiva etapa semestral actual
+                if (periodPlays >= priorMax) {
                     isSurgeOrPeak = true;
                 } else {
                     isTrulyPastYear = true;
@@ -3199,7 +3225,8 @@ async function generateCuratorSelection() {
                 plays: periodPlays,
                 first: t.first,
                 isPastYear: isTrulyPastYear,
-                isSurgeOrPeak
+                isSurgeOrPeak,
+                priorMax
             });
         }
     }
@@ -3284,7 +3311,7 @@ function renderCuratorSelectedList() {
                     <div class="fw-bold text-white text-truncate" style="font-size: 0.82rem;">${t.name}</div>
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
                         <small class="text-secondary text-truncate" style="font-size: 0.72rem;">${t.artist}</small>
-                        ${t.isSurgeOrPeak ? `<span class="curator-badge-peak" title="Fue más escuchada este año que el anterior"><i class="fa-solid fa-arrow-trend-up"></i> Pico en ${curatorCurrentCycleInfo.year}</span>` : (t.isPastYear ? '<span class="curator-badge-past">Año Pasado</span>' : '')}
+                        ${t.isSurgeOrPeak ? `<span class="curator-badge-peak" title="Pico de escuchas en esta etapa (${t.plays} plays vs récord previo de ${t.priorMax || 0})"><i class="fa-solid fa-arrow-trend-up"></i> Pico en Etapa</span>` : (t.isPastYear ? '<span class="curator-badge-past">Año Pasado</span>' : '')}
                     </div>
                 </div>
                 <span class="curator-badge-plays">
@@ -3349,7 +3376,7 @@ function renderCuratorBenchList() {
                     <div class="fw-bold text-white text-truncate" style="font-size: 0.80rem;">${t.name}</div>
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
                         <small class="text-secondary text-truncate" style="font-size: 0.70rem;">${t.artist}</small>
-                        ${t.isSurgeOrPeak ? `<span class="curator-badge-peak"><i class="fa-solid fa-arrow-trend-up"></i> Pico en ${curatorCurrentCycleInfo.year}</span>` : (t.isPastYear ? '<span class="curator-badge-past">Año Pasado</span>' : '')}
+                        ${t.isSurgeOrPeak ? `<span class="curator-badge-peak" title="Pico de escuchas en esta etapa (${t.plays} plays vs récord previo de ${t.priorMax || 0})"><i class="fa-solid fa-arrow-trend-up"></i> Pico en Etapa</span>` : (t.isPastYear ? `<span class="curator-badge-past" title="Pico previo: ${t.priorMax || 0} plays en etapa anterior">Año Pasado</span>` : '')}
                     </div>
                 </div>
                 <span class="curator-badge-plays">
