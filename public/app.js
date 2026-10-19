@@ -2066,7 +2066,7 @@ function renderTracks(tracks) {
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(track.name + ' ' + artistName)}`;
 
         item.innerHTML = `
-            <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
+            <span class="card-rank ${index === 0 ? 'top-1' : (index === 1 ? 'top-2' : (index === 2 ? 'top-3' : ''))}">#${String(index + 1).padStart(2, '0')}</span>
             <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Cover" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
@@ -2110,7 +2110,7 @@ function renderArtists(artists) {
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(artistName)}`;
 
         item.innerHTML = `
-            <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
+            <span class="card-rank ${index === 0 ? 'top-1' : (index === 1 ? 'top-2' : (index === 2 ? 'top-3' : ''))}">#${String(index + 1).padStart(2, '0')}</span>
             <img id="${imgId}" src="${initialImg}" class="img-thumb rounded-circle" alt="Artist" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${artistName}">${artistName}</div>
@@ -2153,7 +2153,7 @@ function renderAlbums(albums) {
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(album.name + ' ' + artistName)}`;
 
         item.innerHTML = `
-            <span class="card-rank ${index < 3 ? 'top-3' : ''}">#${index + 1}</span>
+            <span class="card-rank ${index === 0 ? 'top-1' : (index === 1 ? 'top-2' : (index === 2 ? 'top-3' : ''))}">#${String(index + 1).padStart(2, '0')}</span>
             <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Album" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${album.name}">${album.name}</div>
@@ -2197,7 +2197,7 @@ function renderRecent(tracks) {
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(track.name + ' ' + artistName)}`;
 
         item.innerHTML = `
-            <span class="card-rank">#${index + 1}</span>
+            <span class="card-rank">#${String(index + 1).padStart(2, '0')}</span>
             <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Cover" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
                 <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
@@ -2719,29 +2719,25 @@ async function handleSavePlaylist() {
         let tracksAddedCount = 0;
         for (let i = 0; i < urisToAdd.length; i += 100) {
             const chunk = urisToAdd.slice(i, i + 100);
-            let addRes = await spotifyFetch(`playlists/${createRes.id}/items`, {
+            let addRes = await spotifyFetch(`playlists/${createRes.id}/tracks`, {
                 method: 'POST',
                 body: JSON.stringify({ uris: chunk })
             });
-            if (!addRes) {
-                addRes = await spotifyFetch(`playlists/${createRes.id}/tracks`, {
-                    method: 'POST',
-                    body: JSON.stringify({ uris: chunk })
-                });
-            }
+
             if (!addRes) {
                 const queryUris = encodeURIComponent(chunk.join(','));
                 addRes = await spotifyFetch(`playlists/${createRes.id}/tracks?uris=${queryUris}`, {
                     method: 'POST'
                 });
             }
+
             if (addRes) tracksAddedCount += chunk.length;
         }
 
         if (tracksAddedCount > 0) {
             alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify con ${tracksAddedCount} canciones!`);
         } else {
-            alert(`Playlist "${payload.name}" creada en Spotify, pero hubo un problema al sincronizar las canciones.`);
+            alert(`Playlist "${payload.name}" creada en Spotify, pero hubo un problema al sincronizar las canciones.\n\nTip: Si tus permisos de Spotify son antiguos, cierra sesión y vuelve a iniciar sesión en Spotify para otorgar permisos de playlist.`);
         }
         if (createRes.external_urls?.spotify) {
             window.open(createRes.external_urls.spotify, '_blank');
@@ -2830,75 +2826,86 @@ async function handleFilterSearch(e) {
         return;
     }
 
-    // Si estamos en fuente de base de datos histórica (unificada o spotify)
-    if (currentSource === 'unified' || currentSource === 'spotify') {
-        const activeDb = (currentSource === 'unified' ? unifiedDb : spotifyDb) || await getActiveDatabase();
-        if (activeDb) {
-            if (currentType === 'tracks' && activeDb.tracksLookup) {
-                const all = Object.values(activeDb.tracksLookup);
-                const matches = all.filter(t => {
-                    const name = (t.name || '').toLowerCase();
-                    const artist = (t.artist || '').toLowerCase();
-                    const album = (t.album || '').toLowerCase();
-                    return name.includes(q) || artist.includes(q) || album.includes(q);
-                });
+    // Buscar en la base de datos completa de canciones registradas
+    const activeDb = unifiedDb || spotifyDb || await getActiveDatabase();
+    if (activeDb) {
+        if (currentType === 'tracks' && activeDb.tracksLookup) {
+            const all = Object.values(activeDb.tracksLookup);
+            const matches = all.filter(t => {
+                const name = (t.name || '').toLowerCase();
+                const artist = (t.artist || '').toLowerCase();
+                const album = (t.album || '').toLowerCase();
+                return name.includes(q) || artist.includes(q) || album.includes(q);
+            });
 
-                matches.sort((a, b) => {
-                    let aP = a.plays || 0;
-                    let bP = b.plays || 0;
-                    if (currentRange && currentRange.startsWith('year-')) {
-                        const yr = currentRange.replace('year-', '');
-                        aP = a.years?.[yr] ?? aP;
-                        bP = b.years?.[yr] ?? bP;
-                    } else if (currentRange && currentRange.startsWith('month-')) {
-                        const parts = currentRange.split('-');
-                        const mKey = `${parts[1]}-${String(parts[2]).padStart(2, '0')}`;
-                        aP = a.months?.[mKey] ?? aP;
-                        bP = b.months?.[mKey] ?? bP;
-                    }
-                    return bP - aP;
-                });
+            matches.sort((a, b) => (b.plays || 0) - (a.plays || 0));
 
-                const formatted = matches.slice(0, 100).map(t => {
-                    let plays = t.plays || 0;
-                    if (currentRange && currentRange.startsWith('year-')) {
-                        const yr = currentRange.replace('year-', '');
-                        if (t.years && t.years[yr] !== undefined) plays = t.years[yr];
-                    } else if (currentRange && currentRange.startsWith('month-')) {
-                        const parts = currentRange.split('-');
-                        const mKey = `${parts[1]}-${String(parts[2]).padStart(2, '0')}`;
-                        if (t.months && t.months[mKey] !== undefined) plays = t.months[mKey];
-                    }
-                    return {
-                        name: t.name,
-                        artist: { name: t.artist },
-                        album: { name: t.album },
-                        playcount: plays,
-                        uri: t.uri
-                    };
-                });
-                renderTracks(formatted);
+            const formatted = matches.slice(0, 200).map(t => ({
+                name: t.name,
+                artist: { name: t.artist },
+                album: { name: t.album },
+                playcount: t.plays || 0,
+                uri: t.uri
+            }));
+
+            renderTracks(formatted);
+
+            // Banner indicador de búsqueda en catálogo global
+            const banner = document.createElement('div');
+            banner.className = 'w-100 d-flex align-items-center justify-content-between py-1.5 px-3 mb-2 rounded border';
+            banner.style = 'grid-column: 1 / -1; background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.25) !important; font-size: 0.74rem;';
+            banner.innerHTML = `
+                <div class="d-flex align-items-center gap-1.5 text-white">
+                    <i class="fa-solid fa-magnifying-glass text-primary"></i>
+                    <span><strong>${matches.length}</strong> canciones encontradas en tu catálogo completo</span>
+                </div>
+                <span class="badge" style="font-family: var(--font-mono); font-size: 0.65rem; background: rgba(255,255,255,0.08); color: #cbd5e1;">Historial Global</span>
+            `;
+            statsList.prepend(banner);
+            return;
+        } else if (currentType === 'artists') {
+            const allArtists = activeDb.top?.overall?.artists || (activeDb.artists ? Object.values(activeDb.artists) : []);
+            if (allArtists.length > 0) {
+                const matches = allArtists.filter(a => (a.name || '').toLowerCase().includes(q));
+                matches.sort((a, b) => (b.plays || 0) - (a.plays || 0));
+                renderArtists(matches.slice(0, 150));
+
+                const banner = document.createElement('div');
+                banner.className = 'w-100 d-flex align-items-center justify-content-between py-1.5 px-3 mb-2 rounded border';
+                banner.style = 'grid-column: 1 / -1; background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.25) !important; font-size: 0.74rem;';
+                banner.innerHTML = `
+                    <div class="d-flex align-items-center gap-1.5 text-white">
+                        <i class="fa-solid fa-magnifying-glass text-primary"></i>
+                        <span><strong>${matches.length}</strong> artistas encontrados en tu catálogo completo</span>
+                    </div>
+                    <span class="badge" style="font-family: var(--font-mono); font-size: 0.65rem; background: rgba(255,255,255,0.08); color: #cbd5e1;">Historial Global</span>
+                `;
+                statsList.prepend(banner);
                 return;
-            } else if (currentType === 'artists') {
-                const allArtists = activeDb.top?.overall?.artists || (activeDb.artists ? Object.values(activeDb.artists) : []);
-                if (allArtists.length > 0) {
-                    const matches = allArtists.filter(a => (a.name || '').toLowerCase().includes(q));
-                    matches.sort((a, b) => (b.plays || 0) - (a.plays || 0));
-                    renderArtists(matches.slice(0, 100));
-                    return;
-                }
-            } else if (currentType === 'albums') {
-                const allAlbums = activeDb.top?.overall?.albums || (activeDb.albums ? Object.values(activeDb.albums) : []);
-                if (allAlbums.length > 0) {
-                    const matches = allAlbums.filter(a => {
-                        const name = (a.name || '').toLowerCase();
-                        const artist = (a.artist || '').toLowerCase();
-                        return name.includes(q) || artist.includes(q);
-                    });
-                    matches.sort((a, b) => (b.plays || 0) - (a.plays || 0));
-                    renderAlbums(matches.slice(0, 100));
-                    return;
-                }
+            }
+        } else if (currentType === 'albums') {
+            const allAlbums = activeDb.top?.overall?.albums || (activeDb.albums ? Object.values(activeDb.albums) : []);
+            if (allAlbums.length > 0) {
+                const matches = allAlbums.filter(a => {
+                    const name = (a.name || '').toLowerCase();
+                    const artist = (a.artist || '').toLowerCase();
+                    return name.includes(q) || artist.includes(q);
+                });
+                matches.sort((a, b) => (b.plays || 0) - (a.plays || 0));
+                renderAlbums(matches.slice(0, 150));
+
+                const banner = document.createElement('div');
+                banner.className = 'w-100 d-flex align-items-center justify-content-between py-1.5 px-3 mb-2 rounded border';
+                banner.style = 'grid-column: 1 / -1; background: rgba(168, 85, 247, 0.08); border-color: rgba(168, 85, 247, 0.25) !important; font-size: 0.74rem;';
+                banner.innerHTML = `
+                    <div class="d-flex align-items-center gap-1.5 text-white">
+                        <i class="fa-solid fa-magnifying-glass text-primary"></i>
+                        <span><strong>${matches.length}</strong> álbumes encontrados en tu catálogo completo</span>
+                    </div>
+                    <span class="badge" style="font-family: var(--font-mono); font-size: 0.65rem; background: rgba(255,255,255,0.08); color: #cbd5e1;">Historial Global</span>
+                `;
+                statsList.prepend(banner);
+                return;
             }
         }
     }
@@ -3860,25 +3867,52 @@ async function createCuratorSpotifyPlaylist() {
         }
 
         const urisToAdd = [];
+        const activeDb = await getActiveDatabase();
+
         for (const t of curatorSelectedTracks) {
-            if (t.uri && t.uri.startsWith('spotify:track:')) {
-                urisToAdd.push(t.uri);
-            } else {
+            let trackUri = t.uri;
+
+            // 1. Si no tiene URI o no empieza con spotify:track:, buscar en los catálogos cargados
+            if (!trackUri || !trackUri.startsWith('spotify:track:')) {
+                const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+                if (activeDb?.tracksLookup?.[k]?.uri) {
+                    trackUri = activeDb.tracksLookup[k].uri;
+                } else if (spotifyDb?.tracksLookup?.[k]?.uri) {
+                    trackUri = spotifyDb.tracksLookup[k].uri;
+                } else if (unifiedDb?.tracksLookup?.[k]?.uri) {
+                    trackUri = unifiedDb.tracksLookup[k].uri;
+                }
+            }
+
+            // 2. Si sigue sin URI, buscar en la API de Spotify
+            if (!trackUri || !trackUri.startsWith('spotify:track:')) {
                 try {
-                    const tName = t.name;
-                    const tArtist = t.artist || '';
-                    const q = encodeURIComponent(`track:${tName} artist:${tArtist}`);
-                    let sRes = await spotifyFetch(`search?type=track&limit=1&q=${q}`);
+                    const cleanTitle = (t.name || '')
+                        .replace(/\(feat\..*?\)/gi, '')
+                        .replace(/\[feat\..*?\]/gi, '')
+                        .replace(/\(with.*?\)/gi, '')
+                        .replace(/- .*?remaster.*?/gi, '')
+                        .trim();
+                    const tArtist = (t.artist || '').trim();
+
+                    let sRes = await spotifyFetch(`search?type=track&limit=1&q=${encodeURIComponent(`${cleanTitle} ${tArtist}`)}`);
                     let foundUri = sRes?.tracks?.items?.[0]?.uri;
                     if (!foundUri) {
-                        const fallbackQ = encodeURIComponent(`${tName} ${tArtist}`);
-                        sRes = await spotifyFetch(`search?type=track&limit=1&q=${fallbackQ}`);
+                        sRes = await spotifyFetch(`search?type=track&limit=1&q=${encodeURIComponent(`track:${cleanTitle} artist:${tArtist}`)}`);
                         foundUri = sRes?.tracks?.items?.[0]?.uri;
                     }
-                    if (foundUri) urisToAdd.push(foundUri);
+                    if (!foundUri) {
+                        sRes = await spotifyFetch(`search?type=track&limit=1&q=${encodeURIComponent(`${t.name} ${tArtist}`)}`);
+                        foundUri = sRes?.tracks?.items?.[0]?.uri;
+                    }
+                    if (foundUri) trackUri = foundUri;
                 } catch (e) {
-                    // Ignorar fallos de búsqueda individuales
+                    console.warn('Error resolviendo URI en Spotify:', t.name, e);
                 }
+            }
+
+            if (trackUri && trackUri.startsWith('spotify:track:')) {
+                urisToAdd.push(trackUri);
             }
         }
 
@@ -3886,22 +3920,18 @@ async function createCuratorSpotifyPlaylist() {
         if (urisToAdd.length > 0) {
             for (let i = 0; i < urisToAdd.length; i += 100) {
                 const chunk = urisToAdd.slice(i, i + 100);
-                let addRes = await spotifyFetch(`playlists/${createRes.id}/items`, {
+                let addRes = await spotifyFetch(`playlists/${createRes.id}/tracks`, {
                     method: 'POST',
                     body: JSON.stringify({ uris: chunk })
                 });
-                if (!addRes) {
-                    addRes = await spotifyFetch(`playlists/${createRes.id}/tracks`, {
-                        method: 'POST',
-                        body: JSON.stringify({ uris: chunk })
-                    });
-                }
+
                 if (!addRes) {
                     const queryUris = encodeURIComponent(chunk.join(','));
                     addRes = await spotifyFetch(`playlists/${createRes.id}/tracks?uris=${queryUris}`, {
                         method: 'POST'
                     });
                 }
+
                 if (addRes) tracksAddedCount += chunk.length;
             }
         }
@@ -3909,7 +3939,7 @@ async function createCuratorSpotifyPlaylist() {
         if (tracksAddedCount > 0) {
             alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify con ${tracksAddedCount} canciones!`);
         } else {
-            alert(`Playlist "${payload.name}" creada en Spotify, pero hubo un problema al sincronizar las canciones.`);
+            alert(`Playlist "${payload.name}" creada en Spotify, pero hubo un problema al sincronizar las canciones.\n\nTip: Si tus permisos de Spotify son antiguos, cierra sesión y vuelve a iniciar sesión en Spotify para otorgar permisos de playlist.`);
         }
 
         if (createRes.external_urls?.spotify) {
