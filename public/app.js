@@ -1185,10 +1185,15 @@ async function spotifyFetch(endpoint, options = {}) {
             }
         }
 
-        if (res.status === 204) return null;
-        if (!res.ok) return null;
+        if (res.status === 204) return { success: true };
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            console.warn(`spotifyFetch error [${res.status}] ${endpoint}:`, errBody);
+            return null;
+        }
         return await res.json();
     } catch (err) {
+        console.warn(`spotifyFetch exception on ${endpoint}:`, err);
         return null;
     }
 }
@@ -2639,17 +2644,20 @@ async function handleSavePlaylist() {
 
         const urisToAdd = [];
         const seenUris = new Set();
-
         for (const t of trackCandidates) {
             let resolvedUri = '';
-
             if (t.uri && t.uri.startsWith('spotify:track:')) {
                 resolvedUri = t.uri;
             } else {
                 try {
-                    const q = encodeURIComponent(`${t.name} ${t.artist}`.trim());
-                    const sRes = await spotifyFetch(`search?type=track&limit=1&q=${q}`);
-                    const foundUri = sRes?.tracks?.items?.[0]?.uri;
+                    const q = encodeURIComponent(`track:${t.name} artist:${t.artist}`);
+                    let sRes = await spotifyFetch(`search?type=track&limit=1&q=${q}`);
+                    let foundUri = sRes?.tracks?.items?.[0]?.uri;
+                    if (!foundUri) {
+                        const fallbackQ = encodeURIComponent(`${t.name} ${t.artist}`.trim());
+                        sRes = await spotifyFetch(`search?type=track&limit=1&q=${fallbackQ}`);
+                        foundUri = sRes?.tracks?.items?.[0]?.uri;
+                    }
                     if (foundUri && foundUri.startsWith('spotify:track:')) {
                         resolvedUri = foundUri;
                     }
@@ -2668,19 +2676,33 @@ async function handleSavePlaylist() {
             throw new Error('Se creó la playlist, pero no se pudieron resolver canciones para agregar.');
         }
 
+        let tracksAddedCount = 0;
         for (let i = 0; i < urisToAdd.length; i += 100) {
             const chunk = urisToAdd.slice(i, i + 100);
-            const addRes = await spotifyFetch(`playlists/${createRes.id}/tracks`, {
+            let addRes = await spotifyFetch(`playlists/${createRes.id}/items`, {
                 method: 'POST',
                 body: JSON.stringify({ uris: chunk })
             });
-
-            if (!addRes || !addRes.snapshot_id) {
-                throw new Error('Se creó la playlist, pero Spotify devolvió un error al agregar canciones.');
+            if (!addRes) {
+                addRes = await spotifyFetch(`playlists/${createRes.id}/tracks`, {
+                    method: 'POST',
+                    body: JSON.stringify({ uris: chunk })
+                });
             }
+            if (!addRes) {
+                const queryUris = encodeURIComponent(chunk.join(','));
+                addRes = await spotifyFetch(`playlists/${createRes.id}/tracks?uris=${queryUris}`, {
+                    method: 'POST'
+                });
+            }
+            if (addRes) tracksAddedCount += chunk.length;
         }
 
-        alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify con ${urisToAdd.length} canciones!`);
+        if (tracksAddedCount > 0) {
+            alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify con ${tracksAddedCount} canciones!`);
+        } else {
+            alert(`Playlist "${payload.name}" creada en Spotify, pero hubo un problema al sincronizar las canciones.`);
+        }
         if (createRes.external_urls?.spotify) {
             window.open(createRes.external_urls.spotify, '_blank');
         }
@@ -2761,12 +2783,87 @@ function renderCurrentItems(items) {
     else if (currentType === 'recent') renderRecent(items);
 }
 
-function handleFilterSearch(e) {
+async function handleFilterSearch(e) {
     const q = (e.target.value || '').trim().toLowerCase();
     if (!q) {
         renderCurrentItems(currentLoadedItems);
         return;
     }
+
+    // Si estamos en fuente de base de datos histórica (unificada o spotify)
+    if (currentSource === 'unified' || currentSource === 'spotify') {
+        const activeDb = (currentSource === 'unified' ? unifiedDb : spotifyDb) || await getActiveDatabase();
+        if (activeDb) {
+            if (currentType === 'tracks' && activeDb.tracksLookup) {
+                const all = Object.values(activeDb.tracksLookup);
+                const matches = all.filter(t => {
+                    const name = (t.name || '').toLowerCase();
+                    const artist = (t.artist || '').toLowerCase();
+                    const album = (t.album || '').toLowerCase();
+                    return name.includes(q) || artist.includes(q) || album.includes(q);
+                });
+
+                matches.sort((a, b) => {
+                    let aP = a.plays || 0;
+                    let bP = b.plays || 0;
+                    if (currentRange && currentRange.startsWith('year-')) {
+                        const yr = currentRange.replace('year-', '');
+                        aP = a.years?.[yr] ?? aP;
+                        bP = b.years?.[yr] ?? bP;
+                    } else if (currentRange && currentRange.startsWith('month-')) {
+                        const parts = currentRange.split('-');
+                        const mKey = `${parts[1]}-${String(parts[2]).padStart(2, '0')}`;
+                        aP = a.months?.[mKey] ?? aP;
+                        bP = b.months?.[mKey] ?? bP;
+                    }
+                    return bP - aP;
+                });
+
+                const formatted = matches.slice(0, 100).map(t => {
+                    let plays = t.plays || 0;
+                    if (currentRange && currentRange.startsWith('year-')) {
+                        const yr = currentRange.replace('year-', '');
+                        if (t.years && t.years[yr] !== undefined) plays = t.years[yr];
+                    } else if (currentRange && currentRange.startsWith('month-')) {
+                        const parts = currentRange.split('-');
+                        const mKey = `${parts[1]}-${String(parts[2]).padStart(2, '0')}`;
+                        if (t.months && t.months[mKey] !== undefined) plays = t.months[mKey];
+                    }
+                    return {
+                        name: t.name,
+                        artist: { name: t.artist },
+                        album: { name: t.album },
+                        playcount: plays,
+                        uri: t.uri
+                    };
+                });
+                renderTracks(formatted);
+                return;
+            } else if (currentType === 'artists') {
+                const allArtists = activeDb.top?.overall?.artists || (activeDb.artists ? Object.values(activeDb.artists) : []);
+                if (allArtists.length > 0) {
+                    const matches = allArtists.filter(a => (a.name || '').toLowerCase().includes(q));
+                    matches.sort((a, b) => (b.plays || 0) - (a.plays || 0));
+                    renderArtists(matches.slice(0, 100));
+                    return;
+                }
+            } else if (currentType === 'albums') {
+                const allAlbums = activeDb.top?.overall?.albums || (activeDb.albums ? Object.values(activeDb.albums) : []);
+                if (allAlbums.length > 0) {
+                    const matches = allAlbums.filter(a => {
+                        const name = (a.name || '').toLowerCase();
+                        const artist = (a.artist || '').toLowerCase();
+                        return name.includes(q) || artist.includes(q);
+                    });
+                    matches.sort((a, b) => (b.plays || 0) - (a.plays || 0));
+                    renderAlbums(matches.slice(0, 100));
+                    return;
+                }
+            }
+        }
+    }
+
+    // Fallback: buscar en los items cargados actualmente
     const filtered = (currentLoadedItems || []).filter(item => {
         const name = (item.name || '').toLowerCase();
         const artist = (item.artist?.name || item.artist?.['#text'] || item.artist || '').toLowerCase();
@@ -3475,18 +3572,48 @@ function renderCuratorBenchList() {
     let filtered = curatorBenchTracks;
 
     if (query) {
-        filtered = curatorBenchTracks.filter(t =>
+        const benchMatches = curatorBenchTracks.filter(t =>
             (t.name || '').toLowerCase().includes(query) ||
             (t.artist || '').toLowerCase().includes(query) ||
             (t.album || '').toLowerCase().includes(query)
         );
+
+        const existingKeys = new Set(curatorSelectedTracks.map(t => `${normalizeKey(t.name)}:::${normalizeKey(t.artist)}`));
+        benchMatches.forEach(t => existingKeys.add(`${normalizeKey(t.name)}:::${normalizeKey(t.artist)}`));
+
+        const catalogMatches = [];
+        const activeDb = currentSource === 'unified' ? unifiedDb : spotifyDb;
+        if (activeDb && activeDb.tracksLookup) {
+            for (const t of Object.values(activeDb.tracksLookup)) {
+                const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist)}`;
+                if (existingKeys.has(k)) continue;
+                if ((t.name || '').toLowerCase().includes(query) ||
+                    (t.artist || '').toLowerCase().includes(query) ||
+                    (t.album || '').toLowerCase().includes(query)) {
+                    catalogMatches.push({
+                        name: t.name,
+                        artist: t.artist,
+                        album: t.album,
+                        uri: t.uri,
+                        plays: t.plays || 0,
+                        first: t.first,
+                        isPastYear: true,
+                        isSurgeOrPeak: false,
+                        fromFullCatalog: true
+                    });
+                }
+            }
+            catalogMatches.sort((a, b) => b.plays - a.plays);
+        }
+
+        filtered = [...benchMatches, ...catalogMatches];
     }
 
     if (filtered.length === 0) {
         curatorBenchList.innerHTML = `
             <div class="text-center py-4 text-secondary">
                 <i class="fa-solid fa-magnifying-glass fs-5 mb-1 opacity-50"></i>
-                <div>No se encontraron más canciones en la banca.</div>
+                <div>No se encontraron más canciones en la banca o catálogo.</div>
             </div>
         `;
         return;
@@ -3505,7 +3632,7 @@ function renderCuratorBenchList() {
                     <div class="fw-bold text-white text-truncate" style="font-size: 0.80rem;">${t.name}</div>
                     <div class="d-flex align-items-center gap-1.5 flex-wrap">
                         <small class="text-secondary text-truncate" style="font-size: 0.70rem;">${t.artist}</small>
-                        ${t.isSurgeOrPeak ? `<span class="curator-badge-peak" title="Pico de escuchas en esta etapa (${t.plays} plays vs récord previo de ${t.priorMax || 0})"><i class="fa-solid fa-arrow-trend-up"></i> Pico en Etapa</span>` : (t.isPastYear ? `<span class="curator-badge-past" title="Pico previo: ${t.priorMax || 0} plays en etapa anterior">Año Pasado</span>` : '')}
+                        ${t.fromFullCatalog ? '<span class="curator-badge-past" title="Canción de tu catálogo completo">Catálogo Total</span>' : (t.isSurgeOrPeak ? `<span class="curator-badge-peak" title="Pico de escuchas en esta etapa (${t.plays} plays vs récord previo de ${t.priorMax || 0})"><i class="fa-solid fa-arrow-trend-up"></i> Pico en Etapa</span>` : (t.isPastYear ? `<span class="curator-badge-past" title="Pico previo: ${t.priorMax || 0} plays en etapa anterior">Año Pasado</span>` : ''))}
                     </div>
                 </div>
                 <span class="curator-badge-plays">
@@ -3552,6 +3679,25 @@ window.addCuratorTrackFromBench = function(encName, encArtist) {
         const [item] = curatorBenchTracks.splice(idx, 1);
         curatorSelectedTracks.push(item);
         renderCuratorView();
+    } else {
+        const activeDb = currentSource === 'unified' ? unifiedDb : spotifyDb;
+        if (activeDb && activeDb.tracksLookup) {
+            const key = `${normalizeKey(name)}:::${normalizeKey(artist)}`;
+            const t = activeDb.tracksLookup[key];
+            if (t) {
+                curatorSelectedTracks.push({
+                    name: t.name,
+                    artist: t.artist,
+                    album: t.album,
+                    uri: t.uri,
+                    plays: t.plays || 0,
+                    first: t.first,
+                    isPastYear: true,
+                    isSurgeOrPeak: false
+                });
+                renderCuratorView();
+            }
+        }
     }
 };
 
@@ -3613,9 +3759,16 @@ async function createCuratorSpotifyPlaylist() {
                 urisToAdd.push(t.uri);
             } else {
                 try {
-                    const q = encodeURIComponent(`${t.name} ${t.artist}`);
-                    const sRes = await spotifyFetch(`search?type=track&limit=1&q=${q}`);
-                    const foundUri = sRes?.tracks?.items?.[0]?.uri;
+                    const tName = t.name;
+                    const tArtist = t.artist || '';
+                    const q = encodeURIComponent(`track:${tName} artist:${tArtist}`);
+                    let sRes = await spotifyFetch(`search?type=track&limit=1&q=${q}`);
+                    let foundUri = sRes?.tracks?.items?.[0]?.uri;
+                    if (!foundUri) {
+                        const fallbackQ = encodeURIComponent(`${tName} ${tArtist}`);
+                        sRes = await spotifyFetch(`search?type=track&limit=1&q=${fallbackQ}`);
+                        foundUri = sRes?.tracks?.items?.[0]?.uri;
+                    }
                     if (foundUri) urisToAdd.push(foundUri);
                 } catch (e) {
                     // Ignorar fallos de búsqueda individuales
@@ -3623,14 +3776,36 @@ async function createCuratorSpotifyPlaylist() {
             }
         }
 
+        let tracksAddedCount = 0;
         if (urisToAdd.length > 0) {
-            await spotifyFetch(`playlists/${createRes.id}/tracks`, {
-                method: 'POST',
-                body: JSON.stringify({ uris: urisToAdd })
-            });
+            for (let i = 0; i < urisToAdd.length; i += 100) {
+                const chunk = urisToAdd.slice(i, i + 100);
+                let addRes = await spotifyFetch(`playlists/${createRes.id}/items`, {
+                    method: 'POST',
+                    body: JSON.stringify({ uris: chunk })
+                });
+                if (!addRes) {
+                    addRes = await spotifyFetch(`playlists/${createRes.id}/tracks`, {
+                        method: 'POST',
+                        body: JSON.stringify({ uris: chunk })
+                    });
+                }
+                if (!addRes) {
+                    const queryUris = encodeURIComponent(chunk.join(','));
+                    addRes = await spotifyFetch(`playlists/${createRes.id}/tracks?uris=${queryUris}`, {
+                        method: 'POST'
+                    });
+                }
+                if (addRes) tracksAddedCount += chunk.length;
+            }
         }
 
-        alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify con ${urisToAdd.length} canciones!`);
+        if (tracksAddedCount > 0) {
+            alert(`¡Playlist "${payload.name}" creada con éxito en tu Spotify con ${tracksAddedCount} canciones!`);
+        } else {
+            alert(`Playlist "${payload.name}" creada en Spotify, pero hubo un problema al sincronizar las canciones.`);
+        }
+
         if (createRes.external_urls?.spotify) {
             window.open(createRes.external_urls.spotify, '_blank');
         }

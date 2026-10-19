@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spotitracker-v29';
+const CACHE_NAME = 'spotitracker-v30';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
