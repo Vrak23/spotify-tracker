@@ -749,6 +749,10 @@
                     <i class="fa-solid fa-wand-magic-sparkles text-primary"></i>
                     <span class="d-none d-sm-inline">Playlists Semestrales</span>
                 </button>
+                <button id="btn-open-trophies-nav" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 fw-semibold d-flex align-items-center gap-1.5 text-white" style="font-size: 0.76rem; background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12);" title="Sala de Trofeos e Hitos">
+                    <i class="fa-solid fa-trophy text-warning"></i>
+                    <span class="d-none d-md-inline">Trofeos & Hitos</span>
+                </button>
                 <img id="user-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44' width='44' height='44'%3E%3Crect width='44' height='44' fill='%2318181c' rx='22'/%3E%3Ccircle cx='22' cy='16' r='6' fill='%23a855f7'/%3E%3Cpath d='M10 34c0-5 5.5-8 12-8s12 3 12 8z' fill='%23a855f7'/%3E%3C/svg%3e" alt="Avatar" class="img-avatar rounded-circle border" style="width: 32px; height: 32px; object-fit: cover; border-color: var(--brand-primary) !important;" onerror="safeAvatarError(this)">
                 <button class="btn btn-outline-brand rounded-pill px-2.5 py-1" type="button" data-bs-toggle="offcanvas" data-bs-target="#burgerMenu" aria-controls="burgerMenu" title="Abrir Menú">
                     <i class="fa-solid fa-bars fs-6"></i>
@@ -982,6 +986,16 @@
                     <div>
                         <div>Récords y Logros</div>
                         <small class="text-secondary d-block" style="font-size: 0.74rem;">Día con más escuchas de tu vida y rachas</small>
+                    </div>
+                </button>
+
+                <div class="text-secondary px-2 mt-2 mb-1" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;"><i class="fa-solid fa-gamepad text-primary me-1"></i> Experiencias & Juegos</div>
+
+                <button class="offcanvas-menu-item" id="menu-open-trophies" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-award text-warning fs-5"></i>
+                    <div>
+                        <div>Sala de Trofeos & Hitos (+100)</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Medallas, logros y artistas cerca de 100 streams</small>
                     </div>
                 </button>
 
@@ -1504,9 +1518,140 @@
         </div>
     </div>
 
+    <!-- Modal: Felicitaciones por Hito de Artista (+100 Streams) -->
+    <div class="modal fade" id="artistMilestoneModal" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(8px);">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+            <div class="modal-content bg-dark text-white border-0 shadow-lg" style="background: radial-gradient(circle at top, #1e1333 0%, #0d0d12 100%) !important; border: 1px solid rgba(168, 85, 247, 0.35) !important; border-radius: 20px;">
+                <div class="modal-body p-4 text-center position-relative overflow-hidden">
+                    <button type="button" class="btn-close btn-close-white position-absolute top-0 end-0 m-3" data-bs-dismiss="modal" aria-label="Close" style="z-index: 10;"></button>
+                    
+                    <div class="mb-3 d-inline-flex align-items-center justify-content-center" style="width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(168, 85, 247, 0.3)); border: 2px solid rgba(234, 179, 8, 0.6); box-shadow: 0 0 30px rgba(234, 179, 8, 0.35);">
+                        <i class="fa-solid fa-trophy text-warning fs-2"></i>
+                    </div>
+
+                    <div class="badge rounded-pill px-3 py-1 mb-2 text-uppercase fw-bold tracking-wider" style="background: rgba(234, 179, 8, 0.15); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.72rem; letter-spacing: 1px;">
+                        ¡Nuevo Hito Desbloqueado!
+                    </div>
+
+                    <div class="my-3 position-relative d-inline-block">
+                        <img id="milestone-artist-img" src="/logo.png" alt="Artista" class="rounded-circle border border-2 border-warning shadow" style="width: 104px; height: 104px; object-fit: cover;" onerror="safeAvatarError(this)">
+                        <span id="milestone-badge-pill" class="position-absolute bottom-0 end-0 badge rounded-pill bg-warning text-dark fw-bold px-2.5 py-1 shadow" style="font-size: 0.76rem; transform: translate(10%, 10%);">
+                            +100
+                        </span>
+                    </div>
+
+                    <h4 id="milestone-artist-name" class="fw-bold mb-1 text-white">Artista</h4>
+                    <div class="text-secondary small mb-3">
+                        Acaba de superar las <strong id="milestone-plays-count" class="text-warning">100</strong> reproducciones en tu biblioteca
+                    </div>
+
+                    <div class="p-3 rounded-3 mb-3 text-start" style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); font-size: 0.8rem;">
+                        <div class="d-flex align-items-center gap-2 mb-1 text-white fw-semibold">
+                            <i class="fa-solid fa-medal text-warning"></i> Élite de tu Música
+                        </div>
+                        <p id="milestone-congrats-text" class="text-secondary mb-0" style="font-size: 0.76rem;">
+                            ¡Felicidades a este artista! Forma parte del selecto club de artistas más escuchados de toda tu vida en Spotify.
+                        </p>
+                    </div>
+
+                    <div id="milestone-push-prompt" class="d-none p-2 rounded mb-3 text-start d-flex align-items-center justify-content-between gap-2" style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.25); font-size: 0.72rem;">
+                        <span class="text-info"><i class="fa-solid fa-bell me-1"></i> Recibe notificaciones push en cada nuevo centenar</span>
+                        <button type="button" id="btn-enable-milestone-push" class="btn btn-sm btn-info py-0 px-2 fw-semibold text-nowrap" style="font-size: 0.7rem;">Activar</button>
+                    </div>
+
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                        <button type="button" id="btn-milestone-view-stats" class="btn btn-sm btn-brand rounded-pill px-3 py-1.5 fw-semibold" style="font-size: 0.78rem;">
+                            <i class="fa-solid fa-chart-simple me-1"></i> Ver Estadísticas
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5 text-white" data-bs-dismiss="modal" style="font-size: 0.78rem;">
+                            ¡Genial!
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Sala de Trofeos e Hitos (+100 Streams) -->
+    <div class="modal fade" id="trophiesModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-stats-dialog" style="max-width: 600px;">
+            <div class="modal-content bg-dark text-white border-0 shadow" style="border: 1px solid var(--border-subtle) !important;">
+                <div class="modal-header border-bottom py-2.5 px-3" style="border-color: var(--border-subtle) !important;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-trophy text-warning fs-5"></i>
+                        <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;">Sala de Trofeos & Hitos</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="trophies-modal-body">
+                    <!-- Nav Tabs: Hitos de 100 streams / Medallas Gamificadas -->
+                    <ul class="nav nav-pills nav-fill mb-3 p-1 rounded" style="background: rgba(255, 255, 255, 0.04); font-size: 0.78rem;">
+                        <li class="nav-item">
+                            <button class="nav-link active py-1.5 fw-semibold text-white" id="tab-milestones-btn" data-bs-toggle="pill" data-bs-target="#pills-milestones" type="button">
+                                <i class="fa-solid fa-bullseye text-warning me-1"></i> Hitos +100 Streams
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link py-1.5 fw-semibold text-white" id="tab-badges-btn" data-bs-toggle="pill" data-bs-target="#pills-badges" type="button">
+                                <i class="fa-solid fa-medal text-info me-1"></i> Medallas de Oyente
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="trophiesTabContent">
+                        <!-- Tab 1: Hitos de 100 Streams -->
+                        <div class="tab-pane fade show active" id="pills-milestones" role="tabpanel">
+                            <!-- Banner de Notificaciones Push -->
+                            <div class="d-flex align-items-center justify-content-between p-2.5 mb-3 rounded border border-warning border-opacity-25" style="background: rgba(234, 179, 8, 0.08); font-size: 0.76rem;">
+                                <div>
+                                    <strong class="text-white d-block"><i class="fa-solid fa-bell text-warning me-1"></i> Alertas Push al Alcanzar Hitos</strong>
+                                    <span class="text-secondary" style="font-size: 0.7rem;">Te notificamos en segundo plano cada vez que un artista consiga un nuevo centenar (+100, +200, +500).</span>
+                                </div>
+                                <button type="button" id="btn-toggle-milestone-push" class="btn btn-sm btn-outline-warning rounded-pill px-3 py-1 fw-semibold text-nowrap" style="font-size: 0.72rem;">
+                                    Activar Alertas
+                                </button>
+                            </div>
+
+                            <!-- Artistas cerca del próximo centenar -->
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="fw-bold text-white" style="font-size: 0.78rem;"><i class="fa-solid fa-fire text-danger me-1"></i> Cerca de su próximo centenar</span>
+                                    <small class="text-secondary" style="font-size: 0.7rem;">¡A pocas canciones!</small>
+                                </div>
+                                <div id="near-milestones-container" class="d-flex flex-column gap-1.5">
+                                    <!-- Render dinámico -->
+                                </div>
+                            </div>
+
+                            <!-- Club de los +100 Streams -->
+                            <div>
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <span class="fw-bold text-white" style="font-size: 0.78rem;"><i class="fa-solid fa-crown text-warning me-1"></i> Artistas con Hitos (+100 streams)</span>
+                                    <small id="milestones-count-label" class="text-secondary" style="font-size: 0.7rem;">0 artistas</small>
+                                </div>
+                                <div id="achieved-milestones-container" class="d-flex flex-column gap-1.5" style="max-height: 280px; overflow-y: auto;">
+                                    <!-- Render dinámico -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tab 2: Medallas de Oyente (Gamificación) -->
+                        <div class="tab-pane fade" id="pills-badges" role="tabpanel">
+                            <div id="badges-container" class="row g-2">
+                                <!-- Render dinámico de medallas -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=34"></script>
+    <script src="/app.js?v=35"></script>
 </body>
 </html>

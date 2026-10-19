@@ -462,6 +462,23 @@ function setupEventListeners() {
         btnOpenCuratorNav.addEventListener('click', openPlaylistCuratorModal);
     }
 
+    const menuOpenTrophies = document.getElementById('menu-open-trophies');
+    if (menuOpenTrophies) {
+        menuOpenTrophies.addEventListener('click', openTrophiesModal);
+    }
+    const btnOpenTrophiesNav = document.getElementById('btn-open-trophies-nav');
+    if (btnOpenTrophiesNav) {
+        btnOpenTrophiesNav.addEventListener('click', openTrophiesModal);
+    }
+    const btnToggleMilestonePush = document.getElementById('btn-toggle-milestone-push');
+    if (btnToggleMilestonePush) {
+        btnToggleMilestonePush.addEventListener('click', toggleMilestonePushNotifications);
+    }
+    const btnEnableMilestonePush = document.getElementById('btn-enable-milestone-push');
+    if (btnEnableMilestonePush) {
+        btnEnableMilestonePush.addEventListener('click', toggleMilestonePushNotifications);
+    }
+
     // Acciones del Menú Hamburguesa
     if (menuSavePlaylist) {
         menuSavePlaylist.addEventListener('click', handleSavePlaylist);
@@ -1490,6 +1507,7 @@ async function loadStats() {
         }
 
         updateStatStrip();
+        checkArtistMilestones(activeDb);
 
         let topData = activeDb.yearlyTops?.overall;
         let isDateRange = false;
@@ -3306,6 +3324,520 @@ async function openRecordsModal() {
         <div class="fw-bold text-white mb-2" style="font-size: 0.80rem;">Top 5 Días con Más Escuchas</div>
         <div>${topDaysHtml}</div>
     `;
+}
+
+// ----------------------------------------------------
+// 5. SALA DE TROFEOS, HITOS (+100 STREAMS) & GAMIFICACIÓN
+// ----------------------------------------------------
+const MILESTONE_STORAGE_KEY = 'spoti_artist_milestones';
+let hasCheckedMilestonesThisSession = false;
+
+function getStoredArtistMilestones() {
+    try {
+        const raw = localStorage.getItem(MILESTONE_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function saveStoredArtistMilestones(milestones) {
+    try {
+        localStorage.setItem(MILESTONE_STORAGE_KEY, JSON.stringify(milestones));
+    } catch (e) {}
+}
+
+async function checkArtistMilestones(activeDb) {
+    if (!activeDb || !activeDb.artistsLookup) return;
+    if (hasCheckedMilestonesThisSession) return;
+    hasCheckedMilestonesThisSession = true;
+
+    let stored = getStoredArtistMilestones();
+    const isFirstRun = stored === null;
+    if (!stored) stored = {};
+
+    const allArtists = Object.values(activeDb.artistsLookup);
+    const newCelebrations = [];
+
+    allArtists.forEach(art => {
+        let totalPlays = art.plays || 0;
+        if (currentSource === 'unified' && lastFmRecentDelta.length > 0) {
+            const normA = normalizeKey(art.name);
+            const deltaCount = lastFmRecentDelta.filter(t => {
+                const tArt = normalizeKey(t.artist ? (t.artist['#text'] || t.artist.name || '') : '');
+                return tArt === normA || tArt.includes(normA) || normA.includes(tArt);
+            }).length;
+            totalPlays += deltaCount;
+        }
+
+        if (totalPlays >= 100) {
+            const currentMilestone = Math.floor(totalPlays / 100) * 100;
+            const normKey = normalizeKey(art.name);
+            const prevMilestone = stored[normKey] || 0;
+
+            if (currentMilestone > prevMilestone) {
+                stored[normKey] = currentMilestone;
+                if (!isFirstRun) {
+                    newCelebrations.push({
+                        name: art.name,
+                        milestone: currentMilestone,
+                        totalPlays: totalPlays
+                    });
+                }
+            }
+        }
+    });
+
+    saveStoredArtistMilestones(stored);
+
+    if (newCelebrations.length > 0) {
+        newCelebrations.sort((a, b) => b.milestone - a.milestone);
+        const topHito = newCelebrations[0];
+
+        sendPushMilestoneNotification(topHito.name, topHito.milestone);
+
+        setTimeout(() => {
+            showArtistMilestoneCelebration(topHito);
+        }, 800);
+    }
+}
+
+async function toggleMilestonePushNotifications() {
+    if (!('Notification' in window)) {
+        alert('Tu navegador no admite notificaciones web.');
+        return;
+    }
+
+    if (Notification.permission === 'granted') {
+        alert('¡Las notificaciones push para hitos ya están activas en este dispositivo!');
+        updatePushButtonsUI();
+        return;
+    }
+
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            sendPushMilestoneNotification('Notificaciones Activadas', '100');
+            updatePushButtonsUI();
+        } else {
+            alert('Has denegado o cancelado el permiso de notificaciones.');
+            updatePushButtonsUI();
+        }
+    } catch (err) {
+        console.error('Error solicitando permisos de notificación:', err);
+    }
+}
+
+function updatePushButtonsUI() {
+    const isGranted = 'Notification' in window && Notification.permission === 'granted';
+    const btnToggle = document.getElementById('btn-toggle-milestone-push');
+    const pushPrompt = document.getElementById('milestone-push-prompt');
+
+    if (btnToggle) {
+        if (isGranted) {
+            btnToggle.classList.remove('btn-outline-warning');
+            btnToggle.classList.add('btn-warning');
+            btnToggle.innerHTML = '<i class="fa-solid fa-check me-1"></i> Alertas Activas';
+        } else {
+            btnToggle.classList.add('btn-outline-warning');
+            btnToggle.classList.remove('btn-warning');
+            btnToggle.innerHTML = 'Activar Alertas';
+        }
+    }
+
+    if (pushPrompt) {
+        if (isGranted) {
+            pushPrompt.classList.add('d-none');
+        } else {
+            pushPrompt.classList.remove('d-none');
+        }
+    }
+}
+
+function sendPushMilestoneNotification(artistName, milestone) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    const title = `🎉 ¡Hito Alcanzado en Spotify Tracker!`;
+    const options = {
+        body: `¡${artistName} acaba de superar las ${milestone} reproducciones en tu biblioteca!`,
+        icon: '/logo.png',
+        badge: '/logo.png',
+        tag: `milestone-${normalizeKey(artistName)}-${milestone}`,
+        renotify: true
+    };
+
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(title, options);
+        }).catch(() => {
+            new Notification(title, options);
+        });
+    } else {
+        new Notification(title, options);
+    }
+}
+
+async function showArtistMilestoneCelebration(data) {
+    const { name, milestone } = data;
+    const modalEl = document.getElementById('artistMilestoneModal');
+    if (!modalEl) return;
+
+    const nameEl = document.getElementById('milestone-artist-name');
+    const countEl = document.getElementById('milestone-plays-count');
+    const badgeEl = document.getElementById('milestone-badge-pill');
+    const congratsEl = document.getElementById('milestone-congrats-text');
+    const imgEl = document.getElementById('milestone-artist-img');
+    const viewStatsBtn = document.getElementById('btn-milestone-view-stats');
+
+    if (nameEl) nameEl.textContent = name;
+    if (countEl) countEl.textContent = formatNumber(milestone);
+    if (badgeEl) badgeEl.textContent = `+${milestone}`;
+
+    if (congratsEl) {
+        if (milestone >= 1000) {
+            congratsEl.innerHTML = `<strong>¡Hito Legendario!</strong> ${name} ha sobrepasado las <strong>${formatNumber(milestone)} reproducciones</strong>. Es uno de los pilares de tu historia musical.`;
+        } else if (milestone >= 500) {
+            congratsEl.innerHTML = `<strong>¡Medio Millar de Escuchas!</strong> Superar los <strong>${milestone} streams</strong> sitúa a ${name} en el podio más alto de tu biblioteca.`;
+        } else if (milestone >= 200) {
+            congratsEl.innerHTML = `<strong>¡Doble Centenar!</strong> ${name} acumula más de <strong>${milestone} streams</strong> demostrando una fidelidad continua en tus listas.`;
+        } else {
+            congratsEl.innerHTML = `<strong>¡Bienvenido al Club de los 100!</strong> ${name} acaba de superar sus primeras <strong>100 reproducciones</strong> oficiales en tu cuenta.`;
+        }
+    }
+
+    if (imgEl) {
+        imgEl.src = '/logo.png';
+        const artKey = `artist::${normalizeKey(name)}::`;
+        if (artCache[artKey]) {
+            imgEl.src = artCache[artKey];
+        } else {
+            resolveSpotifyArtwork(name, '', 'artist', 'milestone-artist-img');
+        }
+    }
+
+    if (viewStatsBtn) {
+        viewStatsBtn.onclick = () => {
+            const mInstance = bootstrap.Modal.getInstance(modalEl);
+            if (mInstance) mInstance.hide();
+            showItemStats('artist', name, '');
+        };
+    }
+
+    updatePushButtonsUI();
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    if (typeof confetti === 'function') {
+        confetti({
+            particleCount: 90,
+            spread: 80,
+            origin: { y: 0.6 }
+        });
+        setTimeout(() => {
+            confetti({
+                particleCount: 50,
+                angle: 60,
+                spread: 60,
+                origin: { x: 0.1, y: 0.7 }
+            });
+            confetti({
+                particleCount: 50,
+                angle: 120,
+                spread: 60,
+                origin: { x: 0.9, y: 0.7 }
+            });
+        }, 280);
+    }
+}
+
+async function openTrophiesModal() {
+    const modalEl = document.getElementById('trophiesModal');
+    if (!modalEl) return;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    updatePushButtonsUI();
+
+    const db = await getActiveDatabase();
+    if (!db || !db.artistsLookup) return;
+
+    renderTrophiesMilestonesTab(db);
+    renderTrophiesBadgesTab(db);
+}
+
+function renderTrophiesMilestonesTab(db) {
+    const nearContainer = document.getElementById('near-milestones-container');
+    const achievedContainer = document.getElementById('achieved-milestones-container');
+    const countLabel = document.getElementById('milestones-count-label');
+
+    if (!nearContainer || !achievedContainer) return;
+
+    const allArtists = Object.values(db.artistsLookup || {}).map(art => {
+        let totalPlays = art.plays || 0;
+        if (currentSource === 'unified' && lastFmRecentDelta.length > 0) {
+            const normA = normalizeKey(art.name);
+            const deltaCount = lastFmRecentDelta.filter(t => {
+                const tArt = normalizeKey(t.artist ? (t.artist['#text'] || t.artist.name || '') : '');
+                return tArt === normA || tArt.includes(normA) || normA.includes(tArt);
+            }).length;
+            totalPlays += deltaCount;
+        }
+        return {
+            ...art,
+            effectivePlays: totalPlays
+        };
+    });
+
+    // 1. Artistas cerca de su próximo centenar (a falta de 1 a 25 reproducciones)
+    const nearList = allArtists
+        .filter(a => {
+            const r = a.effectivePlays % 100;
+            return (a.effectivePlays >= 75 && r >= 75 && r < 100);
+        })
+        .map(a => {
+            const r = a.effectivePlays % 100;
+            const nextMilestone = (Math.floor(a.effectivePlays / 100) + 1) * 100;
+            const remaining = nextMilestone - a.effectivePlays;
+            return {
+                ...a,
+                nextMilestone,
+                remaining,
+                progressPct: r
+            };
+        })
+        .sort((a, b) => a.remaining - b.remaining)
+        .slice(0, 6);
+
+    if (nearList.length === 0) {
+        nearContainer.innerHTML = `
+            <div class="p-2.5 rounded text-center border border-secondary border-opacity-10 text-secondary" style="background: rgba(255,255,255,0.02); font-size: 0.74rem;">
+                No hay artistas a menos de 25 canciones de un hito en este momento. ¡Sigue escuchando música!
+            </div>
+        `;
+    } else {
+        nearContainer.innerHTML = nearList.map(a => {
+            const safeName = a.name.replace(/'/g, "\\'");
+            const artKey = `artist::${normalizeKey(a.name)}::`;
+            const cover = artCache[artKey] || '/logo.png';
+            const imgId = `near-art-img-${Math.abs(normalizeKey(a.name).split('').reduce((acc, c) => acc + c.charCodeAt(0), 0))}`;
+            return `
+                <div class="card-uniform p-2" onclick="showItemStats('artist', '${safeName}', '')" style="cursor: pointer; min-height: 48px;">
+                    <img id="${imgId}" src="${cover}" class="rounded-circle flex-shrink-0" style="width: 38px; height: 38px; object-fit: cover;" onerror="safeAvatarError(this)">
+                    <div class="flex-grow-1 overflow-hidden">
+                        <div class="d-flex align-items-center justify-content-between mb-0.5">
+                            <span class="fw-bold text-white text-truncate" style="font-size: 0.8rem;">${a.name}</span>
+                            <span class="badge border border-warning border-opacity-30 text-warning" style="background: rgba(234, 179, 8, 0.12); font-size: 0.68rem; padding: 1px 6px;">
+                                ¡Faltan ${a.remaining}!
+                            </span>
+                        </div>
+                        <div class="progress" style="height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px;">
+                            <div class="progress-bar" style="width: ${a.progressPct}%; background: linear-gradient(90deg, #f59e0b, #eab308);"></div>
+                        </div>
+                        <div class="d-flex justify-content-between text-secondary mt-0.5" style="font-size: 0.64rem;">
+                            <span>${a.effectivePlays} escuchas</span>
+                            <span>Meta: ${a.nextMilestone}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        nearList.forEach(a => {
+            const artKey = `artist::${normalizeKey(a.name)}::`;
+            if (!artCache[artKey]) {
+                const imgId = `near-art-img-${Math.abs(normalizeKey(a.name).split('').reduce((acc, c) => acc + c.charCodeAt(0), 0))}`;
+                resolveSpotifyArtwork(a.name, '', 'artist', imgId);
+            }
+        });
+    }
+
+    // 2. Club de los +100 Streams
+    const achieved = allArtists.filter(a => a.effectivePlays >= 100).sort((a, b) => b.effectivePlays - a.effectivePlays);
+    if (countLabel) countLabel.textContent = `${achieved.length} artistas en el club`;
+
+    if (achieved.length === 0) {
+        achievedContainer.innerHTML = `
+            <div class="text-center py-4 text-secondary" style="font-size: 0.78rem;">
+                Aún no tienes artistas con 100 o más reproducciones registradas.
+            </div>
+        `;
+    } else {
+        achievedContainer.innerHTML = achieved.map((a, idx) => {
+            const safeName = a.name.replace(/'/g, "\\'");
+            const milestone = Math.floor(a.effectivePlays / 100) * 100;
+            const artKey = `artist::${normalizeKey(a.name)}::`;
+            const cover = artCache[artKey] || '/logo.png';
+            const imgId = `achieved-art-img-${idx}`;
+            return `
+                <div class="card-uniform p-1.5 px-2.5" style="min-height: 44px;">
+                    <span class="card-rank text-muted" style="width: 24px;">#${idx + 1}</span>
+                    <img id="${imgId}" src="${cover}" class="rounded-circle flex-shrink-0" style="width: 34px; height: 34px; object-fit: cover;" onerror="safeAvatarError(this)">
+                    <div class="overflow-hidden flex-grow-1 cursor-pointer" onclick="showItemStats('artist', '${safeName}', '')" title="Ver estadísticas">
+                        <div class="fw-bold text-white text-truncate" style="font-size: 0.78rem;">${a.name}</div>
+                        <small class="text-secondary" style="font-size: 0.68rem;">${formatNumber(a.effectivePlays)} reproducciones totales</small>
+                    </div>
+                    <span class="badge border border-warning border-opacity-30 text-warning px-2 py-1 flex-shrink-0" style="background: rgba(234, 179, 8, 0.12); font-size: 0.7rem;">
+                        +${formatNumber(milestone)}
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary border-0 text-warning px-2 py-1 flex-shrink-0" onclick="showArtistMilestoneCelebration({ name: '${safeName}', milestone: ${milestone}, totalPlays: ${a.effectivePlays} })" title="Revivir celebración con confeti" style="font-size: 0.75rem;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </button>
+                </div>
+            `;
+        }).join('');
+
+        achieved.slice(0, 30).forEach((a, idx) => {
+            const artKey = `artist::${normalizeKey(a.name)}::`;
+            if (!artCache[artKey]) {
+                resolveSpotifyArtwork(a.name, '', 'artist', `achieved-art-img-${idx}`);
+            }
+        });
+    }
+}
+
+async function renderTrophiesBadgesTab(db) {
+    const container = document.getElementById('badges-container');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-center py-4 text-secondary col-12"><span class="spinner-border spinner-border-sm text-info me-2"></span>Calculando tus medallas...</div>';
+
+    const insights = await loadInsightsData();
+    const rec = insights?.records || {};
+    const habits = insights?.habits || {};
+
+    const allArtists = Object.values(db.artistsLookup || {});
+    const allTracks = Object.values(db.tracksLookup || {});
+
+    const totalDistinctArtists = allArtists.length;
+    const totalDistinctTracks = allTracks.length;
+    const topArtistPlays = allArtists.length > 0 ? Math.max(...allArtists.map(a => a.plays || 0)) : 0;
+    const topTrackPlays = allTracks.length > 0 ? Math.max(...allTracks.map(t => t.plays || 0)) : 0;
+    const artistsOver100Count = allArtists.filter(a => (a.plays || 0) >= 100).length;
+    const topDayCount = rec.topDay?.count || 0;
+    const activeDays = rec.totalDaysActive || 0;
+
+    const hoursMap = habits.hours || {};
+    const totalHourStreams = Object.values(hoursMap).reduce((a, b) => a + b, 0) || 1;
+    const nightStreams = [0, 1, 2, 3, 4, 5].reduce((sum, h) => sum + (hoursMap[String(h)] || 0), 0);
+    const nightPct = Math.round((nightStreams / totalHourStreams) * 100);
+
+    const morningStreams = [6, 7, 8, 9, 10].reduce((sum, h) => sum + (hoursMap[String(h)] || 0), 0);
+    const morningPct = Math.round((morningStreams / totalHourStreams) * 100);
+
+    const has2019or2020 = Boolean(db.yearlyTops?.['2019'] || db.yearlyTops?.['2020']);
+
+    const badges = [
+        {
+            icon: 'fa-solid fa-moon text-info',
+            title: 'Búho Nocturno',
+            desc: 'Más del 15% de tus escuchas son de madrugada (12am a 6am)',
+            achieved: nightPct >= 15,
+            progress: `${nightPct}% / 15%`,
+            pct: Math.min(100, Math.round((nightPct / 15) * 100))
+        },
+        {
+            icon: 'fa-solid fa-sun text-warning',
+            title: 'Madrugador Sonoro',
+            desc: 'Más del 15% de tus escuchas ocurren en la mañana (6am a 11am)',
+            achieved: morningPct >= 15,
+            progress: `${morningPct}% / 15%`,
+            pct: Math.min(100, Math.round((morningPct / 15) * 100))
+        },
+        {
+            icon: 'fa-solid fa-crown text-warning',
+            title: 'Devoción Absoluta',
+            desc: 'Superar 1,000 reproducciones con un mismo artista',
+            achieved: topArtistPlays >= 1000,
+            progress: `${formatNumber(topArtistPlays)} / 1,000`,
+            pct: Math.min(100, Math.round((topArtistPlays / 1000) * 100))
+        },
+        {
+            icon: 'fa-solid fa-certificate text-success',
+            title: 'Club Centenario',
+            desc: 'Tener al menos 10 artistas con +100 reproducciones',
+            achieved: artistsOver100Count >= 10,
+            progress: `${artistsOver100Count} / 10 artistas`,
+            pct: Math.min(100, Math.round((artistsOver100Count / 10) * 100))
+        },
+        {
+            icon: 'fa-solid fa-compass text-primary',
+            title: 'Arqueólogo Musical',
+            desc: 'Tener música y escuchas registradas desde 2019 o 2020',
+            achieved: has2019or2020,
+            progress: has2019or2020 ? 'Registros de 2019/2020' : 'Solo reciente',
+            pct: has2019or2020 ? 100 : 25
+        },
+        {
+            icon: 'fa-solid fa-person-running text-danger',
+            title: 'Maratonista Sonoro',
+            desc: 'Escuchar más de 100 canciones en un solo día',
+            achieved: topDayCount >= 100,
+            progress: `${topDayCount} / 100 canciones`,
+            pct: Math.min(100, Math.round((topDayCount / 100) * 100))
+        },
+        {
+            icon: 'fa-solid fa-compass-drafting text-info',
+            title: 'Explorador Compulsivo',
+            desc: 'Haber descubierto más de 500 artistas distintos',
+            achieved: totalDistinctArtists >= 500,
+            progress: `${formatNumber(totalDistinctArtists)} / 500 artistas`,
+            pct: Math.min(100, Math.round((totalDistinctArtists / 500) * 100))
+        },
+        {
+            icon: 'fa-solid fa-compact-disc text-warning',
+            title: 'Gran Fonoteca',
+            desc: 'Más de 1,000 canciones únicas escuchadas',
+            achieved: totalDistinctTracks >= 1000,
+            progress: `${formatNumber(totalDistinctTracks)} / 1,000 temas`,
+            pct: Math.min(100, Math.round((totalDistinctTracks / 1000) * 100))
+        },
+        {
+            icon: 'fa-solid fa-repeat text-primary',
+            title: 'Adicto al Bucle',
+            desc: 'Repetir una misma canción más de 100 veces',
+            achieved: topTrackPlays >= 100,
+            progress: `${formatNumber(topTrackPlays)} / 100 reps`,
+            pct: Math.min(100, Math.round((topTrackPlays / 100) * 100))
+        },
+        {
+            icon: 'fa-solid fa-bolt text-warning',
+            title: 'Racha Legendaria',
+            desc: 'Superar los 500 días con música activa en tu historia',
+            achieved: activeDays >= 500,
+            progress: `${formatNumber(activeDays)} / 500 días`,
+            pct: Math.min(100, Math.round((activeDays / 500) * 100))
+        }
+    ];
+
+    container.innerHTML = badges.map(b => `
+        <div class="col-12 col-sm-6">
+            <div class="p-2.5 rounded-3 border h-100 d-flex flex-column justify-content-between" style="background: ${b.achieved ? 'rgba(168, 85, 247, 0.08)' : 'rgba(255, 255, 255, 0.02)'}; border-color: ${b.achieved ? 'rgba(168, 85, 247, 0.35)' : 'rgba(255, 255, 255, 0.06)'} !important;">
+                <div>
+                    <div class="d-flex align-items-center justify-content-between mb-1.5">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="${b.icon} fs-5"></i>
+                            <span class="fw-bold text-white" style="font-size: 0.82rem;">${b.title}</span>
+                        </div>
+                        <span class="badge ${b.achieved ? 'bg-success text-white' : 'bg-secondary bg-opacity-25 text-secondary'}" style="font-size: 0.64rem;">
+                            ${b.achieved ? '✓ Desbloqueado' : 'En progreso'}
+                        </span>
+                    </div>
+                    <p class="text-secondary mb-2" style="font-size: 0.72rem; line-height: 1.3;">${b.desc}</p>
+                </div>
+                <div>
+                    <div class="progress mb-1" style="height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px;">
+                        <div class="progress-bar ${b.achieved ? 'bg-success' : 'bg-primary'}" style="width: ${b.pct}%;"></div>
+                    </div>
+                    <div class="d-flex justify-content-between text-muted" style="font-size: 0.65rem;">
+                        <span>Progreso:</span>
+                        <span class="${b.achieved ? 'text-success fw-semibold' : 'text-white'}">${b.progress}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
 }
 
 // ----------------------------------------------------
