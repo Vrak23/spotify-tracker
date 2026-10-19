@@ -4873,7 +4873,9 @@ function renderCapsuleContent(db, year, monthKey, monthName) {
         <div class="p-3 rounded-3 mb-3 border border-info border-opacity-20" style="background: rgba(6, 182, 212, 0.08);">
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <span class="fw-bold text-white fs-6"><i class="fa-solid fa-calendar-check text-info me-1.5"></i> ${monthName} de ${year}</span>
-                <span class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-30">${formatNumber(plays)} reproducciones</span>
+                <span class="badge rounded-pill px-2.5 py-1 fw-bold" style="background: rgba(6, 182, 212, 0.15) !important; color: #22d3ee !important; border: 1px solid rgba(6, 182, 212, 0.35) !important; font-size: 0.74rem;">
+                    <i class="fa-solid fa-headphones me-1"></i> ${formatNumber(plays)} reproducciones
+                </span>
             </div>
             ${topArtist ? `
                 <div class="d-flex align-items-center gap-2.5 pt-1">
