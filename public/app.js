@@ -484,32 +484,23 @@ function setupEventListeners() {
         btnInstallFab.addEventListener('click', triggerInstallFlow);
     }
 
-    // Google Drive Sync
+    // Base de Datos en la Nube (Supabase - Central)
     if (menuGdriveConnect) {
         menuGdriveConnect.addEventListener('click', openGoogleDriveModal);
     }
     if (curatorBtnCloud) {
         curatorBtnCloud.addEventListener('click', openGoogleDriveModal);
     }
-    if (btnGdriveSaveId) {
-        btnGdriveSaveId.addEventListener('click', handleSaveGoogleDriveClientId);
-    }
-    if (btnGdriveAuth) {
-        btnGdriveAuth.addEventListener('click', handleGoogleDriveAuthClick);
-    }
     if (btnGdriveUpload) {
-        btnGdriveUpload.addEventListener('click', () => saveToGoogleDrive(false));
+        btnGdriveUpload.addEventListener('click', () => saveToCloudDatabase(false));
     }
     if (btnGdriveDownload) {
-        btnGdriveDownload.addEventListener('click', loadFromGoogleDrive);
-    }
-    if (btnGdriveLogout) {
-        btnGdriveLogout.addEventListener('click', handleGoogleDriveLogout);
+        btnGdriveDownload.addEventListener('click', () => loadFromCloudDatabase());
     }
     if (gdriveAutosyncToggle) {
         gdriveAutosyncToggle.addEventListener('change', (e) => {
-            gdriveAutoSync = e.target.checked;
-            localStorage.setItem(GDRIVE_AUTOSYNC_KEY, String(gdriveAutoSync));
+            cloudAutoSync = e.target.checked;
+            localStorage.setItem(CLOUD_AUTOSYNC_KEY, String(cloudAutoSync));
         });
     }
 }
@@ -3261,9 +3252,9 @@ async function openRecordsModal() {
 let curatorSelectedTracks = [];
 let curatorBenchTracks = [];
 let curatorCurrentCycleInfo = {
-    year: '2024',
-    half: '1',
-    periodStr: '',
+    year: '',
+    half: '',
+    periodStr: 'Sin periodo seleccionado',
     cycleStart: ''
 };
 
@@ -3279,7 +3270,22 @@ async function openPlaylistCuratorModal() {
     const modal = new bootstrap.Modal(modalEl);
     modal.show();
 
-    // Default vacío: la selección empieza vacía y la banca contiene las canciones del ciclo
+    // Default vacío: si no hay año ni mitad seleccionados, empezar totalmente limpio
+    const year = curatorYear?.value || '';
+    const half = curatorHalf?.value || '';
+    if (!year || !half) {
+        curatorCurrentCycleInfo = {
+            year: '',
+            half: '',
+            periodStr: 'Sin periodo seleccionado',
+            cycleStart: ''
+        };
+        curatorSelectedTracks = [];
+        curatorBenchTracks = [];
+        renderCuratorView();
+        return;
+    }
+
     await loadCuratorCandidates(false);
 }
 
@@ -3401,6 +3407,22 @@ function getCuratorTrackPriorStageMax(t, currentYearNum, currentHalf) {
 }
 
 async function loadCuratorCandidates(autoSelect = true) {
+    const year = curatorYear?.value || '';
+    const half = curatorHalf?.value || '';
+
+    if (!year || !half) {
+        curatorCurrentCycleInfo = {
+            year: '',
+            half: '',
+            periodStr: 'Sin periodo seleccionado',
+            cycleStart: ''
+        };
+        curatorSelectedTracks = [];
+        curatorBenchTracks = [];
+        renderCuratorView();
+        return;
+    }
+
     const activeDb = await getActiveDatabase();
     if (!activeDb || !activeDb.tracksLookup) return;
 
@@ -3408,8 +3430,6 @@ async function loadCuratorCandidates(autoSelect = true) {
         curatorSelectedList.innerHTML = '<div class="text-center text-secondary py-4"><i class="fa-solid fa-spinner fa-spin me-2"></i>Calculando candidatos de este periodo...</div>';
     }
 
-    const year = curatorYear?.value || '2024';
-    const half = curatorHalf?.value || '1';
     const targetCount = parseInt(curatorTargetCount?.value, 10) || 18;
     const excludePast = curatorExcludePast ? curatorExcludePast.checked : true;
 
@@ -3518,6 +3538,12 @@ async function loadCuratorCandidates(autoSelect = true) {
 }
 
 async function generateCuratorSelection() {
+    const year = curatorYear?.value || '';
+    const half = curatorHalf?.value || '';
+    if (!year || !half) {
+        alert('Por favor selecciona primero un año y un periodo (1ra o 2da mitad) en los selectores superiores.');
+        return;
+    }
     await loadCuratorCandidates(true);
     triggerGoogleDriveAutoSync();
 }
@@ -3556,6 +3582,19 @@ function renderCuratorView() {
 
 function renderCuratorSelectedList() {
     if (!curatorSelectedList) return;
+
+    if (!curatorCurrentCycleInfo.year || !curatorCurrentCycleInfo.half) {
+        curatorSelectedList.innerHTML = `
+            <div class="text-center py-5 text-secondary">
+                <i class="fa-regular fa-calendar-check fs-2 mb-2 text-primary opacity-50"></i>
+                <div class="fw-semibold text-white mb-1">Sin periodo seleccionado</div>
+                <div class="small text-muted" style="max-width: 380px; margin: 0 auto; font-size: 0.76rem;">
+                    Elige un año y un periodo (1ra o 2da mitad) en los selectores superiores para comenzar.
+                </div>
+            </div>
+        `;
+        return;
+    }
 
     if (curatorSelectedTracks.length === 0) {
         curatorSelectedList.innerHTML = `
@@ -3617,6 +3656,19 @@ function renderCuratorSelectedList() {
 
 function renderCuratorBenchList() {
     if (!curatorBenchList) return;
+
+    if (!curatorCurrentCycleInfo.year || !curatorCurrentCycleInfo.half) {
+        curatorBenchList.innerHTML = `
+            <div class="text-center py-5 text-secondary">
+                <i class="fa-solid fa-layer-group fs-2 mb-2 text-secondary opacity-40"></i>
+                <div class="fw-semibold text-white mb-1">Banca en espera</div>
+                <div class="small text-muted" style="max-width: 360px; margin: 0 auto; font-size: 0.76rem;">
+                    Selecciona un año y un periodo en los selectores superiores para cargar las canciones disponibles de la banca.
+                </div>
+            </div>
+        `;
+        return;
+    }
 
     const query = (curatorBenchSearch?.value || '').trim().toLowerCase();
     let filtered = curatorBenchTracks;
@@ -3906,92 +3958,60 @@ window.clearCuratorSelection = clearCuratorSelection;
 window.exportCuratorYouTubeMusic = exportCuratorYouTubeMusic;
 
 // ====================================================
-// PERSISTENCIA Y RESPALDO EN LA NUBE: GOOGLE DRIVE API
+// PERSISTENCIA EN LA NUBE: SUPABASE (Central-de-estudio)
 // ====================================================
-const GDRIVE_CLIENT_ID_KEY = 'spotitracker_gdrive_client_id';
-const GDRIVE_TOKEN_KEY = 'spotitracker_gdrive_token';
-const GDRIVE_TOKEN_EXP_KEY = 'spotitracker_gdrive_token_exp';
-const GDRIVE_FILE_ID_KEY = 'spotitracker_gdrive_file_id';
-const GDRIVE_AUTOSYNC_KEY = 'spotitracker_gdrive_autosync';
-const GDRIVE_LAST_SYNC_KEY = 'spotitracker_gdrive_last_sync';
-const GDRIVE_BACKUP_FILENAME = 'spotitracker_cloud_backup.json';
+const SUPABASE_PROJECT_URL = 'https://znbihwazambtwjwizmsn.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_C7JjbD4TMFzBGysYO835GQ_s1rRzvm-';
+const SUPABASE_REST_URL = `${SUPABASE_PROJECT_URL}/rest/v1/spotitracker_curator`;
+const CLOUD_AUTOSYNC_KEY = 'spotitracker_cloud_autosync';
+const CLOUD_LAST_SYNC_KEY = 'spotitracker_cloud_last_sync';
 
-let gdriveTokenClient = null;
-let gdriveAccessToken = localStorage.getItem(GDRIVE_TOKEN_KEY) || null;
-let gdriveFileId = localStorage.getItem(GDRIVE_FILE_ID_KEY) || null;
-let gdriveAutoSync = localStorage.getItem(GDRIVE_AUTOSYNC_KEY) !== 'false';
-let gdriveDebounceTimer = null;
+let cloudAutoSync = localStorage.getItem(CLOUD_AUTOSYNC_KEY) !== 'false';
+let cloudDebounceTimer = null;
+let isCloudSyncing = false;
 
-function isGoogleDriveTokenValid() {
-    if (!gdriveAccessToken) return false;
-    const exp = parseInt(localStorage.getItem(GDRIVE_TOKEN_EXP_KEY) || '0', 10);
-    return Date.now() < exp;
-}
+function updateCloudUI(status = 'active', customMsg = '') {
+    const lastSync = localStorage.getItem(CLOUD_LAST_SYNC_KEY);
 
-function updateGoogleDriveUI() {
-    const isAuth = isGoogleDriveTokenValid();
-    const lastSync = localStorage.getItem(GDRIVE_LAST_SYNC_KEY);
-
-    if (gdriveClientIdInput) {
-        gdriveClientIdInput.value = localStorage.getItem(GDRIVE_CLIENT_ID_KEY) || '';
-    }
     if (gdriveAutosyncToggle) {
-        gdriveAutosyncToggle.checked = gdriveAutoSync;
+        gdriveAutosyncToggle.checked = cloudAutoSync;
     }
 
-    if (isAuth) {
-        if (gdriveStatusTitle) gdriveStatusTitle.textContent = 'Conectado a Google Drive';
-        if (gdriveStatusDesc) {
-            gdriveStatusDesc.textContent = lastSync
-                ? `Último respaldo: ${new Date(lastSync).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`
-                : 'Listo para respaldar en tu nube.';
-        }
-        if (gdriveSyncBadge) {
-            gdriveSyncBadge.textContent = 'Sincronizado';
-            gdriveSyncBadge.style.color = '#10b981';
-            gdriveSyncBadge.style.background = 'rgba(16, 185, 129, 0.12)';
-            gdriveSyncBadge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
-        }
-        if (drawerGdriveStatus) {
-            drawerGdriveStatus.textContent = 'Conectado';
-            drawerGdriveStatus.style.background = 'rgba(16, 185, 129, 0.2)';
-            drawerGdriveStatus.style.color = '#10b981';
-        }
-        if (curatorCloudLabel) {
-            curatorCloudLabel.textContent = 'Drive: Activo';
-        }
-        if (btnGdriveAuthText) btnGdriveAuthText.textContent = 'Reconectar cuenta de Google';
-        if (btnGdriveUpload) btnGdriveUpload.disabled = false;
-        if (btnGdriveDownload) btnGdriveDownload.disabled = false;
-        if (btnGdriveLogout) btnGdriveLogout.classList.remove('d-none');
-    } else {
-        if (gdriveStatusTitle) gdriveStatusTitle.textContent = 'No Conectado';
-        if (gdriveStatusDesc) gdriveStatusDesc.textContent = 'Conecta tu cuenta para respaldar y sincronizar tus datos.';
-        if (gdriveSyncBadge) {
-            gdriveSyncBadge.textContent = 'Pendiente';
-            gdriveSyncBadge.style.color = '#94a3b8';
-            gdriveSyncBadge.style.background = 'rgba(255, 255, 255, 0.06)';
-            gdriveSyncBadge.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-        }
-        if (drawerGdriveStatus) {
-            drawerGdriveStatus.textContent = 'Nube';
-            drawerGdriveStatus.style.background = 'rgba(16, 185, 129, 0.12)';
-            drawerGdriveStatus.style.color = '#10b981';
-        }
-        if (curatorCloudLabel) {
-            curatorCloudLabel.textContent = 'Drive Sync';
-        }
-        if (btnGdriveAuthText) btnGdriveAuthText.textContent = 'Iniciar Sesión con Google';
-        if (btnGdriveUpload) btnGdriveUpload.disabled = true;
-        if (btnGdriveDownload) btnGdriveDownload.disabled = true;
-        if (btnGdriveLogout) btnGdriveLogout.classList.add('d-none');
+    if (drawerGdriveStatus) {
+        drawerGdriveStatus.textContent = status === 'syncing' ? 'Sincronizando...' : 'Supabase Activo';
+        drawerGdriveStatus.style.background = 'rgba(16, 185, 129, 0.15)';
+        drawerGdriveStatus.style.color = '#10b981';
     }
+
+    if (curatorCloudLabel) {
+        curatorCloudLabel.textContent = customMsg || (status === 'syncing' ? 'Guardando...' : 'Nube Activa');
+    }
+
+    if (gdriveStatusTitle) {
+        gdriveStatusTitle.textContent = status === 'syncing' ? 'Sincronizando con Supabase...' : 'Conectado a Central-de-estudio';
+    }
+
+    if (gdriveStatusDesc) {
+        gdriveStatusDesc.textContent = customMsg || (lastSync
+            ? `Último respaldo: ${new Date(lastSync).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`
+            : 'Base de datos PostgreSQL lista para respaldar tus selecciones.');
+    }
+
+    if (gdriveSyncBadge) {
+        gdriveSyncBadge.textContent = status === 'syncing' ? 'GUARDANDO...' : 'EN LÍNEA';
+        gdriveSyncBadge.style.color = status === 'syncing' ? '#38bdf8' : '#10b981';
+        gdriveSyncBadge.style.background = status === 'syncing' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(16, 185, 129, 0.15)';
+        gdriveSyncBadge.style.borderColor = status === 'syncing' ? 'rgba(56, 189, 248, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+    }
+
+    if (btnGdriveUpload) btnGdriveUpload.disabled = isCloudSyncing;
+    if (btnGdriveDownload) btnGdriveDownload.disabled = isCloudSyncing;
 }
 
-function showGoogleDriveAlert(message, type = 'info') {
+function showCloudAlert(message, type = 'info') {
     if (!gdriveAlert) return;
     gdriveAlert.className = `alert alert-${type} py-1.5 px-2.5 small mt-3 mb-0`;
-    gdriveAlert.textContent = message;
+    gdriveAlert.innerHTML = message;
     gdriveAlert.classList.remove('d-none');
     setTimeout(() => {
         gdriveAlert.classList.add('d-none');
@@ -3999,262 +4019,146 @@ function showGoogleDriveAlert(message, type = 'info') {
 }
 
 function openGoogleDriveModal() {
-    updateGoogleDriveUI();
+    updateCloudUI('active');
     const modal = new bootstrap.Modal(gdriveModalEl);
     modal.show();
 }
 
-function handleSaveGoogleDriveClientId() {
-    const clientId = (gdriveClientIdInput?.value || '').trim();
-    if (!clientId) {
-        showGoogleDriveAlert('Ingresa un Google Client ID válido.', 'warning');
-        return;
-    }
-    localStorage.setItem(GDRIVE_CLIENT_ID_KEY, clientId);
-    showGoogleDriveAlert('¡Client ID guardado correctamente!', 'success');
-    setupGdriveTokenClient();
-}
-
-function setupGdriveTokenClient() {
-    const clientId = localStorage.getItem(GDRIVE_CLIENT_ID_KEY);
-    if (!clientId) return;
-
-    if (window.google?.accounts?.oauth2) {
-        try {
-            gdriveTokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: 'https://www.googleapis.com/auth/drive.file',
-                callback: async (tokenResponse) => {
-                    if (tokenResponse?.error) {
-                        console.error('Error Google OAuth:', tokenResponse);
-                        showGoogleDriveAlert(`Error de autenticación: ${tokenResponse.error}`, 'danger');
-                        return;
-                    }
-                    if (tokenResponse?.access_token) {
-                        gdriveAccessToken = tokenResponse.access_token;
-                        const expiresIn = (parseInt(tokenResponse.expires_in, 10) || 3600) * 1000;
-                        localStorage.setItem(GDRIVE_TOKEN_KEY, gdriveAccessToken);
-                        localStorage.setItem(GDRIVE_TOKEN_EXP_KEY, String(Date.now() + expiresIn));
-                        updateGoogleDriveUI();
-                        showGoogleDriveAlert('¡Conectado con éxito a Google Drive!', 'success');
-                        await findExistingGoogleDriveBackup();
-                    }
-                }
-            });
-        } catch (e) {
-            console.error('Error initTokenClient:', e);
-        }
-    }
-}
-
-function handleGoogleDriveAuthClick() {
-    const clientId = localStorage.getItem(GDRIVE_CLIENT_ID_KEY);
-    if (!clientId) {
-        showGoogleDriveAlert('Por favor, ingresa y guarda tu Google Client ID primero.', 'warning');
-        gdriveClientIdInput?.focus();
-        return;
-    }
-    if (!window.google?.accounts?.oauth2) {
-        showGoogleDriveAlert('El SDK de Google aún se está cargando. Reintenta en unos segundos.', 'warning');
-        return;
-    }
-    if (!gdriveTokenClient) {
-        setupGdriveTokenClient();
-    }
-    gdriveTokenClient.requestAccessToken({ prompt: 'consent' });
-}
-
-function handleGoogleDriveLogout() {
-    if (gdriveAccessToken && window.google?.accounts?.oauth2?.revoke) {
-        google.accounts.oauth2.revoke(gdriveAccessToken, () => {});
-    }
-    localStorage.removeItem(GDRIVE_TOKEN_KEY);
-    localStorage.removeItem(GDRIVE_TOKEN_EXP_KEY);
-    localStorage.removeItem(GDRIVE_FILE_ID_KEY);
-    gdriveAccessToken = null;
-    gdriveFileId = null;
-    updateGoogleDriveUI();
-    showGoogleDriveAlert('Sesión de Google Drive cerrada.', 'info');
-}
-
-async function findExistingGoogleDriveBackup() {
-    if (!isGoogleDriveTokenValid()) return null;
+async function saveToCloudDatabase(isSilent = false) {
+    if (isCloudSyncing) return false;
     try {
-        const query = encodeURIComponent(`name='${GDRIVE_BACKUP_FILENAME}' and trashed=false`);
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,modifiedTime,size)`, {
-            headers: { 'Authorization': `Bearer ${gdriveAccessToken}` }
+        isCloudSyncing = true;
+        updateCloudUI('syncing', 'Guardando...');
+
+        const payload = {
+            id: 'default',
+            user_id: 'Vrak_23',
+            cycle_year: curatorCurrentCycleInfo.year || (curatorYear?.value || ''),
+            cycle_half: curatorCurrentCycleInfo.half || (curatorHalf?.value || ''),
+            target_count: parseInt(curatorTargetCount?.value || '18', 10),
+            selected_tracks: curatorSelectedTracks || [],
+            honorable_mentions: window.curatorHonorableTracks || [],
+            year_favorites: window.curatorYearFavorites || [],
+            settings: {
+                excludePast: curatorExcludePast ? curatorExcludePast.checked : true
+            },
+            updated_at: new Date().toISOString()
+        };
+
+        const res = await fetch(SUPABASE_REST_URL, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify(payload)
         });
-        if (res.ok) {
-            const data = await res.json();
-            if (data.files && data.files.length > 0) {
-                gdriveFileId = data.files[0].id;
-                localStorage.setItem(GDRIVE_FILE_ID_KEY, gdriveFileId);
-                localStorage.setItem(GDRIVE_LAST_SYNC_KEY, data.files[0].modifiedTime);
-                updateGoogleDriveUI();
-                return gdriveFileId;
-            }
-        }
-    } catch (e) {
-        console.error('Error buscando backup en Drive:', e);
-    }
-    return null;
-}
-
-function buildCuratorBackupPayload() {
-    return {
-        app: 'SpotiTracker',
-        version: '2.0',
-        savedAt: new Date().toISOString(),
-        year: curatorYear?.value || '2024',
-        half: curatorHalf?.value || '1',
-        targetCount: curatorTargetCount?.value || '18',
-        excludePast: curatorExcludePast?.checked ?? true,
-        selectedTracks: curatorSelectedTracks || [],
-        benchTracksCount: curatorBenchTracks?.length || 0
-    };
-}
-
-async function saveToGoogleDrive(isSilent = false) {
-    if (!isGoogleDriveTokenValid()) {
-        if (!isSilent) openGoogleDriveModal();
-        return false;
-    }
-
-    try {
-        if (curatorCloudLabel) curatorCloudLabel.textContent = 'Guardando...';
-        const payload = buildCuratorBackupPayload();
-        const payloadStr = JSON.stringify(payload, null, 2);
-
-        if (!gdriveFileId) {
-            gdriveFileId = await findExistingGoogleDriveBackup();
-        }
-
-        let res;
-        if (gdriveFileId) {
-            // Actualizar archivo existente en Google Drive
-            res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${gdriveFileId}?uploadType=media`, {
-                method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${gdriveAccessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: payloadStr
-            });
-        } else {
-            // Crear archivo nuevo mediante multipart upload
-            const metadata = {
-                name: GDRIVE_BACKUP_FILENAME,
-                mimeType: 'application/json',
-                description: 'Copia de seguridad de playlists y selección curada de SpotiTracker'
-            };
-            const boundary = '-------314159265358979323846';
-            const delimiter = `\r\n--${boundary}\r\n`;
-            const closeDelim = `\r\n--${boundary}--`;
-
-            const multipartRequestBody =
-                delimiter +
-                'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-                JSON.stringify(metadata) +
-                delimiter +
-                'Content-Type: application/json\r\n\r\n' +
-                payloadStr +
-                closeDelim;
-
-            res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${gdriveAccessToken}`,
-                    'Content-Type': `multipart/related; boundary=${boundary}`
-                },
-                body: multipartRequestBody
-            });
-        }
 
         if (res.ok) {
-            const data = await res.json();
-            if (data.id) {
-                gdriveFileId = data.id;
-                localStorage.setItem(GDRIVE_FILE_ID_KEY, gdriveFileId);
-            }
             const nowIso = new Date().toISOString();
-            localStorage.setItem(GDRIVE_LAST_SYNC_KEY, nowIso);
-            updateGoogleDriveUI();
+            localStorage.setItem(CLOUD_LAST_SYNC_KEY, nowIso);
+            updateCloudUI('active', 'Nube Sincronizada');
             if (!isSilent) {
-                showGoogleDriveAlert(`¡Respaldo guardado en Google Drive con ${payload.selectedTracks.length} canciones!`, 'success');
+                showCloudAlert(`¡Guardado exitoso en Supabase! (${payload.selected_tracks.length} canciones sincronizadas)`, 'success');
+                alert(`¡Éxito! Tu selección curada (${payload.selected_tracks.length} canciones) ha sido respaldada en tu base de datos Supabase (Central-de-estudio).`);
             }
             return true;
         } else {
-            const errJson = await res.json().catch(() => ({}));
-            console.error('Error guardando en Drive:', errJson);
+            const errTxt = await res.text();
+            console.error('Error guardando en Supabase:', errTxt);
             if (!isSilent) {
-                showGoogleDriveAlert(`Error al guardar en Drive: ${errJson?.error?.message || res.statusText}`, 'danger');
+                showCloudAlert('Error al guardar en Supabase. Revisa la consola.', 'danger');
             }
         }
     } catch (err) {
-        console.error('Error saveToGoogleDrive:', err);
+        console.error('Error saveToCloudDatabase:', err);
         if (!isSilent) {
-            showGoogleDriveAlert('Ocurrió un error al contactar con Google Drive.', 'danger');
+            showCloudAlert('Error de red al conectar con Supabase.', 'danger');
         }
     } finally {
-        updateGoogleDriveUI();
+        isCloudSyncing = false;
+        setTimeout(() => updateCloudUI('active'), 2000);
     }
     return false;
 }
 
-async function loadFromGoogleDrive() {
-    if (!isGoogleDriveTokenValid()) {
-        openGoogleDriveModal();
-        return false;
-    }
-
+async function loadFromCloudDatabase() {
+    if (isCloudSyncing) return false;
     try {
-        if (!gdriveFileId) {
-            gdriveFileId = await findExistingGoogleDriveBackup();
-        }
-        if (!gdriveFileId) {
-            showGoogleDriveAlert('No se encontró ningún archivo de respaldo en tu Google Drive.', 'warning');
-            return false;
-        }
+        isCloudSyncing = true;
+        updateCloudUI('syncing', 'Cargando...');
 
-        const res = await fetch(`https://www.googleapis.com/drive/v3/files/${gdriveFileId}?alt=media`, {
-            headers: { 'Authorization': `Bearer ${gdriveAccessToken}` }
+        const res = await fetch(`${SUPABASE_REST_URL}?id=eq.default&select=*`, {
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
         });
 
         if (res.ok) {
             const data = await res.json();
-            if (Array.isArray(data.selectedTracks)) {
-                curatorSelectedTracks = data.selectedTracks;
-                if (data.year && curatorYear) curatorYear.value = data.year;
-                if (data.half && curatorHalf) curatorHalf.value = data.half;
-                if (data.targetCount && curatorTargetCount) curatorTargetCount.value = data.targetCount;
-                if (data.excludePast !== undefined && curatorExcludePast) curatorExcludePast.checked = data.excludePast;
+            const row = Array.isArray(data) ? data[0] : data;
+            if (row && Array.isArray(row.selected_tracks) && row.selected_tracks.length > 0) {
+                curatorSelectedTracks = row.selected_tracks;
+                if (row.cycle_year && curatorYear) curatorYear.value = row.cycle_year;
+                if (row.cycle_half && curatorHalf) curatorHalf.value = row.cycle_half;
+                if (row.target_count && curatorTargetCount) curatorTargetCount.value = row.target_count;
+                if (row.settings && row.settings.excludePast !== undefined && curatorExcludePast) {
+                    curatorExcludePast.checked = row.settings.excludePast;
+                }
 
-                renderCuratorView();
-                showGoogleDriveAlert(`¡Restauradas ${curatorSelectedTracks.length} canciones desde tu Google Drive!`, 'success');
-                alert(`¡Éxito! Se restauró tu selección de ${curatorSelectedTracks.length} canciones desde Google Drive (Ciclo: ${data.year || ''} - ${data.half === '1' ? '1ra Mitad' : '2da Mitad'}).`);
+                curatorCurrentCycleInfo.year = row.cycle_year || '';
+                curatorCurrentCycleInfo.half = row.cycle_half || '';
+                curatorCurrentCycleInfo.periodStr = row.cycle_year && row.cycle_half
+                    ? (row.cycle_half === '1' ? `1 Ene — 20 May ${row.cycle_year}` : `1 Jun — 20 Nov ${row.cycle_year}`)
+                    : 'Sin periodo seleccionado';
+
+                if (row.cycle_year && row.cycle_half) {
+                    await loadCuratorCandidates(false);
+                } else {
+                    renderCuratorView();
+                }
+
+                const nowIso = new Date().toISOString();
+                localStorage.setItem(CLOUD_LAST_SYNC_KEY, nowIso);
+                updateCloudUI('active', 'Nube Sincronizada');
+                showCloudAlert(`¡Restauradas ${curatorSelectedTracks.length} canciones desde Supabase!`, 'success');
+                alert(`¡Éxito! Se restauraron ${curatorSelectedTracks.length} canciones desde tu base de datos Supabase (Ciclo: ${row.cycle_year || 'N/A'} - ${row.cycle_half === '1' ? '1ra Mitad' : (row.cycle_half === '2' ? '2da Mitad' : 'N/A')}).`);
                 return true;
             } else {
-                showGoogleDriveAlert('El archivo de respaldo tiene un formato incompatible.', 'warning');
+                showCloudAlert('No hay canciones guardadas aún en la base de datos.', 'warning');
+                alert('No se encontró ninguna selección previa guardada en la base de datos.');
             }
         } else {
-            showGoogleDriveAlert('Error al leer el archivo desde Google Drive.', 'danger');
+            showCloudAlert('Error al consultar datos en Supabase.', 'danger');
         }
     } catch (err) {
-        console.error('Error loadFromGoogleDrive:', err);
-        showGoogleDriveAlert('Error de red al restaurar desde Google Drive.', 'danger');
+        console.error('Error loadFromCloudDatabase:', err);
+        showCloudAlert('Error de red al consultar Supabase.', 'danger');
+    } finally {
+        isCloudSyncing = false;
+        setTimeout(() => updateCloudUI('active'), 1500);
     }
     return false;
 }
 
 function triggerGoogleDriveAutoSync() {
-    if (!isGoogleDriveTokenValid() || !gdriveAutoSync) return;
-    clearTimeout(gdriveDebounceTimer);
-    gdriveDebounceTimer = setTimeout(() => {
-        saveToGoogleDrive(true);
+    if (!cloudAutoSync) return;
+    clearTimeout(cloudDebounceTimer);
+    cloudDebounceTimer = setTimeout(() => {
+        saveToCloudDatabase(true);
     }, 1500);
 }
 
+// Inicializar estado de Supabase en UI al arrancar
+updateCloudUI('active');
+
 window.openGoogleDriveModal = openGoogleDriveModal;
-window.saveToGoogleDrive = saveToGoogleDrive;
-window.loadFromGoogleDrive = loadFromGoogleDrive;
+window.saveToCloudDatabase = saveToCloudDatabase;
+window.loadFromCloudDatabase = loadFromCloudDatabase;
+window.saveToGoogleDrive = saveToCloudDatabase;
+window.loadFromGoogleDrive = loadFromCloudDatabase;
 window.triggerGoogleDriveAutoSync = triggerGoogleDriveAutoSync;
+
