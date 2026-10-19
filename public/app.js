@@ -199,7 +199,7 @@ async function triggerInstallFlow() {
         }
         deferredPrompt = null;
     } else {
-        const modal = new bootstrap.Modal(installModalEl);
+        const modal = bootstrap.Modal.getOrCreateInstance(installModalEl);
         modal.show();
     }
 }
@@ -273,8 +273,7 @@ function getRangeLabel(range) {
 // ----------------------------------------------------
 document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
-    setupGdriveTokenClient();
-    updateGoogleDriveUI();
+    updateCloudUI('active');
 
     const isLoggedOut = localStorage.getItem('spoti_logged_out') === 'true';
 
@@ -403,7 +402,24 @@ function setupEventListeners() {
         if (typeof savedModalScrollY === 'number') {
             window.scrollTo({ top: savedModalScrollY, behavior: 'instant' });
         }
+        // Limpieza de seguridad contra backdrops huérfanos o pantallas bloqueadas
+        setTimeout(() => {
+            if (!document.querySelector('.modal.show')) {
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+                document.body.classList.remove('modal-open');
+                document.body.style.removeProperty('padding-right');
+                document.body.style.removeProperty('overflow');
+            }
+        }, 120);
     });
+
+    const itemStatsModalEl = document.getElementById('itemStatsModal');
+    if (itemStatsModalEl) {
+        itemStatsModalEl.addEventListener('hidden.bs.modal', () => {
+            itemStatsHistory = [];
+            currentOpenStats = null;
+        });
+    }
     // Prevenir touchmove detrás del modal en dispositivos táctiles
     document.addEventListener('touchmove', function(e) {
         if (document.body.classList.contains('modal-open')) {
@@ -1111,12 +1127,16 @@ async function fetchAccessToken(code) {
             const expiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
             localStorage.setItem('spotify_token_expires_at', String(expiresAt));
             localStorage.removeItem('spoti_logged_out');
-            window.history.replaceState({}, document.title, "/");
+            window.history.replaceState({}, document.title, window.location.origin + '/');
             showDashboard();
         } else {
+            console.warn('Spotify auth token warning:', data);
+            window.history.replaceState({}, document.title, window.location.origin + '/');
             showDashboard();
         }
     } catch (err) {
+        console.error('fetchAccessToken exception:', err);
+        window.history.replaceState({}, document.title, window.location.origin + '/');
         showDashboard();
     }
 }
@@ -2232,7 +2252,22 @@ function renderRecent(tracks) {
 // ----------------------------------------------------
 // MODAL: APARTADO DE ESTADÍSTICAS DE MIS ESCUCHAS
 // ----------------------------------------------------
-async function showItemStats(type, name, artist) {
+let itemStatsHistory = [];
+let currentOpenStats = null;
+
+function goBackItemStats() {
+    if (itemStatsHistory.length > 0) {
+        const prev = itemStatsHistory.pop();
+        showItemStats(prev.type, prev.name, prev.artist, true);
+    }
+}
+
+async function showItemStats(type, name, artist, isBack = false) {
+    if (!isBack && currentOpenStats && (currentOpenStats.name !== name || currentOpenStats.type !== type)) {
+        itemStatsHistory.push({ ...currentOpenStats });
+    }
+    currentOpenStats = { type, name, artist };
+
     const activeDb = await getActiveDatabase();
 
     const modalTitle = document.getElementById('item-stats-type-title');
@@ -2339,8 +2374,17 @@ async function showItemStats(type, name, artist) {
         }
     }
 
+    const backBtnHtml = itemStatsHistory.length > 0 ? `
+        <div class="mb-2.5">
+            <button type="button" class="btn btn-sm text-white border-0 px-2.5 py-1 d-inline-flex align-items-center gap-1.5" onclick="goBackItemStats()" style="background-color: rgba(255, 255, 255, 0.08); font-size: 0.74rem; border-radius: 6px; cursor: pointer; transition: background 0.15s ease;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.15)'" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.08)'">
+                <i class="fa-solid fa-arrow-left"></i> Volver a ${itemStatsHistory[itemStatsHistory.length - 1].name}
+            </button>
+        </div>
+    ` : '';
+
     if (!data) {
         modalBody.innerHTML = `
+            ${backBtnHtml}
             <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06);">
                 <img src="${coverImg}" class="rounded ${type === 'artist' ? 'rounded-circle' : ''}" style="width: 56px; height: 56px; object-fit: cover;" onerror="safeImgError(this)">
                 <div class="overflow-hidden flex-grow-1">
@@ -2354,8 +2398,13 @@ async function showItemStats(type, name, artist) {
                 <small class="text-secondary d-block">Esta pista fue registrada recientemente o con ortografía distinta en Last.fm. Las estadísticas detalladas de 2019 a 2026 corresponden a tu archivo oficial de Spotify.</small>
             </div>
         `;
-        const modal = new bootstrap.Modal(document.getElementById('itemStatsModal'));
-        modal.show();
+        const modalEl = document.getElementById('itemStatsModal');
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        if (!modalEl.classList.contains('show')) {
+            modalInstance.show();
+        } else {
+            modalEl.querySelector('.modal-body')?.scrollTo({ top: 0, behavior: 'smooth' });
+        }
         return;
     }
 
@@ -2477,6 +2526,7 @@ async function showItemStats(type, name, artist) {
     }
 
     modalBody.innerHTML = `
+        ${backBtnHtml}
         <!-- Hero Header -->
         <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06);">
             <img src="${coverImg}" class="rounded ${type === 'artist' ? 'rounded-circle' : ''}" style="width: 58px; height: 58px; object-fit: cover; flex-shrink: 0;" alt="Cover" onerror="safeImgError(this)">
@@ -2550,8 +2600,13 @@ async function showItemStats(type, name, artist) {
         ${artistTracksHtml}
     `;
 
-    const modal = new bootstrap.Modal(document.getElementById('itemStatsModal'));
-    modal.show();
+    const modalEl = document.getElementById('itemStatsModal');
+    const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+    if (!modalEl.classList.contains('show')) {
+        modalInstance.show();
+    } else {
+        modalEl.querySelector('.modal-body')?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 }
 
 // ----------------------------------------------------
@@ -2563,7 +2618,7 @@ function openLastFmModal() {
     if (lastFmApiKeyInput) lastFmApiKeyInput.value = key;
     if (lastFmError) lastFmError.classList.add('d-none');
 
-    const modal = new bootstrap.Modal(lastFmModalEl);
+    const modal = bootstrap.Modal.getOrCreateInstance(lastFmModalEl);
     modal.show();
 }
 
@@ -2752,7 +2807,7 @@ async function handleSavePlaylist() {
 // ACCIÓN: TARJETA PARA COMPARTIR
 // ----------------------------------------------------
 async function prepareShareCard() {
-    const modalEl = new bootstrap.Modal(shareCardModal);
+    const modalEl = bootstrap.Modal.getOrCreateInstance(shareCardModal);
     modalEl.show();
 
     const { user } = getLastFmCredentials();
@@ -2950,7 +3005,7 @@ async function openHabitsModal() {
     const habitsBody = document.getElementById('habits-body');
     if (!habitsBody) return;
     habitsBody.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm text-info me-2"></span>Cargando tus hábitos...</div>';
-    const modal = new bootstrap.Modal(document.getElementById('habitsModal'));
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('habitsModal'));
     modal.show();
 
     const insights = await loadInsightsData();
@@ -3020,7 +3075,7 @@ async function openForgottenModal() {
     const forgottenBody = document.getElementById('forgotten-body');
     if (!forgottenBody) return;
     forgottenBody.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm text-warning me-2"></span>Buscando artistas olvidados...</div>';
-    const modal = new bootstrap.Modal(document.getElementById('forgottenModal'));
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('forgottenModal'));
     modal.show();
 
     const insights = await loadInsightsData();
@@ -3070,7 +3125,7 @@ async function openForgottenModal() {
 // 4. COMPARADOR MUSICAL ("VERSUS")
 // ----------------------------------------------------
 async function openVersusModal() {
-    const modal = new bootstrap.Modal(document.getElementById('versusModal'));
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('versusModal'));
     modal.show();
 
     const db = await getActiveDatabase();
@@ -3187,7 +3242,7 @@ async function openRecordsModal() {
     const recordsBody = document.getElementById('records-body');
     if (!recordsBody) return;
     recordsBody.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm text-warning me-2"></span>Calculando tus récords...</div>';
-    const modal = new bootstrap.Modal(document.getElementById('recordsModal'));
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('recordsModal'));
     modal.show();
 
     const insights = await loadInsightsData();
@@ -3274,7 +3329,7 @@ async function openPlaylistCuratorModal() {
         initCuratorEvents();
     }
 
-    const modal = new bootstrap.Modal(modalEl);
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
     modal.show();
 
     // Default vacío: si no hay año ni mitad seleccionados, empezar totalmente limpio
@@ -4050,7 +4105,7 @@ function showCloudAlert(message, type = 'info') {
 
 function openGoogleDriveModal() {
     updateCloudUI('active');
-    const modal = new bootstrap.Modal(gdriveModalEl);
+    const modal = bootstrap.Modal.getOrCreateInstance(gdriveModalEl);
     modal.show();
 }
 
