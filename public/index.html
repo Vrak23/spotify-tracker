@@ -20,18 +20,52 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- html2canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Google Identity Services (GIS) for Google Drive Sync -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 
     <style>
         :root {
-            --bg-base: #09090b;
-            --bg-surface: #18181c;         /* Gris sólido, elegante y distinguible */
-            --bg-surface-hover: #222228;   /* Hover sutil y limpio */
-            --border-subtle: #292934;      /* Borde claro y nítido para contraste */
+            /* Superficies & Fondos (Obsidian Dark - Anti-Generic Stack) */
+            --bg-base: #090a0f;
+            --bg-surface: #12151f;
+            --bg-surface-elevated: #1a1e2d;
+            --bg-surface-hover: #22273a;
+            --bg-glass: rgba(18, 22, 34, 0.75);
+            --bg-glass-blur: blur(16px);
+
+            /* Acentos Principales & Neón */
             --brand-primary: #a855f7;
             --brand-primary-hover: #9333ea;
-            --brand-glow: rgba(168, 85, 247, 0.2);
+            --brand-glow: rgba(168, 85, 247, 0.25);
+            --brand-gradient: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+            --spotify-green: #10b981;
+            --spotify-green-hover: #059669;
+            --spotify-glow: rgba(16, 185, 129, 0.2);
+            --gdrive-green: #10b981;
+            --gdrive-glow: rgba(16, 185, 129, 0.25);
+            --cyan-accent: #06b6d4;
+            --warning-amber: #f59e0b;
+            --danger-red: #ef4444;
+
+            /* Microbordes & Iluminación Direccional (1px subtle border) */
+            --border-subtle: rgba(255, 255, 255, 0.08);
+            --border-highlight: rgba(255, 255, 255, 0.16);
+            --border-active: rgba(168, 85, 247, 0.45);
+
+            /* Tipografía & Fuentes */
+            --font-display: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
             --text-primary: #f8fafc;
-            --text-muted: #8e8ea0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+
+            /* Físicas & Sombras */
+            --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+            --shadow-ambient: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+            --shadow-glow: 0 0 20px rgba(168, 85, 247, 0.2);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
         }
 
         html, body {
@@ -958,6 +992,17 @@
                     </div>
                 </button>
 
+                <button class="offcanvas-menu-item" id="menu-gdrive-connect" data-bs-dismiss="offcanvas">
+                    <i class="fa-brands fa-google-drive text-success fs-5"></i>
+                    <div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span>Google Drive Sync</span>
+                            <span id="drawer-gdrive-status" class="badge" style="background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25); font-size: 0.65rem;">Nube</span>
+                        </div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Guardar y respaldar playlists en tu Drive</small>
+                    </div>
+                </button>
+
                 <button class="offcanvas-menu-item" id="menu-install-app" data-bs-dismiss="offcanvas">
                     <i class="fa-solid fa-download fs-5" style="color: var(--brand-primary);"></i>
                     <div>
@@ -1013,6 +1058,114 @@
                 <div class="modal-footer border-top border-secondary border-opacity-10 py-2 justify-content-between">
                     <button type="button" id="btn-lastfm-disconnect" class="btn btn-sm btn-outline-danger d-none">Desconectar</button>
                     <button type="button" id="btn-lastfm-save" class="btn btn-sm btn-danger ms-auto px-3">Guardar y Sincronizar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Google Drive Sync -->
+    <div class="modal fade" id="gdriveModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: var(--text-primary); border-radius: var(--radius-lg); backdrop-filter: var(--bg-glass-blur);">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-brands fa-google-drive text-success fs-5"></i>
+                        <div>
+                            <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.92rem;">Sincronización en la Nube (Google Drive)</h6>
+                            <small class="text-secondary d-block" style="font-size: 0.72rem;">Guarda tus playlists curadas, selecciones y orden en tu propio Google Drive</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <!-- Estado de Conexión -->
+                    <div id="gdrive-status-card" class="p-3 mb-3 rounded-3 border d-flex align-items-center justify-content-between" style="background-color: var(--bg-surface-elevated); border-color: var(--border-subtle) !important;">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <div id="gdrive-status-icon" class="rounded-circle d-flex align-items-center justify-content-center" style="width: 38px; height: 38px; background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.25);">
+                                <i class="fa-brands fa-google-drive fs-5"></i>
+                            </div>
+                            <div>
+                                <div id="gdrive-status-title" class="fw-bold text-white" style="font-size: 0.84rem;">No Conectado</div>
+                                <small id="gdrive-status-desc" class="text-secondary d-block" style="font-size: 0.72rem;">Conecta tu cuenta para respaldar y sincronizar tus datos.</small>
+                            </div>
+                        </div>
+                        <span id="gdrive-sync-badge" class="badge" style="font-family: var(--font-mono); font-size: 0.65rem; background: rgba(255,255,255,0.06); border: 1px solid var(--border-subtle); color: var(--text-secondary);">Pendiente</span>
+                    </div>
+
+                    <!-- Client ID Input -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label small fw-semibold mb-0 text-white" style="font-size: 0.78rem;">Google OAuth Client ID:</label>
+                            <a href="#gdrive-guide-collapse" data-bs-toggle="collapse" class="text-decoration-none small text-info fw-semibold" style="font-size: 0.72rem;">
+                                <i class="fa-regular fa-circle-question me-1"></i>¿Cómo obtenerlo?
+                            </a>
+                        </div>
+                        <div class="input-group input-group-sm">
+                            <input type="text" id="gdrive-client-id-input" class="form-control form-control-sm text-white" placeholder="xxxx.apps.googleusercontent.com" style="background-color: #0b0d13; border-color: var(--border-subtle); font-family: var(--font-mono); font-size: 0.76rem;">
+                            <button id="btn-gdrive-save-id" class="btn btn-sm btn-outline-secondary" type="button" style="font-size: 0.75rem;">Guardar ID</button>
+                        </div>
+                        <small class="text-muted d-block mt-1" style="font-size: 0.70rem;">
+                            100% privado: se almacena solo en tu navegador y conecta de forma directa con los servidores de Google.
+                        </small>
+                    </div>
+
+                    <!-- Guía paso a paso colapsable -->
+                    <div class="collapse mb-3" id="gdrive-guide-collapse">
+                        <div class="p-3 rounded-3 border" style="background-color: #0b0d13; border-color: var(--border-subtle) !important; font-size: 0.75rem; line-height: 1.5;">
+                            <div class="fw-bold text-white mb-2"><i class="fa-solid fa-list-check text-primary me-1.5"></i>Pasos rápidos en Google Cloud Console:</div>
+                            <ol class="mb-2 ps-3 text-secondary d-flex flex-column gap-1">
+                                <li>Entra a <a href="https://console.cloud.google.com" target="_blank" class="text-info text-decoration-none fw-semibold">console.cloud.google.com</a> y crea un proyecto (ej: <code>SpotiTracker</code>).</li>
+                                <li>En el buscador superior escribe <strong>"Google Drive API"</strong> y dale clic a <strong>Habilitar</strong>.</li>
+                                <li>En <strong>Pantalla de consentimiento de OAuth</strong>, elige tipo <strong>Externo</strong>, ponle nombre <code>SpotiTracker</code> y tu correo. En "Usuarios de prueba" agrega tu propio correo de Gmail.</li>
+                                <li>En <strong>Credenciales</strong> &gt; <strong>Crear credenciales</strong> &gt; <strong>ID de cliente de OAuth</strong>:
+                                    <ul class="ps-3 mt-1">
+                                        <li>Tipo de aplicación: <strong>Aplicación web</strong>.</li>
+                                        <li>En <strong>Orígenes autorizados de JavaScript</strong> agrega la URL de tu app (ej: <code>http://localhost:3000</code>, <code>http://localhost</code> o tu URL de Vercel).</li>
+                                    </ul>
+                                </li>
+                                <li>Copia el <strong>ID de cliente</strong> resultante (termina en <code>.apps.googleusercontent.com</code>) y pégalo arriba.</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- Botones de Acción -->
+                    <div class="d-flex flex-column gap-2 mb-3">
+                        <button id="btn-gdrive-auth" class="btn btn-sm btn-outline-success fw-semibold py-2 d-flex align-items-center justify-content-center gap-2" style="font-size: 0.80rem; border-radius: var(--radius-sm);">
+                            <i class="fa-brands fa-google fs-6"></i>
+                            <span id="btn-gdrive-auth-text">Iniciar Sesión con Google</span>
+                        </button>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <button id="btn-gdrive-upload" class="btn btn-sm btn-brand w-100 py-1.5 fw-semibold d-flex align-items-center justify-content-center gap-1.5" style="font-size: 0.76rem;" disabled>
+                                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                                    <span>Subir a Drive</span>
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button id="btn-gdrive-download" class="btn btn-sm btn-outline-brand w-100 py-1.5 fw-semibold d-flex align-items-center justify-content-center gap-1.5" style="font-size: 0.76rem;" disabled>
+                                    <i class="fa-solid fa-cloud-arrow-down"></i>
+                                    <span>Restaurar de Drive</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Auto-Sync Switch -->
+                    <div class="p-2.5 rounded-3 border d-flex align-items-center justify-content-between" style="background-color: rgba(255, 255, 255, 0.02); border-color: var(--border-subtle) !important;">
+                        <div>
+                            <div class="fw-semibold text-white small" style="font-size: 0.78rem;">Sincronización Automática</div>
+                            <small class="text-secondary d-block" style="font-size: 0.70rem;">Guardar en Drive automáticamente al modificar el Curador</small>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" id="gdrive-autosync-toggle" checked>
+                        </div>
+                    </div>
+
+                    <div id="gdrive-alert" class="alert d-none py-1.5 px-2.5 small mt-3 mb-0" style="font-size: 0.74rem;"></div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3 justify-content-between">
+                    <button type="button" id="btn-gdrive-logout" class="btn btn-sm btn-outline-danger d-none" style="font-size: 0.75rem;">Desconectar Drive</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 ms-auto" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
                 </div>
             </div>
         </div>
@@ -1283,13 +1436,16 @@
 
                     <!-- Resumen del Ciclo y Contador -->
                     <div class="d-flex align-items-center justify-content-between mb-2 px-1 flex-wrap gap-2">
-                        <div class="d-flex align-items-center gap-2">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
                             <span id="curator-period-badge" class="curator-badge-period">
                                 <i class="fa-regular fa-clock me-1 text-primary"></i> 21 Nov 2023 — 20 May 2024
                             </span>
                             <span id="curator-counter-badge" class="curator-badge-counter">
                                 18 / 18 seleccionadas
                             </span>
+                            <button type="button" id="curator-btn-cloud" class="curator-badge-period border-0" style="cursor: pointer; background: rgba(16, 185, 129, 0.12) !important; color: #10b981 !important; border: 1px solid rgba(16, 185, 129, 0.28) !important;" title="Sincronizar y respaldar con Google Drive">
+                                <i class="fa-brands fa-google-drive me-1 text-success"></i> <span id="curator-cloud-label">Drive Sync</span>
+                            </button>
                         </div>
                         <div class="btn-group btn-group-sm" role="group">
                             <button type="button" id="curator-tab-selected" class="btn btn-sm btn-dark border border-secondary border-opacity-30 active" style="font-size: 0.74rem;">
@@ -1345,6 +1501,6 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=30"></script>
+    <script src="/app.js?v=31"></script>
 </body>
 </html>
