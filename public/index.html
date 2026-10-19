@@ -999,6 +999,46 @@
                     </div>
                 </button>
 
+                <button class="offcanvas-menu-item" id="menu-open-capsule" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-clock-rotate-left text-info fs-5"></i>
+                    <div>
+                        <div>Cápsula del Tiempo</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Qué escuchabas en este mes en años anteriores</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-open-trivia" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-brain text-primary fs-5"></i>
+                    <div>
+                        <div>Trivia Musical Personal</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">¿Cuánto conoces tus propias estadísticas?</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-open-tournament" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-trophy text-danger fs-5"></i>
+                    <div>
+                        <div>Torneo de Canciones</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Duelos de eliminación directa hasta coronar tu #1</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-open-iceberg" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-mountain text-info fs-5"></i>
+                    <div>
+                        <div>Iceberg Musical</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Tus artistas en estratos: superficie vs rarezas abisales</small>
+                    </div>
+                </button>
+
+                <button class="offcanvas-menu-item" id="menu-open-eras" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-chart-line text-success fs-5"></i>
+                    <div>
+                        <div>Carrera de Eras (Bar Chart Race)</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">Evolución animada de tus artistas mes a mes</small>
+                    </div>
+                </button>
+
                 <div class="text-secondary px-2 mt-2 mb-1" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Herramientas</div>
 
                 <button class="offcanvas-menu-item" id="menu-open-curator" data-bs-dismiss="offcanvas">
@@ -1647,11 +1687,109 @@
         </div>
     </div>
 
+    <!-- Modal: Cápsula del Tiempo -->
+    <div class="modal fade" id="capsuleModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-stats-dialog" style="max-width: 600px;">
+            <div class="modal-content bg-dark text-white border-0 shadow" style="border: 1px solid var(--border-subtle) !important;">
+                <div class="modal-header border-bottom py-2.5 px-3" style="border-color: var(--border-subtle) !important;">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-info fs-5"></i>
+                        <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;">Cápsula del Tiempo: Este Mes en la Historia</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <p class="text-secondary small mb-2.5">
+                        Descubre qué escuchabas exactamente en este mismo mes a lo largo de los años registrados:
+                    </p>
+                    <div id="capsule-years-nav" class="d-flex gap-1.5 overflow-auto pb-2 mb-3" style="scrollbar-width: thin;">
+                        <!-- Botones de años dinámicos -->
+                    </div>
+                    <div id="capsule-content-area">
+                        <!-- Contenido dinámico de la cápsula -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Trivia Musical Personal -->
+    <div class="modal fade" id="triviaModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 520px;">
+            <div class="modal-content bg-dark text-white border-0 shadow-lg" style="background: radial-gradient(circle at top, #18122b 0%, #0c0c12 100%) !important; border: 1px solid rgba(168, 85, 247, 0.35) !important; border-radius: 18px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-15 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-brain text-primary fs-5"></i>
+                        <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;">Trivia Musical Personal</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3.5" id="trivia-modal-body">
+                    <!-- Vista previa / Quiz dinámico -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Torneo de Canciones (Bracket) -->
+    <div class="modal fade" id="tournamentModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 560px;">
+            <div class="modal-content bg-dark text-white border-0 shadow-lg" style="background: radial-gradient(circle at top, #240c1a 0%, #0d0d12 100%) !important; border: 1px solid rgba(244, 63, 94, 0.35) !important; border-radius: 18px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-15 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-trophy text-danger fs-5"></i>
+                        <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;">Torneo de Canciones (Duelo Cara a Cara)</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3.5" id="tournament-modal-body">
+                    <!-- Arena de Duelo dinámica -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Iceberg Musical -->
+    <div class="modal fade" id="icebergModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 650px;">
+            <div class="modal-content bg-dark text-white border-0 shadow-lg" style="background: #090d16 !important; border: 1px solid rgba(6, 182, 212, 0.35) !important; border-radius: 18px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-15 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-mountain text-info fs-5"></i>
+                        <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;">Tu Iceberg Musical</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="iceberg-modal-body">
+                    <!-- Capas del Iceberg dinámicas -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Carrera de Eras (Bar Chart Race) -->
+    <div class="modal fade" id="erasModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 650px;">
+            <div class="modal-content bg-dark text-white border-0 shadow-lg" style="background: #0d0f18 !important; border: 1px solid rgba(34, 197, 94, 0.35) !important; border-radius: 18px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-15 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-success fs-5"></i>
+                        <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;">Carrera de Eras (Bar Chart Race)</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="eras-modal-body">
+                    <!-- Controles y animación de barras -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=35"></script>
+    <script src="/app.js?v=36"></script>
 </body>
 </html>

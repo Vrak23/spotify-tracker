@@ -479,6 +479,27 @@ function setupEventListeners() {
         btnEnableMilestonePush.addEventListener('click', toggleMilestonePushNotifications);
     }
 
+    const menuOpenCapsule = document.getElementById('menu-open-capsule');
+    if (menuOpenCapsule) {
+        menuOpenCapsule.addEventListener('click', openCapsuleModal);
+    }
+    const menuOpenTrivia = document.getElementById('menu-open-trivia');
+    if (menuOpenTrivia) {
+        menuOpenTrivia.addEventListener('click', openTriviaModal);
+    }
+    const menuOpenTournament = document.getElementById('menu-open-tournament');
+    if (menuOpenTournament) {
+        menuOpenTournament.addEventListener('click', openTournamentModal);
+    }
+    const menuOpenIceberg = document.getElementById('menu-open-iceberg');
+    if (menuOpenIceberg) {
+        menuOpenIceberg.addEventListener('click', openIcebergModal);
+    }
+    const menuOpenEras = document.getElementById('menu-open-eras');
+    if (menuOpenEras) {
+        menuOpenEras.addEventListener('click', openErasModal);
+    }
+
     // Acciones del Menú Hamburguesa
     if (menuSavePlaylist) {
         menuSavePlaylist.addEventListener('click', handleSavePlaylist);
@@ -4768,6 +4789,841 @@ function triggerGoogleDriveAutoSync() {
         saveToCloudDatabase(true);
     }, 1500);
 }
+
+// ----------------------------------------------------
+// 6. CÁPSULA DEL TIEMPO ("ESTE MES EN LA HISTORIA")
+// ----------------------------------------------------
+let currentCapsuleYear = null;
+
+async function openCapsuleModal() {
+    const modalEl = document.getElementById('capsuleModal');
+    if (!modalEl) return;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const db = await getActiveDatabase();
+    if (!db || !db.yearlyTops) return;
+
+    initCapsuleView(db);
+}
+
+function initCapsuleView(db) {
+    const nav = document.getElementById('capsule-years-nav');
+    const content = document.getElementById('capsule-content-area');
+    if (!nav || !content) return;
+
+    const now = new Date();
+    const curMonthNum = now.getMonth() + 1;
+    const curMonthKey = String(curMonthNum);
+    const monthName = MONTH_NAMES[curMonthNum - 1] || 'este mes';
+
+    // Años disponibles con datos para este mes
+    const availableYears = ['2026', '2025', '2024', '2023', '2022', '2021', '2020', '2019'].filter(y => {
+        return db.yearlyTops[y]?.months?.[curMonthKey];
+    });
+
+    if (availableYears.length === 0) {
+        content.innerHTML = `<div class="text-center py-4 text-secondary">No se encontraron registros de ${monthName} en años anteriores.</div>`;
+        return;
+    }
+
+    if (!currentCapsuleYear || !availableYears.includes(currentCapsuleYear)) {
+        currentCapsuleYear = availableYears.find(y => y !== '2026') || availableYears[0];
+    }
+
+    nav.innerHTML = availableYears.map(y => {
+        const isActive = y === currentCapsuleYear;
+        const diff = 2026 - parseInt(y, 10);
+        const subLabel = diff === 0 ? 'En vivo' : (diff === 1 ? 'Hace 1 año' : `Hace ${diff} años`);
+        return `
+            <button type="button" class="btn btn-sm ${isActive ? 'btn-brand fw-bold' : 'btn-outline-secondary text-secondary'} rounded-pill px-3 py-1 flex-shrink-0" onclick="selectCapsuleYear('${y}')" style="font-size: 0.76rem;">
+                ${y} <span class="opacity-75" style="font-size: 0.65rem;">(${subLabel})</span>
+            </button>
+        `;
+    }).join('');
+
+    renderCapsuleContent(db, currentCapsuleYear, curMonthKey, monthName);
+}
+
+async function selectCapsuleYear(year) {
+    currentCapsuleYear = year;
+    const db = await getActiveDatabase();
+    if (db) initCapsuleView(db);
+}
+
+function renderCapsuleContent(db, year, monthKey, monthName) {
+    const content = document.getElementById('capsule-content-area');
+    if (!content) return;
+
+    const monthData = db.yearlyTops[year]?.months?.[monthKey];
+    if (!monthData) {
+        content.innerHTML = `<div class="text-center py-4 text-secondary">Sin datos para ${monthName} ${year}.</div>`;
+        return;
+    }
+
+    const topTracks = (monthData.tracks || []).slice(0, 10);
+    const topArtist = (monthData.artists || [])[0];
+    const plays = monthData.plays || topTracks.reduce((acc, t) => acc + (t.plays || 0), 0);
+
+    const artKey = topArtist ? `artist::${normalizeKey(topArtist.name)}::` : '';
+    const topArtistCover = artCache[artKey] || '/logo.png';
+
+    content.innerHTML = `
+        <div class="p-3 rounded-3 mb-3 border border-info border-opacity-20" style="background: rgba(6, 182, 212, 0.08);">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="fw-bold text-white fs-6"><i class="fa-solid fa-calendar-check text-info me-1.5"></i> ${monthName} de ${year}</span>
+                <span class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-30">${formatNumber(plays)} reproducciones</span>
+            </div>
+            ${topArtist ? `
+                <div class="d-flex align-items-center gap-2.5 pt-1">
+                    <img id="capsule-top-art-img" src="${topArtistCover}" class="rounded-circle border border-info border-opacity-40" style="width: 44px; height: 44px; object-fit: cover;" onerror="safeAvatarError(this)">
+                    <div class="overflow-hidden">
+                        <small class="text-secondary d-block" style="font-size: 0.68rem;">Artista más escuchado de esa época:</small>
+                        <strong class="text-white text-truncate d-block" style="font-size: 0.88rem;">${topArtist.name}</strong>
+                    </div>
+                </div>
+            ` : ''}
+        </div>
+
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="fw-bold text-white" style="font-size: 0.78rem;"><i class="fa-solid fa-list-ol text-primary me-1"></i> Canciones que no parabas de escuchar</span>
+            <small class="text-secondary" style="font-size: 0.7rem;">Top 10 de esa época</small>
+        </div>
+
+        <div class="d-flex flex-column gap-1.5" style="max-height: 280px; overflow-y: auto;">
+            ${topTracks.map((t, idx) => {
+                const safeName = (t.name || '').replace(/'/g, "\\'");
+                const safeArtist = (t.artist || '').replace(/'/g, "\\'");
+                const tArtKey = `track::${normalizeKey(t.name)}::${normalizeKey(t.artist || '')}`;
+                const cover = artCache[tArtKey] || '/logo.png';
+                const imgId = `capsule-trk-img-${idx}`;
+                return `
+                    <div class="card-uniform p-1.5 px-2.5 cursor-pointer" onclick="showItemStats('track', '${safeName}', '${safeArtist}')" style="min-height: 42px;">
+                        <span class="card-rank text-muted" style="width: 22px;">#${idx + 1}</span>
+                        <img id="${imgId}" src="${cover}" class="rounded flex-shrink-0" style="width: 34px; height: 34px; object-fit: cover;" onerror="safeImgError(this)">
+                        <div class="overflow-hidden flex-grow-1">
+                            <div class="fw-bold text-white text-truncate" style="font-size: 0.78rem;">${t.name}</div>
+                            <small class="text-secondary text-truncate d-block" style="font-size: 0.68rem;">${t.artist}</small>
+                        </div>
+                        <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0" style="font-size: 0.68rem;">${t.plays} reps</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+
+    if (topArtist && !artCache[artKey]) {
+        resolveSpotifyArtwork(topArtist.name, '', 'artist', 'capsule-top-art-img');
+    }
+    topTracks.forEach((t, idx) => {
+        const tArtKey = `track::${normalizeKey(t.name)}::${normalizeKey(t.artist || '')}`;
+        if (!artCache[tArtKey]) {
+            resolveSpotifyArtwork(t.name, t.artist || '', 'track', `capsule-trk-img-${idx}`);
+        }
+    });
+}
+
+// ----------------------------------------------------
+// 7. TRIVIA MUSICAL PERSONAL (QUIZ INTERACTIVO)
+// ----------------------------------------------------
+let triviaCurrentQuestions = [];
+let triviaCurrentIndex = 0;
+let triviaScore = 0;
+
+async function openTriviaModal() {
+    const modalEl = document.getElementById('triviaModal');
+    if (!modalEl) return;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const db = await getActiveDatabase();
+    if (!db) return;
+
+    startTriviaGame(db);
+}
+
+function startTriviaGame(db) {
+    triviaCurrentQuestions = generateTriviaQuestions(db);
+    triviaCurrentIndex = 0;
+    triviaScore = 0;
+    renderTriviaQuestion();
+}
+
+function generateTriviaQuestions(db) {
+    const questions = [];
+    const allArtists = Object.values(db.artistsLookup || {}).filter(a => a.plays >= 30);
+    const allTracks = Object.values(db.tracksLookup || {}).filter(t => t.plays >= 20);
+
+    const years = ['2021', '2022', '2023', '2024'].filter(y => db.yearlyTops?.[y]?.tracks?.length > 3);
+    if (years.length > 0) {
+        const randY = years[Math.floor(Math.random() * years.length)];
+        const correctTrack = db.yearlyTops[randY].tracks[0];
+        const decoys = db.yearlyTops[randY].tracks.slice(1, 6).sort(() => 0.5 - Math.random()).slice(0, 3);
+        const options = [correctTrack, ...decoys].sort(() => 0.5 - Math.random());
+        questions.push({
+            title: `¿Cuál fue tu canción #1 en todo el año ${randY}?`,
+            correctIndex: options.indexOf(correctTrack),
+            options: options.map(t => `${t.name} - ${t.artist}`),
+            explanation: `Tu tema más escuchado en ${randY} fue "${correctTrack.name}" con ${correctTrack.plays} reproducciones.`
+        });
+    }
+
+    if (allArtists.length >= 4) {
+        const sampleArtists = [...allArtists].sort(() => 0.5 - Math.random()).slice(0, 4);
+        sampleArtists.sort((a, b) => b.plays - a.plays);
+        const correct = sampleArtists[0];
+        const shuffled = [...sampleArtists].sort(() => 0.5 - Math.random());
+        questions.push({
+            title: `¿Cuál de estos artistas tiene MÁS reproducciones en tu historia?`,
+            correctIndex: shuffled.indexOf(correct),
+            options: shuffled.map(a => `${a.name}`),
+            explanation: `¡${correct.name} lidera con ${formatNumber(correct.plays)} escuchas en tu biblioteca!`
+        });
+    }
+
+    const discoverArtists = allArtists.filter(a => a.first && a.plays >= 50);
+    if (discoverArtists.length > 0) {
+        const art = discoverArtists[Math.floor(Math.random() * discoverArtists.length)];
+        const correctYear = new Date(art.first).getFullYear().toString();
+        const possibleYears = ['2019', '2020', '2021', '2022', '2023', '2024', '2025'].filter(y => y !== correctYear);
+        const decoyYears = possibleYears.sort(() => 0.5 - Math.random()).slice(0, 3);
+        const options = [correctYear, ...decoyYears].sort(() => 0.5 - Math.random());
+        questions.push({
+            title: `¿En qué año empezaste a escuchar a "${art.name}"?`,
+            correctIndex: options.indexOf(correctYear),
+            options: options,
+            explanation: `Tu primer registro de ${art.name} fue en ${new Date(art.first).toLocaleDateString([], { month: 'long', year: 'numeric' })}.`
+        });
+    }
+
+    const albumYears = ['2022', '2023', '2024'].filter(y => db.yearlyTops?.[y]?.albums?.length > 3);
+    if (albumYears.length > 0) {
+        const y = albumYears[Math.floor(Math.random() * albumYears.length)];
+        const topAlb = db.yearlyTops[y].albums[0];
+        const decoys = db.yearlyTops[y].albums.slice(1, 5).sort(() => 0.5 - Math.random()).slice(0, 3);
+        const options = [topAlb, ...decoys].sort(() => 0.5 - Math.random());
+        questions.push({
+            title: `¿Cuál fue tu álbum estrella en ${y}?`,
+            correctIndex: options.indexOf(topAlb),
+            options: options.map(a => `${a.name} (${a.artist})`),
+            explanation: `En ${y}, "${topAlb.name}" de ${topAlb.artist} fue tu álbum #1 con ${topAlb.plays} reproducciones.`
+        });
+    }
+
+    if (allTracks.length >= 8) {
+        const highPlays = [...allTracks].sort((a, b) => b.plays - a.plays).slice(5, 25).sort(() => 0.5 - Math.random())[0];
+        const decoys = [...allTracks].filter(t => t.name !== highPlays.name).sort(() => 0.5 - Math.random()).slice(0, 3);
+        const options = [highPlays, ...decoys].sort(() => 0.5 - Math.random());
+        questions.push({
+            title: `¿Cuál de estas canciones has reproducido más de ${Math.floor(highPlays.plays * 0.8)} veces?`,
+            correctIndex: options.indexOf(highPlays),
+            options: options.map(t => `${t.name} - ${t.artist}`),
+            explanation: `"${highPlays.name}" acumula ${highPlays.plays} reproducciones en tu cuenta.`
+        });
+    }
+
+    return questions.slice(0, 5);
+}
+
+function renderTriviaQuestion() {
+    const body = document.getElementById('trivia-modal-body');
+    if (!body) return;
+
+    if (triviaCurrentIndex >= triviaCurrentQuestions.length) {
+        renderTriviaResults();
+        return;
+    }
+
+    const q = triviaCurrentQuestions[triviaCurrentIndex];
+    const qNum = triviaCurrentIndex + 1;
+    const totalQ = triviaCurrentQuestions.length;
+
+    body.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between mb-3 text-secondary" style="font-size: 0.74rem;">
+            <span><strong class="text-white">Pregunta ${qNum}</strong> de ${totalQ}</span>
+            <span class="badge border border-primary border-opacity-30 text-white" style="background: rgba(168, 85, 247, 0.15);">Aciertos: ${triviaScore}</span>
+        </div>
+
+        <div class="progress mb-3" style="height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px;">
+            <div class="progress-bar bg-primary" style="width: ${(qNum / totalQ) * 100}%;"></div>
+        </div>
+
+        <h5 class="fw-bold text-white mb-3" style="font-size: 1.05rem; line-height: 1.4;">${q.title}</h5>
+
+        <div class="d-flex flex-column gap-2 mb-3">
+            ${q.options.map((opt, idx) => `
+                <button type="button" class="btn btn-outline-secondary text-start text-white p-2.5 rounded-3 d-flex align-items-center justify-content-between trivia-opt-btn" onclick="handleTriviaAnswer(${idx})" style="background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.1); font-size: 0.82rem; transition: all 0.15s ease;">
+                    <span class="text-truncate">${opt}</span>
+                    <i class="fa-regular fa-circle text-secondary fs-6 flex-shrink-0 ms-2"></i>
+                </button>
+            `).join('')}
+        </div>
+
+        <div id="trivia-feedback-box" class="d-none p-2.5 rounded-3 border mb-3" style="font-size: 0.76rem;"></div>
+        <div id="trivia-next-container" class="d-none text-end">
+            <button type="button" class="btn btn-sm btn-brand rounded-pill px-4 py-1.5 fw-semibold" onclick="advanceTriviaQuestion()" style="font-size: 0.8rem;">
+                ${qNum === totalQ ? 'Ver Resultados' : 'Siguiente Pregunta <i class="fa-solid fa-arrow-right ms-1"></i>'}
+            </button>
+        </div>
+    `;
+}
+
+function handleTriviaAnswer(selectedIndex) {
+    const q = triviaCurrentQuestions[triviaCurrentIndex];
+    const buttons = document.querySelectorAll('.trivia-opt-btn');
+    buttons.forEach(b => b.disabled = true);
+
+    const isCorrect = selectedIndex === q.correctIndex;
+    if (isCorrect) triviaScore++;
+
+    const feedback = document.getElementById('trivia-feedback-box');
+    const nextBtn = document.getElementById('trivia-next-container');
+
+    buttons.forEach((b, idx) => {
+        if (idx === q.correctIndex) {
+            b.style.background = 'rgba(34, 197, 94, 0.2)';
+            b.style.borderColor = '#22c55e';
+            b.querySelector('i').className = 'fa-solid fa-circle-check text-success fs-6';
+        } else if (idx === selectedIndex && !isCorrect) {
+            b.style.background = 'rgba(239, 68, 68, 0.2)';
+            b.style.borderColor = '#ef4444';
+            b.querySelector('i').className = 'fa-solid fa-circle-xmark text-danger fs-6';
+        }
+    });
+
+    if (feedback) {
+        feedback.classList.remove('d-none');
+        if (isCorrect) {
+            feedback.style.background = 'rgba(34, 197, 94, 0.08)';
+            feedback.style.borderColor = 'rgba(34, 197, 94, 0.3)';
+            feedback.innerHTML = `<strong class="text-success"><i class="fa-solid fa-check me-1"></i> ¡Correcto!</strong> <span class="text-secondary">${q.explanation}</span>`;
+        } else {
+            feedback.style.background = 'rgba(239, 68, 68, 0.08)';
+            feedback.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+            feedback.innerHTML = `<strong class="text-danger"><i class="fa-solid fa-xmark me-1"></i> Casi...</strong> <span class="text-secondary">${q.explanation}</span>`;
+        }
+    }
+
+    if (nextBtn) nextBtn.classList.remove('d-none');
+}
+
+function advanceTriviaQuestion() {
+    triviaCurrentIndex++;
+    renderTriviaQuestion();
+}
+
+function renderTriviaResults() {
+    const body = document.getElementById('trivia-modal-body');
+    if (!body) return;
+
+    let title = '';
+    let icon = '';
+    const total = triviaCurrentQuestions.length;
+
+    if (triviaScore === total) {
+        title = '👑 Dios de tu Propio Universo Musical';
+        icon = 'fa-trophy text-warning';
+    } else if (triviaScore >= 3) {
+        title = '🔥 Melómano Experto';
+        icon = 'fa-fire text-primary';
+    } else {
+        title = '🎧 Oyente Casual en Evolución';
+        icon = 'fa-headphones text-info';
+    }
+
+    body.innerHTML = `
+        <div class="text-center py-3">
+            <div class="mb-3 d-inline-flex align-items-center justify-content-center" style="width: 76px; height: 76px; border-radius: 50%; background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(234, 179, 8, 0.25)); border: 2px solid rgba(234, 179, 8, 0.5);">
+                <i class="fa-solid ${icon} fs-1"></i>
+            </div>
+            <h4 class="fw-bold text-white mb-1">${title}</h4>
+            <div class="text-secondary small mb-3">
+                Acertaste <strong class="text-white">${triviaScore}</strong> de <strong class="text-white">${total}</strong> preguntas sobre tu propio historial.
+            </div>
+
+            <div class="p-3 rounded-3 mb-4 border border-secondary border-opacity-15 text-start" style="background: rgba(255, 255, 255, 0.02); font-size: 0.78rem;">
+                <div class="text-white fw-semibold mb-1"><i class="fa-solid fa-sparkles text-warning me-1"></i> Resumen de la Partida</div>
+                <div class="text-secondary">Tu memoria sonora refleja ${Math.round((triviaScore / total) * 100)}% de precisión con tus hábitos históricos registrados entre 2019 y 2026.</div>
+            </div>
+
+            <div class="d-flex align-items-center justify-content-center gap-2">
+                <button type="button" class="btn btn-sm btn-brand rounded-pill px-4 py-1.5 fw-semibold" onclick="openTriviaModal()" style="font-size: 0.8rem;">
+                    <i class="fa-solid fa-rotate me-1"></i> Jugar Otra Partida
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5 text-white" data-bs-dismiss="modal" style="font-size: 0.8rem;">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+
+    if (triviaScore >= 3 && typeof confetti === 'function') {
+        confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });
+    }
+}
+
+// ----------------------------------------------------
+// 8. TORNEO DE CANCIONES (BRACKET POR ELIMINACIÓN DIRECTA)
+// ----------------------------------------------------
+let tournamentMatches = [];
+let tournamentRoundName = 'Octavos de Final';
+let tournamentCurrentMatchIdx = 0;
+let tournamentNextRoundTracks = [];
+
+async function openTournamentModal() {
+    const modalEl = document.getElementById('tournamentModal');
+    if (!modalEl) return;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const db = await getActiveDatabase();
+    if (!db) return;
+
+    renderTournamentLobby(db);
+}
+
+function renderTournamentLobby(db) {
+    const body = document.getElementById('tournament-modal-body');
+    if (!body) return;
+
+    body.innerHTML = `
+        <div class="text-center py-2 mb-3">
+            <h5 class="fw-bold text-white mb-1"><i class="fa-solid fa-trophy text-danger me-1.5"></i> Elige el Campo de Batalla</h5>
+            <p class="text-secondary small mb-0">Selecciona con qué canciones se formará la llave de 16 participantes:</p>
+        </div>
+
+        <div class="d-flex flex-column gap-2 mb-3">
+            <button type="button" class="btn btn-outline-secondary text-start text-white p-3 rounded-3 d-flex align-items-center justify-content-between" onclick="initTournamentTracks('overall')" style="background: rgba(244, 63, 94, 0.08); border-color: rgba(244, 63, 94, 0.25);">
+                <div>
+                    <strong class="text-white d-block" style="font-size: 0.85rem;"><i class="fa-solid fa-crown text-warning me-1.5"></i> Torneo de tu Top 16 Histórico</strong>
+                    <small class="text-secondary" style="font-size: 0.72rem;">Los 16 temas más reproducidos de toda tu vida (2019 - 2026).</small>
+                </div>
+                <i class="fa-solid fa-chevron-right text-secondary fs-6"></i>
+            </button>
+
+            <button type="button" class="btn btn-outline-secondary text-start text-white p-3 rounded-3 d-flex align-items-center justify-content-between" onclick="initTournamentTracks('2024')" style="background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.08);">
+                <div>
+                    <strong class="text-white d-block" style="font-size: 0.85rem;"><i class="fa-solid fa-calendar-star text-info me-1.5"></i> Torneo de tu 2024</strong>
+                    <small class="text-secondary" style="font-size: 0.72rem;">Las 16 canciones más destacadas de tu año 2024.</small>
+                </div>
+                <i class="fa-solid fa-chevron-right text-secondary fs-6"></i>
+            </button>
+
+            <button type="button" class="btn btn-outline-secondary text-start text-white p-3 rounded-3 d-flex align-items-center justify-content-between" onclick="initTournamentTracks('2023')" style="background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.08);">
+                <div>
+                    <strong class="text-white d-block" style="font-size: 0.85rem;"><i class="fa-solid fa-clock-rotate-left text-primary me-1.5"></i> Torneo de tu 2023</strong>
+                    <small class="text-secondary" style="font-size: 0.72rem;">Las 16 canciones más sonadas de tu año 2023.</small>
+                </div>
+                <i class="fa-solid fa-chevron-right text-secondary fs-6"></i>
+            </button>
+        </div>
+    `;
+}
+
+async function initTournamentTracks(type) {
+    const db = await getActiveDatabase();
+    if (!db) return;
+
+    let rawTracks = [];
+    if (type === 'overall') {
+        rawTracks = db.yearlyTops?.overall?.tracks || Object.values(db.tracksLookup || {});
+    } else {
+        rawTracks = db.yearlyTops?.[type]?.tracks || [];
+    }
+
+    const participants = rawTracks.slice(0, 16);
+    if (participants.length < 4) {
+        alert('No hay suficientes canciones en este periodo para armar un torneo.');
+        return;
+    }
+
+    tournamentMatches = [];
+    for (let i = 0; i < participants.length; i += 2) {
+        if (i + 1 < participants.length) {
+            tournamentMatches.push([participants[i], participants[i + 1]]);
+        }
+    }
+
+    tournamentRoundName = participants.length === 16 ? 'Octavos de Final' : 'Semifinales';
+    tournamentCurrentMatchIdx = 0;
+    tournamentNextRoundTracks = [];
+
+    renderTournamentMatch();
+}
+
+function renderTournamentMatch() {
+    const body = document.getElementById('tournament-modal-body');
+    if (!body) return;
+
+    if (tournamentCurrentMatchIdx >= tournamentMatches.length) {
+        if (tournamentNextRoundTracks.length === 1) {
+            renderTournamentWinner(tournamentNextRoundTracks[0]);
+            return;
+        }
+
+        tournamentMatches = [];
+        for (let i = 0; i < tournamentNextRoundTracks.length; i += 2) {
+            if (i + 1 < tournamentNextRoundTracks.length) {
+                tournamentMatches.push([tournamentNextRoundTracks[i], tournamentNextRoundTracks[i + 1]]);
+            }
+        }
+        if (tournamentMatches.length === 4) tournamentRoundName = 'Cuartos de Final';
+        else if (tournamentMatches.length === 2) tournamentRoundName = 'Semifinales';
+        else if (tournamentMatches.length === 1) tournamentRoundName = 'Gran Final';
+
+        tournamentCurrentMatchIdx = 0;
+        tournamentNextRoundTracks = [];
+    }
+
+    const [trackA, trackB] = tournamentMatches[tournamentCurrentMatchIdx];
+    const matchNum = tournamentCurrentMatchIdx + 1;
+    const totalMatches = tournamentMatches.length;
+
+    const coverAKey = `track::${normalizeKey(trackA.name)}::${normalizeKey(trackA.artist || '')}`;
+    const coverBKey = `track::${normalizeKey(trackB.name)}::${normalizeKey(trackB.artist || '')}`;
+    const coverA = artCache[coverAKey] || '/logo.png';
+    const coverB = artCache[coverBKey] || '/logo.png';
+
+    body.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between mb-3 text-secondary" style="font-size: 0.74rem;">
+            <span class="badge border border-danger border-opacity-30 text-white" style="background: rgba(244, 63, 94, 0.2);">${tournamentRoundName}</span>
+            <span>Duelo <strong class="text-white">${matchNum}</strong> de ${totalMatches}</span>
+        </div>
+
+        <div class="row g-2 align-items-center mb-3">
+            <div class="col-6">
+                <div class="p-3 rounded-3 text-center border border-secondary border-opacity-15 h-100 d-flex flex-column justify-content-between" style="background: rgba(255, 255, 255, 0.03);">
+                    <div>
+                        <img id="tourn-cover-a" src="${coverA}" class="rounded-3 shadow mb-2" style="width: 80px; height: 80px; object-fit: cover;" onerror="safeImgError(this)">
+                        <h6 class="fw-bold text-white mb-0 text-truncate" title="${trackA.name}" style="font-size: 0.85rem;">${trackA.name}</h6>
+                        <small class="text-secondary text-truncate d-block mb-1" style="font-size: 0.72rem;">${trackA.artist}</small>
+                        <span class="badge bg-secondary bg-opacity-25 text-white mb-2" style="font-size: 0.65rem;">${trackA.plays} reps</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill py-1.5 fw-semibold" onclick="voteTournament(0)" style="font-size: 0.78rem;">
+                        <i class="fa-solid fa-heart me-1"></i> Elegir
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-6">
+                <div class="p-3 rounded-3 text-center border border-secondary border-opacity-15 h-100 d-flex flex-column justify-content-between" style="background: rgba(255, 255, 255, 0.03);">
+                    <div>
+                        <img id="tourn-cover-b" src="${coverB}" class="rounded-3 shadow mb-2" style="width: 80px; height: 80px; object-fit: cover;" onerror="safeImgError(this)">
+                        <h6 class="fw-bold text-white mb-0 text-truncate" title="${trackB.name}" style="font-size: 0.85rem;">${trackB.name}</h6>
+                        <small class="text-secondary text-truncate d-block mb-1" style="font-size: 0.72rem;">${trackB.artist}</small>
+                        <span class="badge bg-secondary bg-opacity-25 text-white mb-2" style="font-size: 0.65rem;">${trackB.plays} reps</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill py-1.5 fw-semibold" onclick="voteTournament(1)" style="font-size: 0.78rem;">
+                        <i class="fa-solid fa-heart me-1"></i> Elegir
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (!artCache[coverAKey]) resolveSpotifyArtwork(trackA.name, trackA.artist || '', 'track', 'tourn-cover-a');
+    if (!artCache[coverBKey]) resolveSpotifyArtwork(trackB.name, trackB.artist || '', 'track', 'tourn-cover-b');
+}
+
+function voteTournament(choiceIdx) {
+    const currentPair = tournamentMatches[tournamentCurrentMatchIdx];
+    const winner = currentPair[choiceIdx];
+    tournamentNextRoundTracks.push(winner);
+    tournamentCurrentMatchIdx++;
+    renderTournamentMatch();
+}
+
+function renderTournamentWinner(track) {
+    const body = document.getElementById('tournament-modal-body');
+    if (!body) return;
+
+    const coverKey = `track::${normalizeKey(track.name)}::${normalizeKey(track.artist || '')}`;
+    const cover = artCache[coverKey] || '/logo.png';
+
+    body.innerHTML = `
+        <div class="text-center py-3">
+            <div class="badge rounded-pill px-3 py-1 mb-2 text-uppercase fw-bold text-warning" style="background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.72rem;">
+                👑 Gran Campeona del Torneo
+            </div>
+
+            <div class="my-3">
+                <img id="tourn-champ-img" src="${cover}" class="rounded-3 shadow-lg border border-2 border-warning" style="width: 110px; height: 110px; object-fit: cover;" onerror="safeImgError(this)">
+            </div>
+
+            <h4 class="fw-bold text-white mb-0">${track.name}</h4>
+            <div class="text-secondary small mb-3">${track.artist}</div>
+
+            <p class="text-secondary mx-auto mb-4" style="max-width: 360px; font-size: 0.78rem;">
+                ¡Esta canción superó todas las rondas de eliminación directa y se corona como tu favorita indiscutible de este torneo!
+            </p>
+
+            <div class="d-flex align-items-center justify-content-center gap-2">
+                <button type="button" class="btn btn-sm btn-brand rounded-pill px-4 py-1.5 fw-semibold" onclick="openTournamentModal()" style="font-size: 0.8rem;">
+                    <i class="fa-solid fa-rotate me-1"></i> Nuevo Torneo
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5 text-white" data-bs-dismiss="modal" style="font-size: 0.8rem;">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+
+    if (!artCache[coverKey]) resolveSpotifyArtwork(track.name, track.artist || '', 'track', 'tourn-champ-img');
+    if (typeof confetti === 'function') {
+        confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
+    }
+}
+
+// ----------------------------------------------------
+// 9. ICEBERG MUSICAL PERSONALIZADO
+// ----------------------------------------------------
+async function openIcebergModal() {
+    const modalEl = document.getElementById('icebergModal');
+    if (!modalEl) return;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const db = await getActiveDatabase();
+    if (!db || !db.artistsLookup) return;
+
+    renderIcebergView(db);
+}
+
+function renderIcebergView(db) {
+    const body = document.getElementById('iceberg-modal-body');
+    if (!body) return;
+
+    const all = Object.values(db.artistsLookup).sort((a, b) => b.plays - a.plays);
+
+    const layer1 = all.filter(a => a.plays >= 400).slice(0, 12);
+    const layer2 = all.filter(a => a.plays >= 150 && a.plays < 400).slice(0, 15);
+    const layer3 = all.filter(a => a.plays >= 50 && a.plays < 150).slice(0, 18);
+    const layer4 = all.filter(a => a.plays >= 15 && a.plays < 50).slice(0, 20);
+    const layer5 = all.filter(a => a.plays < 15).slice(0, 20);
+
+    const renderLayerBadges = (list) => {
+        if (list.length === 0) return '<span class="text-muted small">Sin artistas en este estrato</span>';
+        return list.map(a => `
+            <span class="badge border border-white border-opacity-10 text-white rounded-pill px-2 py-1 cursor-pointer" onclick="showItemStats('artist', '${a.name.replace(/'/g, "\\'")}', '')" style="background: rgba(255,255,255,0.06); font-size: 0.7rem; transition: background 0.15s ease;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.18)'" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.06)'">
+                ${a.name} <strong class="text-warning opacity-75">${formatNumber(a.plays)}</strong>
+            </span>
+        `).join(' ');
+    };
+
+    body.innerHTML = `
+        <div class="text-secondary small mb-3">
+            Tus artistas clasificados en 5 estratos de profundidad marina. Haz clic en cualquiera para ver sus estadísticas:
+        </div>
+
+        <div class="d-flex flex-column gap-2">
+            <!-- Nivel 1: Cielo / Punta del Iceberg -->
+            <div class="p-3 rounded-3 border border-warning border-opacity-30" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(59, 130, 246, 0.15));">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-warning" style="font-size: 0.78rem;"><i class="fa-solid fa-sun me-1.5"></i> Nivel 1: Cielo / Élite Visible (+400 streams)</span>
+                    <small class="text-secondary">${layer1.length} artistas</small>
+                </div>
+                <div class="d-flex flex-wrap gap-1.5">${renderLayerBadges(layer1)}</div>
+            </div>
+
+            <!-- Nivel 2: Superficie del Mar -->
+            <div class="p-3 rounded-3 border border-info border-opacity-30" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.12), rgba(14, 116, 144, 0.2));">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-info" style="font-size: 0.78rem;"><i class="fa-solid fa-water me-1.5"></i> Nivel 2: Superficie (150 - 399 streams)</span>
+                    <small class="text-secondary">${layer2.length} artistas</small>
+                </div>
+                <div class="d-flex flex-wrap gap-1.5">${renderLayerBadges(layer2)}</div>
+            </div>
+
+            <!-- Nivel 3: Aguas Medias -->
+            <div class="p-3 rounded-3 border border-primary border-opacity-30" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(30, 58, 138, 0.25));">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-primary" style="font-size: 0.78rem;"><i class="fa-solid fa-fish me-1.5"></i> Nivel 3: Aguas Medias (50 - 149 streams)</span>
+                    <small class="text-secondary">${layer3.length} artistas</small>
+                </div>
+                <div class="d-flex flex-wrap gap-1.5">${renderLayerBadges(layer3)}</div>
+            </div>
+
+            <!-- Nivel 4: Profundidades -->
+            <div class="p-3 rounded-3 border border-secondary border-opacity-25" style="background: linear-gradient(135deg, rgba(30, 27, 75, 0.4), rgba(15, 23, 42, 0.6));">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-secondary text-white-50" style="font-size: 0.78rem;"><i class="fa-solid fa-anchor me-1.5"></i> Nivel 4: Profundidades (15 - 49 streams)</span>
+                    <small class="text-secondary">${layer4.length} artistas</small>
+                </div>
+                <div class="d-flex flex-wrap gap-1.5">${renderLayerBadges(layer4)}</div>
+            </div>
+
+            <!-- Nivel 5: Abismo Submarino -->
+            <div class="p-3 rounded-3 border border-dark border-opacity-50" style="background: #030408;">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold text-secondary" style="font-size: 0.78rem;"><i class="fa-solid fa-gem text-info me-1.5"></i> Nivel 5: Fosas Abisales / Rarezas (&lt;15 streams)</span>
+                    <small class="text-secondary">${layer5.length} artistas</small>
+                </div>
+                <div class="d-flex flex-wrap gap-1.5">${renderLayerBadges(layer5)}</div>
+            </div>
+        </div>
+    `;
+}
+
+// ----------------------------------------------------
+// 10. CARRERA DE ERAS (BAR CHART RACE ANIMADO)
+// ----------------------------------------------------
+let erasRaceTimer = null;
+let erasRaceFrames = [];
+let erasRaceCurrentFrame = 0;
+let erasRaceIsPlaying = false;
+let erasRaceSpeed = 1000;
+
+async function openErasModal() {
+    const modalEl = document.getElementById('erasModal');
+    if (!modalEl) return;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const db = await getActiveDatabase();
+    if (!db || !db.yearlyTops) return;
+
+    prepareErasRaceFrames(db);
+    renderErasRaceUI();
+}
+
+function prepareErasRaceFrames(db) {
+    erasRaceFrames = [];
+    const years = ['2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'];
+    const cumulativeArtistMap = {};
+
+    years.forEach(y => {
+        const yData = db.yearlyTops[y];
+        if (!yData) return;
+
+        (yData.artists || []).forEach(a => {
+            cumulativeArtistMap[a.name] = (cumulativeArtistMap[a.name] || 0) + a.plays;
+        });
+
+        const top8 = Object.entries(cumulativeArtistMap)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8)
+            .map(([name, plays], idx) => ({ rank: idx + 1, name, plays }));
+
+        erasRaceFrames.push({
+            label: `Año ${y}`,
+            year: y,
+            top: top8
+        });
+    });
+
+    erasRaceCurrentFrame = 0;
+    erasRaceIsPlaying = false;
+    clearInterval(erasRaceTimer);
+}
+
+function renderErasRaceUI() {
+    const body = document.getElementById('eras-modal-body');
+    if (!body || erasRaceFrames.length === 0) return;
+
+    body.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between p-2.5 mb-3 rounded-3 border border-secondary border-opacity-15" style="background: rgba(255,255,255,0.02);">
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" id="btn-eras-play" class="btn btn-sm btn-brand rounded-pill px-3 py-1 fw-semibold" onclick="toggleErasRacePlay()">
+                    <i class="fa-solid fa-play me-1"></i> Reproducir
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 text-white" onclick="resetErasRace()" title="Reiniciar">
+                    <i class="fa-solid fa-rotate-left"></i>
+                </button>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span id="eras-frame-label" class="fw-bold text-white fs-6">Año 2019</span>
+            </div>
+        </div>
+
+        <input type="range" class="form-range mb-3" id="eras-scrubber" min="0" max="${erasRaceFrames.length - 1}" value="0" oninput="scrubErasRace(this.value)">
+
+        <div id="eras-bars-container" class="d-flex flex-column gap-2" style="min-height: 320px;">
+        </div>
+    `;
+
+    renderErasBars();
+}
+
+function renderErasBars() {
+    const container = document.getElementById('eras-bars-container');
+    const label = document.getElementById('eras-frame-label');
+    const scrubber = document.getElementById('eras-scrubber');
+    if (!container || erasRaceFrames.length === 0) return;
+
+    const frame = erasRaceFrames[erasRaceCurrentFrame];
+    if (!frame) return;
+
+    if (label) label.textContent = frame.label;
+    if (scrubber) scrubber.value = erasRaceCurrentFrame;
+
+    const maxPlays = Math.max(1, frame.top[0]?.plays || 1);
+
+    container.innerHTML = frame.top.map(item => {
+        const pct = Math.max(8, Math.round((item.plays / maxPlays) * 100));
+        return `
+            <div class="d-flex align-items-center gap-2" style="font-size: 0.78rem;">
+                <span class="text-secondary fw-bold" style="width: 24px;">#${item.rank}</span>
+                <span class="text-white text-truncate fw-semibold" style="width: 120px;" title="${item.name}">${item.name}</span>
+                <div class="progress flex-grow-1" style="height: 18px; background: rgba(255,255,255,0.04); border-radius: 6px;">
+                    <div class="progress-bar d-flex align-items-center justify-content-end pe-2 text-dark fw-bold" style="width: ${pct}%; background: linear-gradient(90deg, #a855f7, #ec4899); border-radius: 6px; font-size: 0.68rem; transition: width 0.4s ease;">
+                        ${formatNumber(item.plays)}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function toggleErasRacePlay() {
+    const playBtn = document.getElementById('btn-eras-play');
+    if (erasRaceIsPlaying) {
+        clearInterval(erasRaceTimer);
+        erasRaceIsPlaying = false;
+        if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-play me-1"></i> Reproducir';
+    } else {
+        erasRaceIsPlaying = true;
+        if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-pause me-1"></i> Pausar';
+        if (erasRaceCurrentFrame >= erasRaceFrames.length - 1) erasRaceCurrentFrame = 0;
+        erasRaceTimer = setInterval(() => {
+            if (erasRaceCurrentFrame < erasRaceFrames.length - 1) {
+                erasRaceCurrentFrame++;
+                renderErasBars();
+            } else {
+                toggleErasRacePlay();
+            }
+        }, erasRaceSpeed);
+    }
+}
+
+function scrubErasRace(val) {
+    erasRaceCurrentFrame = parseInt(val, 10);
+    renderErasBars();
+}
+
+function resetErasRace() {
+    clearInterval(erasRaceTimer);
+    erasRaceIsPlaying = false;
+    erasRaceCurrentFrame = 0;
+    const playBtn = document.getElementById('btn-eras-play');
+    if (playBtn) playBtn.innerHTML = '<i class="fa-solid fa-play me-1"></i> Reproducir';
+    renderErasBars();
+}
+
+// Exponer funciones interactivas globalmente
+window.selectCapsuleYear = selectCapsuleYear;
+window.handleTriviaAnswer = handleTriviaAnswer;
+window.advanceTriviaQuestion = advanceTriviaQuestion;
+window.initTournamentTracks = initTournamentTracks;
+window.voteTournament = voteTournament;
+window.toggleErasRacePlay = toggleErasRacePlay;
+window.scrubErasRace = scrubErasRace;
+window.resetErasRace = resetErasRace;
+window.showArtistMilestoneCelebration = showArtistMilestoneCelebration;
 
 // Inicializar estado de Supabase en UI al arrancar
 updateCloudUI('active');
