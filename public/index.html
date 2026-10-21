@@ -749,6 +749,7 @@
                     <i class="fa-solid fa-wand-magic-sparkles text-primary"></i>
                     <span class="d-none d-sm-inline">Playlists Semestrales</span>
                 </button>
+                <button id="btn-open-progress-nav" class="btn btn-sm rounded-pill px-2.5 py-1 fw-semibold d-none align-items-center gap-1 text-white" style="font-size: 0.76rem; background: rgba(168,85,247,0.14); border: 1px solid rgba(168,85,247,0.4); display: inline-flex;" title="Mi progreso"></button>
                 <button id="btn-open-trophies-nav" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 fw-semibold d-flex align-items-center gap-1.5 text-white" style="font-size: 0.76rem; background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.12);" title="Sala de Trofeos e Hitos">
                     <i class="fa-solid fa-trophy text-warning"></i>
                     <span class="d-none d-md-inline">Trofeos & Hitos</span>
@@ -804,6 +805,9 @@
 
             <!-- Currently Playing Bar -->
             <div id="currently-playing-container" class="mb-2"></div>
+
+            <!-- Progreso: Nivel, Reto del Día y Racha -->
+            <div id="engagement-strip" class="d-none mb-2"></div>
 
             <!-- Sleek Minimalist Stat Strip -->
             <div id="stat-strip" class="d-flex align-items-center justify-content-center gap-2 py-1 px-2 mb-2 rounded-pill border border-secondary border-opacity-10 overflow-auto" style="background-color: rgba(255, 255, 255, 0.02); font-size: 0.72rem; scrollbar-width: none;">
@@ -990,6 +994,14 @@
                 </button>
 
                 <div class="text-secondary px-2 mt-2 mb-1" style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;"><i class="fa-solid fa-gamepad text-primary me-1"></i> Experiencias & Juegos</div>
+
+                <button class="offcanvas-menu-item" id="menu-open-progress" data-bs-dismiss="offcanvas">
+                    <i class="fa-solid fa-fire text-danger fs-5"></i>
+                    <div>
+                        <div>Mi Progreso: Nivel, Racha y Reto del Día</div>
+                        <small class="text-secondary d-block" style="font-size: 0.74rem;">XP, racha diaria y misión de hoy</small>
+                    </div>
+                </button>
 
                 <button class="offcanvas-menu-item" id="menu-open-trophies" data-bs-dismiss="offcanvas">
                     <i class="fa-solid fa-award text-warning fs-5"></i>
@@ -1785,11 +1797,27 @@
         </div>
     </div>
 
+        <!-- Modal: Mi Progreso (Nivel, Racha, Reto del Día) -->
+    <div class="modal fade" id="progressModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 560px;">
+            <div class="modal-content bg-dark text-white border-0 shadow-lg" style="border: 1px solid var(--border-subtle) !important; border-radius: 18px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-15 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-fire text-danger fs-5"></i>
+                        <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;">Mi Progreso</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="progress-modal-body"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=37"></script>
+    <script src="/app.js?v=38"></script>
 </body>
 </html>

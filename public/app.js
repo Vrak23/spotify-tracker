@@ -479,6 +479,15 @@ function setupEventListeners() {
         btnEnableMilestonePush.addEventListener('click', toggleMilestonePushNotifications);
     }
 
+    const menuOpenProgress = document.getElementById('menu-open-progress');
+    if (menuOpenProgress) {
+        menuOpenProgress.addEventListener('click', openProgressModal);
+    }
+    const btnOpenProgressNav = document.getElementById('btn-open-progress-nav');
+    if (btnOpenProgressNav) {
+        btnOpenProgressNav.addEventListener('click', openProgressModal);
+    }
+
     const menuOpenCapsule = document.getElementById('menu-open-capsule');
     if (menuOpenCapsule) {
         menuOpenCapsule.addEventListener('click', openCapsuleModal);
@@ -1529,6 +1538,7 @@ async function loadStats() {
 
         updateStatStrip();
         checkArtistMilestones(activeDb);
+        initEngagement(activeDb);
 
         let topData = activeDb.yearlyTops?.overall;
         let isDateRange = false;
@@ -3749,6 +3759,16 @@ async function renderTrophiesBadgesTab(db) {
 
     const has2019or2020 = Boolean(db.yearlyTops?.['2019'] || db.yearlyTops?.['2020']);
 
+    const bestStreakNow = getStreakInfo().best;
+    const streakBadges = STREAK_MEDALS.map(n => ({
+        icon: 'fa-solid fa-fire text-danger',
+        title: `Racha de ${n} días`,
+        desc: `Mantén ${n} días seguidos con actividad en la app`,
+        achieved: bestStreakNow >= n,
+        progress: `${Math.min(bestStreakNow, n)} / ${n} días`,
+        pct: Math.min(100, Math.round((bestStreakNow / n) * 100))
+    }));
+
     const badges = [
         {
             icon: 'fa-solid fa-moon text-info',
@@ -3832,7 +3852,7 @@ async function renderTrophiesBadgesTab(db) {
         }
     ];
 
-    container.innerHTML = badges.map(b => `
+    container.innerHTML = [...badges, ...streakBadges].map(b => `
         <div class="col-12 col-sm-6">
             <div class="p-2.5 rounded-3 border h-100 d-flex flex-column justify-content-between" style="background: ${b.achieved ? 'rgba(168, 85, 247, 0.08)' : 'rgba(255, 255, 255, 0.02)'}; border-color: ${b.achieved ? 'rgba(168, 85, 247, 0.35)' : 'rgba(255, 255, 255, 0.06)'} !important;">
                 <div>
@@ -5616,7 +5636,572 @@ function resetErasRace() {
     renderErasBars();
 }
 
+// ----------------------------------------------------
+// 11. ENGAGEMENT: RACHA DIARIA, RETO DEL DÍA, NIVEL Y XP
+// ----------------------------------------------------
+const PROFILE_KEY = 'spoti_profile_v1';
+const PROFILE_CLOUD_URL = `${SUPABASE_PROJECT_URL}/rest/v1/spotitracker_profile`;
+const STREAK_MEDALS = [7, 30, 100];
+const LEVEL_RANKS = [
+    { min: 1, name: 'Novato', icon: '🌱' },
+    { min: 5, name: 'Oyente', icon: '🎧' },
+    { min: 10, name: 'Melómano', icon: '🎸' },
+    { min: 15, name: 'Experto', icon: '🔥' },
+    { min: 25, name: 'Leyenda', icon: '👑' },
+    { min: 40, name: 'Inmortal', icon: '🌌' }
+];
+
+let profileState = null;
+let engagementInitialized = false;
+let engagementRefreshing = false;
+let engagementTimer = null;
+let profileSyncTimer = null;
+let todayPlaysCache = { day: '', at: 0, plays: [] };
+let lastEngagementInfo = null;
+
+function localDateKey(d = new Date()) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function getProfileState() {
+    if (profileState) return profileState;
+    let s = {};
+    try {
+        s = JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}') || {};
+    } catch (e) {
+        s = {};
+    }
+    profileState = {
+        visitDays: Array.isArray(s.visitDays) ? s.visitDays : [],
+        completed: s.completed || {},
+        rerolls: s.rerolls || {},
+        lastLevel: s.lastLevel || 0,
+        bestStreak: s.bestStreak || 0
+    };
+    return profileState;
+}
+
+function saveProfileState() {
+    try {
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(getProfileState()));
+    } catch (e) {}
+    clearTimeout(profileSyncTimer);
+    profileSyncTimer = setTimeout(pushProfileToCloud, 2500);
+}
+
+async function pushProfileToCloud() {
+    try {
+        await fetch(PROFILE_CLOUD_URL, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify({
+                id: 'default',
+                user_id: 'Vrak_23',
+                state: getProfileState(),
+                updated_at: new Date().toISOString()
+            })
+        });
+    } catch (e) {
+        console.warn('No se pudo respaldar el perfil en Supabase:', e);
+    }
+}
+
+async function pullProfileFromCloud() {
+    try {
+        const res = await fetch(`${PROFILE_CLOUD_URL}?id=eq.default&select=state`, {
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            }
+        });
+        if (!res.ok) return;
+        const rows = await res.json();
+        const remote = rows?.[0]?.state;
+        if (!remote || typeof remote !== 'object') return;
+
+        const local = getProfileState();
+        const days = new Set([...(local.visitDays || []), ...(remote.visitDays || [])]);
+        local.visitDays = Array.from(days).sort();
+        local.completed = { ...(remote.completed || {}), ...local.completed };
+        local.rerolls = { ...(remote.rerolls || {}), ...local.rerolls };
+        local.lastLevel = Math.max(local.lastLevel || 0, remote.lastLevel || 0);
+        local.bestStreak = Math.max(local.bestStreak || 0, remote.bestStreak || 0);
+        saveProfileState();
+    } catch (e) {
+        console.warn('No se pudo leer el perfil desde Supabase:', e);
+    }
+}
+
+function registerVisitToday() {
+    const st = getProfileState();
+    const today = localDateKey();
+    if (!st.visitDays.includes(today)) {
+        st.visitDays.push(today);
+        st.visitDays.sort();
+        saveProfileState();
+    }
+}
+
+function lastFmArtistName(t) {
+    return t?.artist?.['#text'] || t?.artist?.name || '';
+}
+
+function getActivityDaySet() {
+    const set = new Set(getProfileState().visitDays);
+    (lastFmRecentDelta || []).forEach(t => {
+        if (t?.date?.uts) set.add(localDateKey(new Date(parseInt(t.date.uts, 10) * 1000)));
+    });
+    const db = unifiedDb || spotifyDb;
+    (db?.recent || []).forEach(r => {
+        if (r?.ts) set.add(localDateKey(new Date(r.ts)));
+    });
+    (todayPlaysCache.plays || []).forEach(p => set.add(localDateKey(p.date)));
+    return set;
+}
+
+function getStreakInfo() {
+    const days = getActivityDaySet();
+    const cursor = new Date();
+    cursor.setHours(12, 0, 0, 0);
+    if (!days.has(localDateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
+
+    let current = 0;
+    while (days.has(localDateKey(cursor))) {
+        current++;
+        cursor.setDate(cursor.getDate() - 1);
+    }
+
+    // Mejor racha histórica entre los días registrados
+    const sorted = Array.from(days).sort();
+    let best = 0;
+    let run = 0;
+    let prev = null;
+    sorted.forEach(k => {
+        const d = new Date(`${k}T12:00:00`);
+        if (prev && Math.round((d - prev) / 86400000) === 1) run++;
+        else run = 1;
+        if (run > best) best = run;
+        prev = d;
+    });
+
+    const st = getProfileState();
+    best = Math.max(best, current, st.bestStreak || 0);
+    if (best > (st.bestStreak || 0)) {
+        st.bestStreak = best;
+        saveProfileState();
+    }
+    return { current, best, days };
+}
+
+// ---------- Retos del día ----------
+function dbArtistLookup(db, name) {
+    const l = db?.artistsLookup;
+    if (!l) return null;
+    return l[(name || '').trim().toLowerCase()] || l[normalizeKey(name)] || null;
+}
+
+function dbTrackLookup(db, name, artist) {
+    const l = db?.tracksLookup;
+    if (!l) return null;
+    return l[`${(name || '').trim().toLowerCase()}:::${(artist || '').trim().toLowerCase()}`] || null;
+}
+
+const DAILY_CHALLENGES = [
+    {
+        id: 'count', icon: 'fa-headphones', title: 'Maratón ligero',
+        desc: 'Escucha 15 canciones hoy', target: 15,
+        evaluate: (plays) => plays.length
+    },
+    {
+        id: 'variety', icon: 'fa-users', title: 'Variedad total',
+        desc: 'Escucha 4 artistas distintos hoy', target: 4,
+        evaluate: (plays) => new Set(plays.map(p => normalizeKey(p.artist))).size
+    },
+    {
+        id: 'morning', icon: 'fa-sun', title: 'Arranque sonoro',
+        desc: 'Escucha 5 canciones antes del mediodía', target: 5,
+        evaluate: (plays) => plays.filter(p => p.date.getHours() < 12).length
+    },
+    {
+        id: 'comeback', icon: 'fa-rotate-left', title: 'Reencuentro',
+        desc: 'Escucha un artista que no oías hace más de 1 año', target: 1,
+        evaluate: (plays, db, known) => {
+            const found = new Set();
+            plays.forEach(p => {
+                const k = normalizeKey(p.artist);
+                if (known.has(k)) return;
+                const a = dbArtistLookup(db, p.artist);
+                if (a?.last && (Date.now() - new Date(a.last).getTime()) > 365 * 86400000) found.add(k);
+            });
+            return found.size;
+        }
+    },
+    {
+        id: 'throwback', icon: 'fa-clock-rotate-left', title: 'Máquina del tiempo',
+        desc: 'Escucha 3 canciones que descubriste entre 2019 y 2021', target: 3,
+        evaluate: (plays, db) => plays.filter(p => {
+            const t = dbTrackLookup(db, p.name, p.artist);
+            return t?.first && new Date(t.first).getFullYear() <= 2021;
+        }).length
+    },
+    {
+        id: 'discover', icon: 'fa-compass', title: 'Explorador',
+        desc: 'Escucha un artista que nunca habías escuchado', target: 1,
+        evaluate: (plays, db, known) => {
+            const found = new Set();
+            plays.forEach(p => {
+                const k = normalizeKey(p.artist);
+                if (!k || known.has(k)) return;
+                if (!dbArtistLookup(db, p.artist)) found.add(k);
+            });
+            return found.size;
+        }
+    }
+];
+
+function getTodayChallenge() {
+    const today = localDateKey();
+    const seed = today.split('-').reduce((acc, n) => acc * 31 + parseInt(n, 10), 7);
+    const offset = getProfileState().rerolls[today] || 0;
+    return DAILY_CHALLENGES[(seed + offset) % DAILY_CHALLENGES.length];
+}
+
+async function getTodayPlays(db) {
+    const todayKey = localDateKey();
+    const startToday = new Date();
+    startToday.setHours(0, 0, 0, 0);
+    const { user, key } = getLastFmCredentials();
+    const hasSource = !!(user && key);
+
+    if (todayPlaysCache.day !== todayKey) todayPlaysCache = { day: todayKey, at: 0, plays: [] };
+
+    if (hasSource) {
+        await fetchLastFmDelta();
+        if (Date.now() - todayPlaysCache.at > 90000) {
+            try {
+                const startUTS = Math.floor(startToday.getTime() / 1000);
+                const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(user)}&from=${startUTS}&api_key=${encodeURIComponent(key)}&limit=200&format=json`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const raw = data?.recenttracks?.track || [];
+                    const list = Array.isArray(raw) ? raw : [raw];
+                    todayPlaysCache = {
+                        day: todayKey,
+                        at: Date.now(),
+                        plays: list.filter(t => t?.date?.uts).map(t => ({
+                            name: t.name,
+                            artist: lastFmArtistName(t),
+                            album: t.album?.['#text'] || '',
+                            date: new Date(parseInt(t.date.uts, 10) * 1000)
+                        }))
+                    };
+                }
+            } catch (e) {
+                console.warn('No se pudieron leer las escuchas de hoy:', e);
+            }
+        }
+    }
+
+    const knownBefore = new Set();
+    (lastFmRecentDelta || []).forEach(t => {
+        if (t?.date?.uts && parseInt(t.date.uts, 10) * 1000 < startToday.getTime()) {
+            knownBefore.add(normalizeKey(lastFmArtistName(t)));
+        }
+    });
+    (db?.recent || []).forEach(r => {
+        if (r?.ts && new Date(r.ts).getTime() < startToday.getTime()) knownBefore.add(normalizeKey(r.artist));
+    });
+
+    return { plays: todayPlaysCache.plays, knownBefore, hasSource };
+}
+
+async function evaluateDailyChallenge(db) {
+    const ch = getTodayChallenge();
+    const { plays, knownBefore, hasSource } = await getTodayPlays(db);
+    const raw = ch.evaluate(plays, db, knownBefore);
+    const progress = Math.min(ch.target, raw);
+    return { ch, progress, done: progress >= ch.target, hasSource, playsToday: plays.length };
+}
+
+function rerollDailyChallenge() {
+    const st = getProfileState();
+    const today = localDateKey();
+    if (st.rerolls[today] || st.completed[today]) return;
+    st.rerolls[today] = 1;
+    saveProfileState();
+    refreshEngagement();
+}
+
+// ---------- Nivel y XP ----------
+function computeLevelInfo(db) {
+    const st = getProfileState();
+    const artists = Object.values(db?.artistsLookup || {});
+    const streams = db?.summary?.validStreams || artists.reduce((a, x) => a + (x.plays || 0), 0);
+
+    const xpPlays = Math.floor(streams / 20);
+    const xpMilestones = artists.reduce((a, x) => a + Math.floor((x.plays || 0) / 100), 0) * 10;
+    const xpChallenges = Object.keys(st.completed).length * 40;
+    const xpDays = st.visitDays.length * 5;
+    const xp = xpPlays + xpMilestones + xpChallenges + xpDays;
+
+    const level = Math.max(1, Math.floor((1 + Math.sqrt(1 + 4 * xp / 75)) / 2));
+    const floorXp = 75 * level * (level - 1);
+    const nextXp = 75 * (level + 1) * level;
+    const pct = Math.min(100, Math.round(((xp - floorXp) / (nextXp - floorXp)) * 100));
+    const rank = [...LEVEL_RANKS].reverse().find(r => level >= r.min) || LEVEL_RANKS[0];
+
+    return {
+        xp, level, rank, floorXp, nextXp, pct,
+        breakdown: { xpPlays, xpMilestones, xpChallenges, xpDays }
+    };
+}
+
+function showEngagementToast(icon, title, text) {
+    const el = document.createElement('div');
+    el.className = 'engagement-toast';
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2100;max-width:92vw;min-width:260px;padding:12px 16px;border-radius:14px;background:rgba(20,20,28,0.96);border:1px solid rgba(168,85,247,0.45);box-shadow:0 10px 30px rgba(0,0,0,0.5);color:#fff;display:flex;align-items:center;gap:12px;';
+    el.innerHTML = `
+        <span style="font-size:1.6rem;">${icon}</span>
+        <div><div class="fw-bold" style="font-size:0.88rem;">${title}</div><div class="text-secondary" style="font-size:0.76rem;">${text}</div></div>
+    `;
+    document.body.appendChild(el);
+    setTimeout(() => {
+        el.style.transition = 'opacity 0.4s ease';
+        el.style.opacity = '0';
+        setTimeout(() => el.remove(), 450);
+    }, 4600);
+}
+
+function engagementConfetti() {
+    if (typeof confetti === 'function') {
+        confetti({ particleCount: 80, spread: 75, origin: { y: 0.7 } });
+    }
+}
+
+async function initEngagement(db) {
+    if (!db || engagementInitialized) return;
+    engagementInitialized = true;
+    getProfileState();
+    registerVisitToday();
+    await pullProfileFromCloud();
+    engagementTimer = setInterval(refreshEngagement, 120000);
+    await refreshEngagement();
+}
+
+async function refreshEngagement() {
+    if (engagementRefreshing) return;
+    engagementRefreshing = true;
+    try {
+        const db = await getActiveDatabase();
+        if (!db) return;
+
+        const st = getProfileState();
+        const today = localDateKey();
+        const challenge = await evaluateDailyChallenge(db);
+        const alreadyDone = !!st.completed[today];
+
+        if (challenge.done && !alreadyDone) {
+            st.completed[today] = challenge.ch.id;
+            saveProfileState();
+            showEngagementToast('🏅', '¡Reto del día completado!', `${challenge.ch.title}: +40 XP`);
+            engagementConfetti();
+        }
+        challenge.done = challenge.done || !!st.completed[today];
+
+        const streak = getStreakInfo();
+        const level = computeLevelInfo(db);
+
+        if (st.lastLevel && level.level > st.lastLevel) {
+            setTimeout(() => {
+                showEngagementToast(level.rank.icon, `¡Subiste al nivel ${level.level}!`, `Ahora eres ${level.rank.name}`);
+                engagementConfetti();
+            }, challenge.done && !alreadyDone ? 1800 : 0);
+        }
+        if (level.level !== st.lastLevel) {
+            st.lastLevel = level.level;
+            saveProfileState();
+        }
+
+        lastEngagementInfo = { challenge, streak, level };
+        renderEngagementStrip(lastEngagementInfo);
+        renderEngagementPill(lastEngagementInfo);
+
+        const modalEl = document.getElementById('progressModal');
+        if (modalEl && modalEl.classList.contains('show')) renderProgressModal(lastEngagementInfo);
+    } catch (e) {
+        console.warn('Error actualizando engagement:', e);
+    } finally {
+        engagementRefreshing = false;
+    }
+}
+
+function renderEngagementPill({ streak, level }) {
+    const pill = document.getElementById('btn-open-progress-nav');
+    if (!pill) return;
+    pill.classList.remove('d-none');
+    pill.innerHTML = `<span>🔥 ${streak.current}</span><span class="text-secondary">·</span><span>Nv ${level.level}</span>`;
+    pill.title = `Racha de ${streak.current} día(s) · Nivel ${level.level} ${level.rank.name}`;
+}
+
+function renderEngagementStrip({ challenge, streak, level }) {
+    const strip = document.getElementById('engagement-strip');
+    if (!strip) return;
+    strip.classList.remove('d-none');
+
+    const { ch, progress, done, hasSource } = challenge;
+    const pct = Math.round((progress / ch.target) * 100);
+    const status = done
+        ? '<span class="text-success fw-semibold"><i class="fa-solid fa-circle-check me-1"></i>¡Completado!</span>'
+        : (hasSource ? `${progress} / ${ch.target}` : 'Conecta Last.fm para jugar');
+
+    strip.innerHTML = `
+        <div onclick="openProgressModal()" class="d-flex align-items-center gap-3 flex-wrap p-2 px-3 rounded-3" style="cursor:pointer;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                <span style="font-size:1.5rem;line-height:1;">${level.rank.icon}</span>
+                <div style="width:112px;">
+                    <div class="fw-bold text-white" style="font-size:0.76rem;">Nv ${level.level} · ${level.rank.name}</div>
+                    <div class="progress" style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;">
+                        <div class="progress-bar" style="width:${level.pct}%;background:linear-gradient(90deg,#a855f7,#ec4899);"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex-grow-1" style="min-width:170px;">
+                <div class="d-flex align-items-center justify-content-between gap-2" style="font-size:0.74rem;">
+                    <span class="text-white text-truncate"><i class="fa-solid ${ch.icon} text-warning me-1"></i><strong>${ch.title}:</strong> <span class="text-secondary">${ch.desc}</span></span>
+                    <span class="text-secondary flex-shrink-0" style="font-size:0.7rem;">${status}</span>
+                </div>
+                <div class="progress mt-1" style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;">
+                    <div class="progress-bar ${done ? 'bg-success' : ''}" style="width:${pct}%;${done ? '' : 'background:linear-gradient(90deg,#f59e0b,#eab308);'}"></div>
+                </div>
+            </div>
+            <div class="flex-shrink-0 text-center" style="line-height:1.1;">
+                <div class="fw-bold text-white" style="font-size:1rem;">🔥 ${streak.current}</div>
+                <div class="text-secondary" style="font-size:0.62rem;">días de racha</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderStreakCalendar(daySet) {
+    const WEEKS = 15;
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const start = new Date(today);
+    start.setDate(start.getDate() - today.getDay() - (WEEKS - 1) * 7);
+
+    let cells = '';
+    for (let i = 0; i < WEEKS * 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        const key = localDateKey(d);
+        const isFuture = d > today;
+        const active = daySet.has(key);
+        const isToday = key === localDateKey(today);
+        const bg = isFuture ? 'transparent' : (active ? '#a855f7' : 'rgba(255,255,255,0.07)');
+        const outline = isToday ? 'outline:1.5px solid #fbbf24;' : '';
+        cells += `<div title="${key}${active ? ' · activo' : ''}" style="width:14px;height:14px;border-radius:3px;background:${bg};${outline}"></div>`;
+    }
+    return `<div style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,14px);gap:3px;overflow-x:auto;padding-bottom:4px;">${cells}</div>`;
+}
+
+function renderProgressModal({ challenge, streak, level }) {
+    const body = document.getElementById('progress-modal-body');
+    if (!body) return;
+
+    const st = getProfileState();
+    const today = localDateKey();
+    const { ch, progress, done, hasSource } = challenge;
+    const pct = Math.round((progress / ch.target) * 100);
+    const completedCount = Object.keys(st.completed).length;
+    const canReroll = !done && !st.rerolls[today];
+    const b = level.breakdown;
+
+    const medals = STREAK_MEDALS.map(n => {
+        const got = streak.best >= n;
+        return `<span class="badge rounded-pill px-2.5 py-1" style="background:${got ? 'rgba(234,179,8,0.15)' : 'rgba(255,255,255,0.04)'};border:1px solid ${got ? 'rgba(234,179,8,0.45)' : 'rgba(255,255,255,0.1)'};color:${got ? '#fbbf24' : '#8b8b99'};font-size:0.72rem;">${got ? '🏅' : '🔒'} ${n} días</span>`;
+    }).join(' ');
+
+    body.innerHTML = `
+        <!-- Nivel -->
+        <div class="p-3 rounded-3 mb-3" style="background:linear-gradient(135deg,rgba(168,85,247,0.14),rgba(236,72,153,0.08));border:1px solid rgba(168,85,247,0.3);">
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <span style="font-size:2.2rem;line-height:1;">${level.rank.icon}</span>
+                <div class="flex-grow-1">
+                    <div class="fw-bold text-white" style="font-size:1.05rem;">Nivel ${level.level} · ${level.rank.name}</div>
+                    <div class="text-secondary" style="font-size:0.74rem;">${formatNumber(level.xp)} XP en total</div>
+                </div>
+            </div>
+            <div class="progress" style="height:8px;background:rgba(255,255,255,0.08);border-radius:4px;">
+                <div class="progress-bar" style="width:${level.pct}%;background:linear-gradient(90deg,#a855f7,#ec4899);"></div>
+            </div>
+            <div class="d-flex justify-content-between text-secondary mt-1" style="font-size:0.68rem;">
+                <span>Nv ${level.level}</span>
+                <span>Faltan ${formatNumber(level.nextXp - level.xp)} XP para Nv ${level.level + 1}</span>
+            </div>
+            <div class="row g-1 mt-2" style="font-size:0.68rem;">
+                <div class="col-6"><span class="text-secondary">Reproducciones</span> <strong class="text-white float-end">+${formatNumber(b.xpPlays)}</strong></div>
+                <div class="col-6"><span class="text-secondary">Hitos +100</span> <strong class="text-white float-end">+${formatNumber(b.xpMilestones)}</strong></div>
+                <div class="col-6"><span class="text-secondary">Retos (${completedCount})</span> <strong class="text-white float-end">+${formatNumber(b.xpChallenges)}</strong></div>
+                <div class="col-6"><span class="text-secondary">Días activos</span> <strong class="text-white float-end">+${formatNumber(b.xpDays)}</strong></div>
+            </div>
+        </div>
+
+        <!-- Reto del día -->
+        <div class="p-3 rounded-3 mb-3" style="background:rgba(234,179,8,0.07);border:1px solid rgba(234,179,8,0.28);">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+                <span class="fw-bold text-white" style="font-size:0.84rem;"><i class="fa-solid ${ch.icon} text-warning me-1.5"></i>Reto del día: ${ch.title}</span>
+                <span class="badge" style="background:rgba(234,179,8,0.15);color:#fbbf24;border:1px solid rgba(234,179,8,0.35);">+40 XP</span>
+            </div>
+            <div class="text-secondary mb-2" style="font-size:0.78rem;">${ch.desc}</div>
+            <div class="progress" style="height:8px;background:rgba(255,255,255,0.08);border-radius:4px;">
+                <div class="progress-bar ${done ? 'bg-success' : ''}" style="width:${pct}%;${done ? '' : 'background:linear-gradient(90deg,#f59e0b,#eab308);'}"></div>
+            </div>
+            <div class="d-flex align-items-center justify-content-between mt-2" style="font-size:0.74rem;">
+                <span class="${done ? 'text-success fw-semibold' : 'text-secondary'}">${done ? '✓ ¡Completado hoy!' : (hasSource ? `Progreso: ${progress} / ${ch.target}` : 'Conecta Last.fm para registrar tus escuchas del día')}</span>
+                ${canReroll ? '<button type="button" class="btn btn-sm btn-outline-secondary text-white rounded-pill py-0 px-2" style="font-size:0.7rem;" onclick="rerollDailyChallenge()"><i class="fa-solid fa-shuffle me-1"></i>Cambiar reto</button>' : ''}
+            </div>
+        </div>
+
+        <!-- Racha -->
+        <div class="p-3 rounded-3" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="fw-bold text-white" style="font-size:0.84rem;"><span style="font-size:1.1rem;">🔥</span> Racha: ${streak.current} día${streak.current === 1 ? '' : 's'}</span>
+                <span class="text-secondary" style="font-size:0.72rem;">Mejor racha: <strong class="text-white">${streak.best}</strong></span>
+            </div>
+            ${renderStreakCalendar(streak.days)}
+            <div class="d-flex flex-wrap gap-1.5 mt-2">${medals}</div>
+        </div>
+    `;
+}
+
+async function openProgressModal() {
+    const modalEl = document.getElementById('progressModal');
+    if (!modalEl) return;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+    if (!lastEngagementInfo) {
+        const body = document.getElementById('progress-modal-body');
+        if (body) body.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm me-2"></span>Cargando tu progreso...</div>';
+        const db = await getActiveDatabase();
+        await initEngagement(db);
+        await refreshEngagement();
+    } else {
+        renderProgressModal(lastEngagementInfo);
+        refreshEngagement();
+    }
+}
+
 // Exponer funciones interactivas globalmente
+window.openProgressModal = openProgressModal;
+window.rerollDailyChallenge = rerollDailyChallenge;
 window.selectCapsuleYear = selectCapsuleYear;
 window.handleTriviaAnswer = handleTriviaAnswer;
 window.advanceTriviaQuestion = advanceTriviaQuestion;
