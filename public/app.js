@@ -291,6 +291,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function setupEventListeners() {
+    // Navegación Desktop Tabs
+    document.querySelectorAll('.desktop-nav-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const tab = e.currentTarget.getAttribute('data-tab');
+            if (tab === 'curator') {
+                openPlaylistCuratorModal();
+            } else if (tab === 'profile') {
+                openProgressModal();
+            } else {
+                switchAppView(tab);
+            }
+        });
+    });
+
     if (btnLogin) {
         btnLogin.addEventListener('click', () => {
             localStorage.removeItem('spoti_logged_out');
@@ -1060,6 +1074,11 @@ function showLogin() {
     loginView.classList.remove('d-none');
     dashboardView.classList.add('d-none');
     navActions.classList.add('d-none');
+
+    const bottomNav = document.getElementById('bottom-nav-bar');
+    if (bottomNav) bottomNav.classList.add('d-none');
+    document.body.classList.remove('with-bottom-nav');
+
     if (btnInstallFab) btnInstallFab.classList.add('d-none');
 
     if (currentlyPlayingTimer) {
@@ -1072,6 +1091,11 @@ async function showDashboard() {
     loginView.classList.add('d-none');
     dashboardView.classList.remove('d-none');
     navActions.classList.remove('d-none');
+
+    // Mostrar Bottom Navigation Bar y añadir padding inferior al body
+    const bottomNav = document.getElementById('bottom-nav-bar');
+    if (bottomNav) bottomNav.classList.remove('d-none');
+    document.body.classList.add('with-bottom-nav');
 
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
     if (!isStandalone && btnInstallFab) {
@@ -1092,19 +1116,26 @@ async function showDashboard() {
 
     updateStatStrip();
 
+    // Iniciar con la vista de Inicio por defecto (portada)
+    switchAppView('home');
+
     if (currentSource === 'unified') {
         loadUnifiedDatabase().then(() => {
             fetchLastFmDelta().then(() => {
                 updateStatStrip();
+                refreshHomeView();
+                // Pre-cargar stats en segundo plano para que al tocar 'Tops' ya estén listas
                 loadStats();
             });
         });
     } else if (currentSource === 'spotify') {
         loadSpotifyDatabase().then(() => {
             updateStatStrip();
+            refreshHomeView();
             loadStats();
         });
     } else {
+        refreshHomeView();
         loadStats();
     }
 }
@@ -6217,6 +6248,216 @@ async function openProgressModal() {
     } else {
         renderProgressModal(lastEngagementInfo);
         refreshEngagement();
+    }
+}
+
+
+// ----------------------------------------------------
+// SISTEMA DE NAVEGACIÓN POR VISTAS (HOME / TOPS / HUB / PERFIL)
+// ----------------------------------------------------
+let currentActiveView = 'home';
+
+function switchAppView(viewName) {
+    if (!viewName) viewName = 'home';
+    currentActiveView = viewName;
+
+    // 1. Alternar secciones visibles
+    const sections = {
+        home: document.getElementById('section-home'),
+        catalog: document.getElementById('section-catalog'),
+        hub: document.getElementById('section-hub'),
+        curator: document.getElementById('section-curator'),
+        profile: document.getElementById('section-profile')
+    };
+
+    Object.keys(sections).forEach(key => {
+        const el = sections[key];
+        if (!el) return;
+        if (key === viewName) {
+            el.classList.remove('d-none');
+        } else {
+            el.classList.add('d-none');
+        }
+    });
+
+    // 2. Sincronizar estilos activos en Bottom Navigation Bar
+    document.querySelectorAll('.bottom-nav-item').forEach(btn => {
+        const tab = btn.getAttribute('data-tab');
+        if (tab === viewName) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // 3. Sincronizar estilos activos en Desktop Top Tabs
+    document.querySelectorAll('.desktop-nav-btn').forEach(btn => {
+        const tab = btn.getAttribute('data-tab');
+        if (tab === viewName) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // 4. Acciones específicas por vista
+    if (viewName === 'home') {
+        refreshHomeView();
+    } else if (viewName === 'catalog') {
+        if (!currentLoadedItems || currentLoadedItems.length === 0) {
+            loadStats();
+        }
+    } else if (viewName === 'profile') {
+        renderProfileSection();
+    }
+
+    // Scroll suave hacia el inicio
+    window.scrollTo({ top: 0, behavior: 'instant' });
+}
+window.switchAppView = switchAppView;
+
+async function refreshHomeView() {
+    // 1. Saludo según hora del día y usuario
+    const greetingEl = document.getElementById('home-greeting');
+    if (greetingEl) {
+        const hour = new Date().getHours();
+        let greeting = '¡Hola de nuevo!';
+        if (hour >= 5 && hour < 12) greeting = 'Buenos días';
+        else if (hour >= 12 && hour < 19) greeting = 'Buenas tardes';
+        else greeting = 'Buenas noches';
+
+        const name = (userProfileData && userProfileData.display_name) ? userProfileData.display_name.split(' ')[0] : 'Rodrigo';
+        greetingEl.innerHTML = `${greeting}, <span style="color: var(--brand-primary);">${escapeHtml(name)}</span>`;
+    }
+
+    // 2. Racha en home
+    const st = getProfileState();
+    const streakDays = computeStreak(new Set(st.activeDays || []));
+    const streakCountEl = document.getElementById('home-streak-count');
+    if (streakCountEl) streakCountEl.textContent = streakDays.current;
+
+    // 3. Métricas clave (Streams, Horas, Artistas)
+    const db = await getActiveDatabase();
+    if (db && db.summary) {
+        const s = db.summary;
+        const homeStreams = document.getElementById('home-stat-streams');
+        const homeHours = document.getElementById('home-stat-hours');
+        const homeArtists = document.getElementById('home-stat-artists');
+
+        const deltaPlays = lastFmRecentDelta.length;
+        const totalStreams = (s.total_plays || 0) + deltaPlays;
+        const totalHours = Math.round((s.total_ms_played || 0) / (1000 * 60 * 60)) + Math.round((deltaPlays * 3.5 * 60 * 1000) / (1000 * 60 * 60));
+
+        if (homeStreams) homeStreams.textContent = formatNumber(totalStreams);
+        if (homeHours) homeHours.textContent = formatNumber(totalHours);
+        if (homeArtists) homeArtists.textContent = formatNumber(s.unique_artists || 0);
+    }
+
+    // 4. Tu #1 del mes y Mini-Top 5
+    renderHomeHighlights(db);
+}
+
+async function renderHomeHighlights(db) {
+    const spotlightEl = document.getElementById('home-spotlight-content');
+    const miniListEl = document.getElementById('home-top-mini-list');
+    if (!db) return;
+
+    // Obtenemos los top tracks del año actual o periodo reciente
+    const tracksMap = new Map();
+
+    const currentYear = new Date().getFullYear();
+    const yearKey = `year-${currentYear}`;
+    const targetData = db[yearKey] || db['overall'] || {};
+    const baseTracks = targetData.tracks || [];
+
+    baseTracks.forEach(t => {
+        const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+        tracksMap.set(k, {
+            name: t.name,
+            artist: t.artist,
+            album: t.album,
+            plays: t.plays,
+            uri: t.uri
+        });
+    });
+
+    // Agregar delta reciente
+    lastFmRecentDelta.forEach(dt => {
+        const dtName = dt.name;
+        const dtArtist = dt.artist ? (dt.artist['#text'] || dt.artist.name || '') : '';
+        const dtAlbum = dt.album ? (dt.album['#text'] || dt.album.name || '') : '';
+        const k = `${normalizeKey(dtName)}:::${normalizeKey(dtArtist)}`;
+        if (tracksMap.has(k)) {
+            tracksMap.get(k).plays += 1;
+        } else {
+            tracksMap.set(k, { name: dtName, artist: dtArtist, album: dtAlbum, plays: 1, uri: null });
+        }
+    });
+
+    const sorted = Array.from(tracksMap.values()).sort((a, b) => b.plays - a.plays);
+
+    if (sorted.length === 0) {
+        if (spotlightEl) spotlightEl.innerHTML = '<span class="text-secondary small">Aún no hay reproducciones este mes.</span>';
+        if (miniListEl) miniListEl.innerHTML = '<span class="text-secondary small">Sin canciones recientes.</span>';
+        return;
+    }
+
+    // El #1 destacado
+    const top1 = sorted[0];
+    const top1Cover = (db.cover_lookup && db.cover_lookup[`${normalizeKey(top1.name)}:::${normalizeKey(top1.artist)}`]) || FALLBACK_ART_SVG;
+
+    if (spotlightEl) {
+        spotlightEl.innerHTML = `
+            <img src="${top1Cover}" class="rounded-3 shadow-sm border border-secondary border-opacity-10" style="width: 58px; height: 58px; object-fit: cover;" alt="Cover" onerror="safeImgError(this)">
+            <div class="overflow-hidden flex-grow-1">
+                <div class="fw-bold text-white text-truncate" style="font-size: 0.92rem;">${escapeHtml(top1.name)}</div>
+                <div class="text-secondary text-truncate" style="font-size: 0.78rem;">${escapeHtml(top1.artist)}</div>
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    <span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; font-size: 0.68rem; border: 1px solid rgba(168,85,247,0.3);">
+                        🔥 ${formatNumber(top1.plays)} streams
+                    </span>
+                </div>
+            </div>
+        `;
+    }
+
+    // Mini Top 5
+    if (miniListEl) {
+        const top5 = sorted.slice(0, 5);
+        miniListEl.innerHTML = top5.map((t, idx) => {
+            const cover = (db.cover_lookup && db.cover_lookup[`${normalizeKey(t.name)}:::${normalizeKey(t.artist)}`]) || FALLBACK_ART_SVG;
+            return `
+                <div class="d-flex align-items-center justify-content-between p-2 rounded-2" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); cursor: pointer;" onclick="switchAppView('catalog')">
+                    <div class="d-flex align-items-center gap-2.5 overflow-hidden">
+                        <span class="fw-bold text-secondary text-center" style="width: 18px; font-size: 0.78rem;">#${idx + 1}</span>
+                        <img src="${cover}" class="rounded" style="width: 36px; height: 36px; object-fit: cover;" alt="Cover" onerror="safeImgError(this)">
+                        <div class="overflow-hidden">
+                            <div class="fw-semibold text-white text-truncate" style="font-size: 0.80rem;">${escapeHtml(t.name)}</div>
+                            <div class="text-secondary text-truncate" style="font-size: 0.70rem;">${escapeHtml(t.artist)}</div>
+                        </div>
+                    </div>
+                    <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0" style="font-size: 0.68rem;">${formatNumber(t.plays)} plays</span>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+function renderProfileSection() {
+    const container = document.getElementById('profile-section-content');
+    if (!container) return;
+    if (lastEngagementInfo) {
+        renderProgressModal(lastEngagementInfo);
+        const modalBody = document.getElementById('progress-modal-body');
+        if (modalBody) {
+            container.innerHTML = modalBody.innerHTML;
+        }
+    } else {
+        container.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm me-2"></span>Cargando perfil...</div>';
+        openProgressModal().then(() => {
+            const modalBody = document.getElementById('progress-modal-body');
+            if (modalBody) container.innerHTML = modalBody.innerHTML;
+        });
     }
 }
 

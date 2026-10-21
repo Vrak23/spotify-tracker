@@ -731,6 +731,143 @@
             white-space: nowrap;
             line-height: 1.4;
         }
+    
+        /* Bottom Navigation Bar & Views Navigation */
+        body.with-bottom-nav {
+            padding-bottom: 74px !important;
+        }
+
+        .bottom-nav-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030;
+            background: rgba(10, 10, 14, 0.94);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)) 4px;
+            user-select: none;
+        }
+
+        .bottom-nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            background: none;
+            border: none;
+            padding: 4px 2px;
+            color: #8b8b99;
+            text-decoration: none;
+            font-size: 0.65rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: color 0.18s ease, transform 0.15s ease;
+        }
+
+        .bottom-nav-item i {
+            font-size: 1.15rem;
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .bottom-nav-item.active {
+            color: var(--brand-primary) !important;
+        }
+
+        .bottom-nav-item.active i {
+            transform: scale(1.15);
+            color: var(--brand-primary);
+            filter: drop-shadow(0 0 8px rgba(168, 85, 247, 0.45));
+        }
+
+        .bottom-nav-item:active {
+            transform: scale(0.92);
+        }
+
+        /* Desktop Top Tabs Navigation (Complemento para PC en app-container) */
+        .desktop-nav-tabs {
+            display: none;
+            gap: 6px;
+            margin-bottom: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 8px;
+        }
+
+        @media (min-width: 768px) {
+            .desktop-nav-tabs {
+                display: flex !important;
+            }
+            .bottom-nav-bar {
+                display: none !important;
+            }
+            body.with-bottom-nav {
+                padding-bottom: 24px !important;
+            }
+        }
+
+        .desktop-nav-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: #94a3b8;
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .desktop-nav-btn:hover {
+            color: #ffffff;
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        .desktop-nav-btn.active {
+            color: #ffffff !important;
+            background: rgba(168, 85, 247, 0.22) !important;
+            border-color: rgba(168, 85, 247, 0.5) !important;
+        }
+
+        /* Estilos Tarjetas del Hub de Inicio */
+        .home-card {
+            background: var(--bg-surface);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .home-card:hover {
+            border-color: rgba(255, 255, 255, 0.16);
+        }
+
+        .home-quick-pill {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 10px 12px;
+            color: #ffffff;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            width: 100%;
+        }
+
+        .home-quick-pill:hover {
+            background: rgba(168, 85, 247, 0.12);
+            border-color: rgba(168, 85, 247, 0.35);
+            transform: translateY(-1px);
+        }
+
     </style>
 </head>
 <body>
@@ -803,136 +940,439 @@
                 <button id="btn-apply-update" class="btn btn-sm btn-info py-0 px-2 fw-semibold" style="font-size: 0.74rem;">Actualizar ahora</button>
             </div>
 
-            <!-- Currently Playing Bar -->
-            <div id="currently-playing-container" class="mb-2"></div>
-
-            <!-- Progreso: Nivel, Reto del Día y Racha -->
-            <div id="engagement-strip" class="d-none mb-2"></div>
-
-            <!-- Sleek Minimalist Stat Strip -->
-            <div id="stat-strip" class="d-flex align-items-center justify-content-center gap-2 py-1 px-2 mb-2 rounded-pill border border-secondary border-opacity-10 overflow-auto" style="background-color: rgba(255, 255, 255, 0.02); font-size: 0.72rem; scrollbar-width: none;">
-                <span class="text-secondary flex-shrink-0"><strong id="strip-playcount" class="text-white">63.1K</strong> streams</span>
-                <span class="text-muted opacity-50">•</span>
-                <span class="text-secondary flex-shrink-0" id="strip-hours-wrapper"><strong id="strip-hours" class="text-white">3,192</strong> h</span>
-                <span class="text-muted opacity-50" id="strip-hours-dot">•</span>
-                <span class="text-secondary flex-shrink-0"><strong id="strip-artists" class="text-white">1,654</strong> artistas</span>
-                <span class="text-muted opacity-50">•</span>
-                <span class="text-secondary flex-shrink-0"><strong id="strip-albums" class="text-white">3,465</strong> álbumes</span>
+            <!-- Navegación por Pestañas Principales en Desktop (>=768px) -->
+            <div class="desktop-nav-tabs">
+                <button class="desktop-nav-btn active" data-tab="home">
+                    <i class="fa-solid fa-house"></i>
+                    <span>Inicio</span>
+                </button>
+                <button class="desktop-nav-btn" data-tab="catalog">
+                    <i class="fa-solid fa-chart-simple"></i>
+                    <span>Tops & Catálogo</span>
+                </button>
+                <button class="desktop-nav-btn" data-tab="hub">
+                    <i class="fa-solid fa-gamepad text-primary"></i>
+                    <span>Experiencias & Juegos</span>
+                </button>
+                <button class="desktop-nav-btn" data-tab="curator">
+                    <i class="fa-solid fa-wand-magic-sparkles text-info"></i>
+                    <span>Playlists Semestrales</span>
+                </button>
+                <button class="desktop-nav-btn" data-tab="profile">
+                    <i class="fa-solid fa-user-astronaut text-warning"></i>
+                    <span>Mi Progreso</span>
+                </button>
             </div>
 
-            <!-- Primary Content Tabs (Canciones, Artistas, Álbumes, Recientes) -->
-            <div class="segmented-tabs mb-2" id="content-type-tabs">
-                <button class="segmented-tab active" data-type="tracks"><i class="fa-solid fa-music me-1"></i> Canciones</button>
-                <button class="segmented-tab" data-type="artists"><i class="fa-solid fa-user-group me-1"></i> Artistas</button>
-                <button class="segmented-tab" data-type="albums"><i class="fa-solid fa-compact-disc me-1"></i> Álbumes</button>
-                <button class="segmented-tab" data-type="recent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</button>
-            </div>
-
-            <!-- Buscador en tiempo real (Limpio y directo, sin diseño detrás) -->
-            <div class="position-relative mb-2">
-                <i class="fa-solid fa-magnifying-glass position-absolute text-muted" style="left: 12px; top: 50%; transform: translateY(-50%); font-size: 0.74rem;"></i>
-                <input type="text" id="filter-search-input" class="search-input" placeholder="Buscar canciones, artistas o álbumes en este listado..." autocomplete="off">
-            </div>
-
-            <!-- Toolbar con Desplegables -->
-            <div class="filter-toolbar p-2 mb-2 rounded-3">
-                <div class="row g-2 align-items-center">
-                    <!-- Desplegable 1: Fuente de Datos -->
-                    <div class="col-6 col-sm-3">
-                        <label class="filter-label"><i class="fa-solid fa-database me-1 text-muted"></i> Datos</label>
-                        <select id="select-data-source" class="form-select form-select-sm filter-select">
-                            <option value="unified" selected>✨ Unificado</option>
-                            <option value="spotify">Spotify</option>
-                            <option value="lastfm">Last.fm</option>
-                        </select>
+            <!-- ============================================== -->
+            <!-- VISTA 1: INICIO (HOME HUB - Limpio, Portada)    -->
+            <!-- ============================================== -->
+            <div id="section-home" class="dashboard-section">
+                <!-- Saludo personalizado dinámico -->
+                <div class="d-flex align-items-center justify-content-between mb-3 pt-1">
+                    <div>
+                        <div id="home-greeting" class="fw-bold text-white fs-5" style="letter-spacing: -0.3px;">¡Hola de nuevo!</div>
+                        <small class="text-secondary" style="font-size: 0.76rem;">Aquí tienes el pulso de tu música y tus metas de hoy</small>
                     </div>
-
-                    <!-- Desplegable 2: Periodo / Año -->
-                    <div class="col-6 col-sm-3">
-                        <label class="filter-label"><i class="fa-regular fa-calendar-days me-1 text-muted"></i> Periodo</label>
-                        <select id="select-time-period" class="form-select form-select-sm filter-select">
-                            <option value="overall" selected>✨ Histórico Total</option>
-                            <option value="curator">🪄 Curador de Playlists Semestrales...</option>
-                            <option value="era-spotify">🟢 Era Spotify (2019 - Ago 2025)</option>
-                            <option value="era-lastfm">🟣 Nueva Era (Ago 2025 - Hoy)</option>
-                            <option value="custom">📅 Elegir Fechas (Rango libre)...</option>
-                            <option value="year-2026">Año 2026</option>
-                            <option value="year-2025">Año 2025</option>
-                            <option value="year-2024">Año 2024</option>
-                            <option value="year-2023">Año 2023</option>
-                            <option value="year-2022">Año 2022</option>
-                            <option value="year-2021">Año 2021</option>
-                            <option value="year-2020">Año 2020</option>
-                            <option value="year-2019">Año 2019</option>
-                        </select>
-                    </div>
-
-                    <!-- Desplegable 3: Mes -->
-                    <div class="col-6 col-sm-3" id="col-select-month">
-                        <label class="filter-label"><i class="fa-regular fa-calendar me-1 text-muted"></i> Mes</label>
-                        <select id="select-month" class="form-select form-select-sm filter-select" disabled>
-                            <option value="all" selected>Todo el año</option>
-                        </select>
-                    </div>
-
-                    <!-- Desplegable 4: Cantidad / Top -->
-                    <div class="col-6 col-sm-3">
-                        <label class="filter-label"><i class="fa-solid fa-list-ol me-1 text-muted"></i> Mostrar</label>
-                        <select id="select-limit" class="form-select form-select-sm filter-select">
-                            <option value="20">Top 20</option>
-                            <option value="50" selected>Top 50</option>
-                            <option value="100">Top 100</option>
-                        </select>
+                    <div id="home-streak-pill" class="badge rounded-pill px-2.5 py-1.5 d-flex align-items-center gap-1.5" style="background: rgba(234, 179, 8, 0.12); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.74rem; cursor: pointer;" onclick="openProgressModal()">
+                        <span>🔥</span> <strong id="home-streak-count">0</strong> días
                     </div>
                 </div>
 
-                <!-- Selector de Fechas Exactas Personalizadas -->
-                <div id="custom-date-picker-container" class="d-none mt-3 pt-3 border-top border-secondary border-opacity-15">
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
-                        <div class="d-flex align-items-center gap-3 flex-wrap">
-                            <!-- Bloque Desde -->
-                            <div class="d-flex align-items-center gap-2">
-                                <label for="input-date-from" class="text-secondary fw-semibold small mb-0 d-flex align-items-center gap-1.5" style="font-size: 0.78rem;">
-                                    <i class="fa-solid fa-calendar-day text-primary"></i>
-                                    <span>Desde:</span>
-                                </label>
-                                <input type="date" id="input-date-from" class="form-control form-control-sm custom-date-input text-white" style="width: 142px;" min="2019-05-01" max="2026-12-31" value="2025-08-01">
-                            </div>
+                <!-- Currently Playing Bar flotante -->
+                <div id="currently-playing-container" class="mb-2.5"></div>
 
-                            <!-- Botón intercambiar posición en el medio -->
-                            <button type="button" id="btn-swap-dates" class="btn-swap-dates" title="Intercambiar fecha final a inicio y reiniciar selector de la derecha" aria-label="Intercambiar fechas">
-                                <i class="fa-solid fa-arrow-right-arrow-left" style="font-size: 0.74rem;"></i>
-                            </button>
+                <!-- Franja de Reto del Día / Nivel / Racha -->
+                <div id="engagement-strip" class="d-none mb-3"></div>
 
-                            <!-- Bloque Hasta -->
-                            <div class="d-flex align-items-center gap-2">
-                                <label for="input-date-to" class="text-secondary fw-semibold small mb-0 d-flex align-items-center gap-1.5" style="font-size: 0.78rem;">
-                                    <i class="fa-solid fa-calendar-check text-info"></i>
-                                    <span>Hasta:</span>
-                                </label>
-                                <input type="date" id="input-date-to" class="form-control form-control-sm custom-date-input text-white" style="width: 142px;" min="2019-05-01" max="2026-12-31" value="2026-10-18">
-                            </div>
+                <!-- Banner Anticipado de Wrapped 2026 -->
+                <div id="home-wrapped-banner" class="p-3 mb-3 rounded-3 border d-flex align-items-center justify-content-between gap-3" style="background: linear-gradient(135deg, rgba(168,85,247,0.14) 0%, rgba(236,72,153,0.12) 100%); border-color: rgba(168,85,247,0.3) !important;">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; background: rgba(168,85,247,0.2); color: #c084fc; font-size: 1.25rem;">
+                            🎁
                         </div>
+                        <div>
+                            <div class="fw-bold text-white" style="font-size: 0.88rem;">Spotify Wrapped 2026</div>
+                            <small class="text-secondary d-block" style="font-size: 0.74rem;">Tu resumen musical anual estará disponible el <strong class="text-white">5 de diciembre</strong></small>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-light rounded-pill px-2.5 py-1 text-nowrap" style="font-size: 0.72rem; border-color: rgba(255,255,255,0.2);" onclick="showToast('El Wrapped interactivo 2026 se abrirá el 5 de diciembre.')">
+                        Ver detalles
+                    </button>
+                </div>
 
-                        <div class="d-flex align-items-center gap-2">
-                            <button id="btn-apply-custom-dates" class="btn btn-sm btn-brand rounded-pill px-3 py-1.5 fw-semibold text-nowrap d-flex align-items-center gap-1.5" style="font-size: 0.78rem;">
-                                <i class="fa-solid fa-sliders"></i>
-                                <span>Filtrar Fechas</span>
-                            </button>
+                <!-- Resumen de Métricas Clave (Stats Strips) -->
+                <div class="row g-2 mb-3">
+                    <div class="col-4">
+                        <div class="home-card p-2.5 text-center">
+                            <div class="text-secondary" style="font-size: 0.68rem; text-transform: uppercase; font-weight: 600;">Streams</div>
+                            <div id="home-stat-streams" class="fw-bold text-white fs-6 mt-0.5">...</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="home-card p-2.5 text-center">
+                            <div class="text-secondary" style="font-size: 0.68rem; text-transform: uppercase; font-weight: 600;">Horas</div>
+                            <div id="home-stat-hours" class="fw-bold text-white fs-6 mt-0.5">...</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="home-card p-2.5 text-center">
+                            <div class="text-secondary" style="font-size: 0.68rem; text-transform: uppercase; font-weight: 600;">Artistas</div>
+                            <div id="home-stat-artists" class="fw-bold text-white fs-6 mt-0.5">...</div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Loader -->
-            <div id="loader" class="text-center py-5 d-none">
-                <div class="spinner-border text-primary" style="color: var(--brand-primary) !important;" role="status">
-                    <span class="visually-hidden">Cargando...</span>
+                <!-- Tu Número 1 Actual del Mes -->
+                <div id="home-top-spotlight" class="home-card p-3 mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-secondary" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="fa-solid fa-crown text-warning me-1"></i> Tu #1 de este mes
+                        </span>
+                        <button class="btn btn-sm btn-link text-primary p-0 text-decoration-none fw-semibold" style="font-size: 0.74rem;" onclick="switchAppView('catalog')">
+                            Ver catálogo completo →
+                        </button>
+                    </div>
+                    <div id="home-spotlight-content" class="d-flex align-items-center gap-3">
+                        <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+                        <span class="text-secondary" style="font-size: 0.78rem;">Cargando tu canción favorita...</span>
+                    </div>
+                </div>
+
+                <!-- Atajos Rápidos a Experiencias -->
+                <div class="mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-secondary" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="fa-solid fa-wand-magic-sparkles text-primary me-1"></i> Experiencias para ti
+                        </span>
+                        <button class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" style="font-size: 0.74rem;" onclick="switchAppView('hub')">
+                            Ver todas →
+                        </button>
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="home-quick-pill" onclick="openTriviaModal()">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="fa-solid fa-brain text-primary"></i>
+                                    <strong style="font-size: 0.80rem;">Trivia Musical</strong>
+                                </div>
+                                <small class="text-secondary d-block" style="font-size: 0.68rem;">¿Cuánto conoces tus números?</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="home-quick-pill" onclick="openTournamentModal()">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="fa-solid fa-trophy text-danger"></i>
+                                    <strong style="font-size: 0.80rem;">Torneo</strong>
+                                </div>
+                                <small class="text-secondary d-block" style="font-size: 0.68rem;">Elimina canciones cara a cara</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="home-quick-pill" onclick="openPlaylistCuratorModal()">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-info"></i>
+                                    <strong style="font-size: 0.80rem;">Curador Semestral</strong>
+                                </div>
+                                <small class="text-secondary d-block" style="font-size: 0.68rem;">Playlists de ~18 canciones</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="home-quick-pill" onclick="openTrophiesModal()">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="fa-solid fa-award text-warning"></i>
+                                    <strong style="font-size: 0.80rem;">Hitos +100</strong>
+                                </div>
+                                <small class="text-secondary d-block" style="font-size: 0.68rem;">Artistas cerca del centenar</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mini Top 5 de Canciones -->
+                <div class="home-card p-3 mb-2">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="text-secondary" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <i class="fa-solid fa-fire text-danger me-1"></i> Top 5 Canciones de hoy
+                        </span>
+                        <button class="btn btn-sm btn-link text-primary p-0 text-decoration-none fw-semibold" style="font-size: 0.74rem;" onclick="switchAppView('catalog')">
+                            Ver todo el Top →
+                        </button>
+                    </div>
+                    <div id="home-top-mini-list" class="d-flex flex-column gap-2">
+                        <div class="text-center py-3 text-secondary" style="font-size: 0.76rem;">
+                            <span class="spinner-border spinner-border-sm me-1.5 text-secondary"></span>Cargando tus temas...
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Stats List / Grid Container -->
-            <div id="stats-list" class="stats-grid"></div>
+            <!-- ============================================== -->
+            <!-- VISTA 2: TOPS & CATÁLOGO (Buscador, Filtros)   -->
+            <!-- ============================================== -->
+            <div id="section-catalog" class="dashboard-section d-none">
+                <!-- Sleek Minimalist Stat Strip -->
+                <div id="stat-strip" class="d-flex align-items-center justify-content-center gap-2 py-1 px-2 mb-2 rounded-pill border border-secondary border-opacity-10 overflow-auto" style="background-color: rgba(255, 255, 255, 0.02); font-size: 0.72rem; scrollbar-width: none;">
+                    <span class="text-secondary flex-shrink-0"><strong id="strip-playcount" class="text-white">63.1K</strong> streams</span>
+                    <span class="text-muted opacity-50">•</span>
+                    <span class="text-secondary flex-shrink-0" id="strip-hours-wrapper"><strong id="strip-hours" class="text-white">3,192</strong> h</span>
+                    <span class="text-muted opacity-50" id="strip-hours-dot">•</span>
+                    <span class="text-secondary flex-shrink-0"><strong id="strip-artists" class="text-white">1,654</strong> artistas</span>
+                    <span class="text-muted opacity-50">•</span>
+                    <span class="text-secondary flex-shrink-0"><strong id="strip-albums" class="text-white">3,465</strong> álbumes</span>
+                </div>
+
+                <!-- Primary Content Tabs (Canciones, Artistas, Álbumes, Recientes) -->
+                <div class="segmented-tabs mb-2" id="content-type-tabs">
+                    <button class="segmented-tab active" data-type="tracks"><i class="fa-solid fa-music me-1"></i> Canciones</button>
+                    <button class="segmented-tab" data-type="artists"><i class="fa-solid fa-user-group me-1"></i> Artistas</button>
+                    <button class="segmented-tab" data-type="albums"><i class="fa-solid fa-compact-disc me-1"></i> Álbumes</button>
+                    <button class="segmented-tab" data-type="recent"><i class="fa-solid fa-clock-rotate-left me-1"></i> Recientes</button>
+                </div>
+
+                <!-- Buscador en tiempo real -->
+                <div class="position-relative mb-2">
+                    <i class="fa-solid fa-magnifying-glass position-absolute text-muted" style="left: 12px; top: 50%; transform: translateY(-50%); font-size: 0.74rem;"></i>
+                    <input type="text" id="filter-search-input" class="search-input" placeholder="Buscar canciones, artistas o álbumes en este listado..." autocomplete="off">
+                </div>
+
+                <!-- Toolbar con Desplegables -->
+                <div class="filter-toolbar p-2 mb-2 rounded-3">
+                    <div class="row g-2 align-items-center">
+                        <div class="col-6 col-sm-3">
+                            <label class="filter-label"><i class="fa-solid fa-database me-1 text-muted"></i> Datos</label>
+                            <select id="select-data-source" class="form-select form-select-sm filter-select">
+                                <option value="unified" selected>✨ Unificado</option>
+                                <option value="spotify">Spotify</option>
+                                <option value="lastfm">Last.fm</option>
+                            </select>
+                        </div>
+
+                        <div class="col-6 col-sm-3">
+                            <label class="filter-label"><i class="fa-regular fa-calendar-days me-1 text-muted"></i> Periodo</label>
+                            <select id="select-time-period" class="form-select form-select-sm filter-select">
+                                <option value="overall" selected>✨ Histórico Total</option>
+                                <option value="curator">🪄 Curador de Playlists Semestrales...</option>
+                                <option value="era-spotify">🟢 Era Spotify (2019 - Ago 2025)</option>
+                                <option value="era-lastfm">🟣 Nueva Era (Ago 2025 - Hoy)</option>
+                                <option value="custom">📅 Elegir Fechas (Rango libre)...</option>
+                                <option value="year-2026">Año 2026</option>
+                                <option value="year-2025">Año 2025</option>
+                                <option value="year-2024">Año 2024</option>
+                                <option value="year-2023">Año 2023</option>
+                                <option value="year-2022">Año 2022</option>
+                                <option value="year-2021">Año 2021</option>
+                                <option value="year-2020">Año 2020</option>
+                                <option value="year-2019">Año 2019</option>
+                            </select>
+                        </div>
+
+                        <div class="col-6 col-sm-3" id="col-select-month">
+                            <label class="filter-label"><i class="fa-regular fa-calendar me-1 text-muted"></i> Mes</label>
+                            <select id="select-month" class="form-select form-select-sm filter-select" disabled>
+                                <option value="all" selected>Todo el año</option>
+                            </select>
+                        </div>
+
+                        <div class="col-6 col-sm-3">
+                            <label class="filter-label"><i class="fa-solid fa-list-ol me-1 text-muted"></i> Mostrar</label>
+                            <select id="select-page-size" class="form-select form-select-sm filter-select">
+                                <option value="25">Top 25</option>
+                                <option value="50" selected>Top 50</option>
+                                <option value="100">Top 100</option>
+                                <option value="200">Top 200</option>
+                                <option value="all">Ver Todos</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Panel colapsable de Rango de Fechas Personalizado -->
+                    <div id="custom-date-container" class="d-none mt-2 pt-2 border-top border-secondary border-opacity-10">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <label for="input-date-from" class="form-label mb-0 filter-label d-flex align-items-center gap-1">
+                                        <i class="fa-regular fa-calendar text-info"></i>
+                                        <span>Desde:</span>
+                                    </label>
+                                    <input type="date" id="input-date-from" class="form-control form-control-sm custom-date-input text-white" style="width: 142px;" min="2019-05-01" max="2026-12-31" value="2019-05-01">
+                                </div>
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <label for="input-date-to" class="form-label mb-0 filter-label d-flex align-items-center gap-1">
+                                        <i class="fa-solid fa-calendar-check text-info"></i>
+                                        <span>Hasta:</span>
+                                    </label>
+                                    <input type="date" id="input-date-to" class="form-control form-control-sm custom-date-input text-white" style="width: 142px;" min="2019-05-01" max="2026-12-31" value="2026-10-18">
+                                </div>
+                            </div>
+
+                            <div class="d-flex align-items-center gap-2">
+                                <button id="btn-apply-custom-dates" class="btn btn-sm btn-brand rounded-pill px-3 py-1.5 fw-semibold text-nowrap d-flex align-items-center gap-1.5" style="font-size: 0.78rem;">
+                                    <i class="fa-solid fa-sliders"></i>
+                                    <span>Filtrar Fechas</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loader -->
+                <div id="loader" class="text-center py-5 d-none">
+                    <div class="spinner-border text-primary" style="color: var(--brand-primary) !important;" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+
+                <!-- Stats List / Grid Container -->
+                <div id="stats-list" class="stats-grid"></div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- VISTA 3: EXPERIENCIAS & JUEGOS HUB             -->
+            <!-- ============================================== -->
+            <div id="section-hub" class="dashboard-section d-none">
+                <div class="mb-3">
+                    <h5 class="fw-bold text-white mb-1"><i class="fa-solid fa-gamepad text-primary me-2"></i>Experiencias Musicales</h5>
+                    <p class="text-secondary mb-0" style="font-size: 0.76rem;">Descubre facetas únicas de tu biblioteca musical a través de juegos y análisis interactivos.</p>
+                </div>
+
+                <div class="row g-2.5">
+                    <div class="col-12 col-sm-6">
+                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openTriviaModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div class="rounded-3 p-2" style="background: rgba(168,85,247,0.15); color: #c084fc;">
+                                        <i class="fa-solid fa-brain fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Trivia Musical Personal</div>
+                                        <span class="badge" style="background: rgba(168,85,247,0.12); color: #c084fc; font-size: 0.65rem;">Juego Rápido</span>
+                                    </div>
+                                </div>
+                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Preguntas generadas en tiempo real a partir de tus canciones y hábitos reales.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-brand rounded-pill w-100 py-1" style="font-size: 0.76rem;">Jugar ahora</button>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6">
+                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openTournamentModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div class="rounded-3 p-2" style="background: rgba(239,68,68,0.15); color: #f87171;">
+                                        <i class="fa-solid fa-trophy fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Torneo de Canciones</div>
+                                        <span class="badge" style="background: rgba(239,68,68,0.12); color: #f87171; font-size: 0.65rem;">Bracket Knockout</span>
+                                    </div>
+                                </div>
+                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Enfrenta a tus 8, 16 o 32 canciones más escuchadas en duelos mano a mano.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger rounded-pill w-100 py-1" style="font-size: 0.76rem;">Iniciar Torneo</button>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6">
+                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openCapsuleModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div class="rounded-3 p-2" style="background: rgba(6,182,212,0.15); color: #22d3ee;">
+                                        <i class="fa-solid fa-clock-rotate-left fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Cápsula del Tiempo</div>
+                                        <span class="badge" style="background: rgba(6,182,212,0.12); color: #22d3ee; font-size: 0.65rem;">Nostalgia</span>
+                                    </div>
+                                </div>
+                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Revive exactamente qué canciones sonaban en este mismo mes en 2020, 2021, 2022, etc.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-info rounded-pill w-100 py-1" style="font-size: 0.76rem;">Abrir Cápsula</button>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6">
+                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openIcebergModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div class="rounded-3 p-2" style="background: rgba(56,189,248,0.15); color: #38bdf8;">
+                                        <i class="fa-solid fa-mountain fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Iceberg Musical</div>
+                                        <span class="badge" style="background: rgba(56,189,248,0.12); color: #38bdf8; font-size: 0.65rem;">Rarezas & Profundidad</span>
+                                    </div>
+                                </div>
+                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Desde tus artistas más comerciales hasta las joyas ocultas en las profundidades.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary rounded-pill w-100 py-1 text-white" style="font-size: 0.76rem;">Explorar Iceberg</button>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6">
+                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openErasModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div class="rounded-3 p-2" style="background: rgba(34,197,94,0.15); color: #4ade80;">
+                                        <i class="fa-solid fa-chart-line fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Carrera de Eras</div>
+                                        <span class="badge" style="background: rgba(34,197,94,0.12); color: #4ade80; font-size: 0.65rem;">Bar Chart Race Animado</span>
+                                    </div>
+                                </div>
+                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Observa cómo fue variando tu artista #1 mes a mes a lo largo de los años.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-success rounded-pill w-100 py-1" style="font-size: 0.76rem;">Ver Carrera</button>
+                        </div>
+                    </div>
+
+                    <div class="col-12 col-sm-6">
+                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openHabitsModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <div class="rounded-3 p-2" style="background: rgba(234,179,8,0.15); color: #fbbf24;">
+                                        <i class="fa-solid fa-chart-column fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Hábitos de Escucha</div>
+                                        <span class="badge" style="background: rgba(234,179,8,0.12); color: #fbbf24; font-size: 0.65rem;">Patrones & Rutinas</span>
+                                    </div>
+                                </div>
+                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Horas pico del día y qué días de la semana reproduces más música.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-warning rounded-pill w-100 py-1" style="font-size: 0.76rem;">Ver Hábitos</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- VISTA 4: CURADOR SEMESTRAL VISTA RÁPIDA         -->
+            <!-- ============================================== -->
+            <div id="section-curator" class="dashboard-section d-none">
+                <div class="home-card p-4 text-center">
+                    <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 56px; height: 56px; background: rgba(168,85,247,0.16); color: #c084fc; font-size: 1.6rem;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <h5 class="fw-bold text-white mb-2">Curador de Playlists Semestrales</h5>
+                    <p class="text-secondary mx-auto mb-3" style="max-width: 480px; font-size: 0.78rem;">
+                        Crea una playlist representativa de ~18 temas equilibrados para los periodos de Enero a Mayo o Junio a Noviembre, con selección guiada y sustitutos.
+                    </p>
+                    <button class="btn btn-brand rounded-pill px-4 py-2 fw-semibold" style="font-size: 0.84rem;" onclick="openPlaylistCuratorModal()">
+                        <i class="fa-solid fa-play me-1.5"></i> Abrir Curador Asistido
+                    </button>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- VISTA 5: MI PROGRESO / PERFIL                  -->
+            <!-- ============================================== -->
+            <div id="section-profile" class="dashboard-section d-none">
+                <div id="profile-section-content" class="pb-2">
+                    <!-- Se inyectará dinámicamente el progreso idéntico al modal -->
+                </div>
+            </div>
 
         </div>
 
@@ -1851,6 +2291,31 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=39"></script>
+    <script src="/app.js?v=40"></script>
+
+    <!-- Barra de Navegación Inferior Móvil (Bottom Navigation Bar) -->
+    <nav id="bottom-nav-bar" class="bottom-nav-bar d-none">
+        <button class="bottom-nav-item active" data-tab="home" onclick="switchAppView('home')">
+            <i class="fa-solid fa-house"></i>
+            <span>Inicio</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="catalog" onclick="switchAppView('catalog')">
+            <i class="fa-solid fa-chart-simple"></i>
+            <span>Tops</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="hub" onclick="switchAppView('hub')">
+            <i class="fa-solid fa-gamepad"></i>
+            <span>Juegos</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="curator" onclick="openPlaylistCuratorModal()">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Curador</span>
+        </button>
+        <button class="bottom-nav-item" data-tab="profile" onclick="openProgressModal()">
+            <i class="fa-solid fa-user-astronaut"></i>
+            <span>Perfil</span>
+        </button>
+    </nav>
+
 </body>
 </html>
