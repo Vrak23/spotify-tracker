@@ -975,7 +975,7 @@
                         <small class="text-secondary" style="font-size: 0.76rem;">Aquí tienes el pulso de tu música y tus metas de hoy</small>
                     </div>
                     <div id="home-streak-pill" class="badge rounded-pill px-2.5 py-1.5 d-flex align-items-center gap-1.5" style="background: rgba(234, 179, 8, 0.12); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.74rem; cursor: pointer;" onclick="openProgressModal()">
-                        <span>🔥</span> <strong id="home-streak-count">0</strong> días
+                        <i class="fa-solid fa-fire me-1 text-warning"></i><strong id="home-streak-count">0</strong> días
                     </div>
                 </div>
 
@@ -985,21 +985,7 @@
                 <!-- Franja de Reto del Día / Nivel / Racha -->
                 <div id="engagement-strip" class="d-none mb-3"></div>
 
-                <!-- Banner Anticipado de Wrapped 2026 -->
-                <div id="home-wrapped-banner" class="p-3 mb-3 rounded-3 border d-flex align-items-center justify-content-between gap-3" style="background: linear-gradient(135deg, rgba(168,85,247,0.14) 0%, rgba(236,72,153,0.12) 100%); border-color: rgba(168,85,247,0.3) !important;">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; background: rgba(168,85,247,0.2); color: #c084fc; font-size: 1.25rem;">
-                            🎁
-                        </div>
-                        <div>
-                            <div class="fw-bold text-white" style="font-size: 0.88rem;">Spotify Wrapped 2026</div>
-                            <small class="text-secondary d-block" style="font-size: 0.74rem;">Tu resumen musical anual estará disponible el <strong class="text-white">5 de diciembre</strong></small>
-                        </div>
-                    </div>
-                    <button class="btn btn-sm btn-outline-light rounded-pill px-2.5 py-1 text-nowrap" style="font-size: 0.72rem; border-color: rgba(255,255,255,0.2);" onclick="showToast('El Wrapped interactivo 2026 se abrirá el 5 de diciembre.')">
-                        Ver detalles
-                    </button>
-                </div>
+                
 
                 <!-- Resumen de Métricas Clave (Stats Strips) -->
                 <div class="row g-2 mb-3">
@@ -1142,7 +1128,7 @@
                         <div class="col-6 col-sm-3">
                             <label class="filter-label"><i class="fa-solid fa-database me-1 text-muted"></i> Datos</label>
                             <select id="select-data-source" class="form-select form-select-sm filter-select">
-                                <option value="unified" selected>✨ Unificado</option>
+                                <option value="unified" selected>Unificado</option>
                                 <option value="spotify">Spotify</option>
                                 <option value="lastfm">Last.fm</option>
                             </select>
@@ -1151,11 +1137,11 @@
                         <div class="col-6 col-sm-3">
                             <label class="filter-label"><i class="fa-regular fa-calendar-days me-1 text-muted"></i> Periodo</label>
                             <select id="select-time-period" class="form-select form-select-sm filter-select">
-                                <option value="overall" selected>✨ Histórico Total</option>
-                                <option value="curator">🪄 Curador de Playlists Semestrales...</option>
-                                <option value="era-spotify">🟢 Era Spotify (2019 - Ago 2025)</option>
-                                <option value="era-lastfm">🟣 Nueva Era (Ago 2025 - Hoy)</option>
-                                <option value="custom">📅 Elegir Fechas (Rango libre)...</option>
+                                <option value="overall" selected>Histórico Total</option>
+                                <option value="curator">Curador Semestral...</option>
+                                <option value="era-spotify">Era Spotify (2019 - Ago 2025)</option>
+                                <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
+                                <option value="custom">Rango de Fechas Personalizado...</option>
                                 <option value="year-2026">Año 2026</option>
                                 <option value="year-2025">Año 2025</option>
                                 <option value="year-2024">Año 2024</option>
@@ -1246,7 +1232,7 @@
                                     </div>
                                     <div>
                                         <div class="fw-bold text-white" style="font-size: 0.90rem;">Trivia Musical Personal</div>
-                                        <span class="badge" style="background: rgba(168,85,247,0.12); color: #c084fc; font-size: 0.65rem;">Juego Rápido</span>
+                                        
                                     </div>
                                 </div>
                                 <p class="text-secondary mb-3" style="font-size: 0.74rem;">Preguntas generadas en tiempo real a partir de tus canciones y hábitos reales.</p>
@@ -1264,7 +1250,7 @@
                                     </div>
                                     <div>
                                         <div class="fw-bold text-white" style="font-size: 0.90rem;">Torneo de Canciones</div>
-                                        <span class="badge" style="background: rgba(239,68,68,0.12); color: #f87171; font-size: 0.65rem;">Bracket Knockout</span>
+                                        
                                     </div>
                                 </div>
                                 <p class="text-secondary mb-3" style="font-size: 0.74rem;">Enfrenta a tus 8, 16 o 32 canciones más escuchadas en duelos mano a mano.</p>
@@ -1282,7 +1268,7 @@
                                     </div>
                                     <div>
                                         <div class="fw-bold text-white" style="font-size: 0.90rem;">Cápsula del Tiempo</div>
-                                        <span class="badge" style="background: rgba(6,182,212,0.12); color: #22d3ee; font-size: 0.65rem;">Nostalgia</span>
+                                        
                                     </div>
                                 </div>
                                 <p class="text-secondary mb-3" style="font-size: 0.74rem;">Revive exactamente qué canciones sonaban en este mismo mes en 2020, 2021, 2022, etc.</p>
@@ -1300,7 +1286,7 @@
                                     </div>
                                     <div>
                                         <div class="fw-bold text-white" style="font-size: 0.90rem;">Iceberg Musical</div>
-                                        <span class="badge" style="background: rgba(56,189,248,0.12); color: #38bdf8; font-size: 0.65rem;">Rarezas & Profundidad</span>
+                                        
                                     </div>
                                 </div>
                                 <p class="text-secondary mb-3" style="font-size: 0.74rem;">Desde tus artistas más comerciales hasta las joyas ocultas en las profundidades.</p>
@@ -1318,7 +1304,7 @@
                                     </div>
                                     <div>
                                         <div class="fw-bold text-white" style="font-size: 0.90rem;">Carrera de Eras</div>
-                                        <span class="badge" style="background: rgba(34,197,94,0.12); color: #4ade80; font-size: 0.65rem;">Bar Chart Race Animado</span>
+                                        
                                     </div>
                                 </div>
                                 <p class="text-secondary mb-3" style="font-size: 0.74rem;">Observa cómo fue variando tu artista #1 mes a mes a lo largo de los años.</p>
@@ -1336,7 +1322,7 @@
                                     </div>
                                     <div>
                                         <div class="fw-bold text-white" style="font-size: 0.90rem;">Hábitos de Escucha</div>
-                                        <span class="badge" style="background: rgba(234,179,8,0.12); color: #fbbf24; font-size: 0.65rem;">Patrones & Rutinas</span>
+                                        
                                     </div>
                                 </div>
                                 <p class="text-secondary mb-3" style="font-size: 0.74rem;">Horas pico del día y qué días de la semana reproduces más música.</p>
@@ -1401,7 +1387,7 @@
                             </div>
                         </div>
                         <div id="drawer-streak-badge" class="badge rounded-pill px-2.5 py-1" style="background: rgba(234,179,8,0.12); color: #fbbf24; border: 1px solid rgba(234,179,8,0.3); font-size: 0.72rem;">
-                            🔥 <span id="drawer-streak-num">0</span> días
+                            <i class="fa-solid fa-fire me-1 text-warning"></i><span id="drawer-streak-num">0</span> días
                         </div>
                     </div>
                     <!-- Mini barra de nivel en la tarjeta del usuario -->
@@ -2291,7 +2277,7 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=42"></script>
+    <script src="/app.js?v=43"></script>
 
     <!-- Barra de Navegación Inferior Móvil (Bottom Navigation Bar) -->
     <nav id="bottom-nav-bar" class="bottom-nav-bar d-none">

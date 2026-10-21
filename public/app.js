@@ -706,11 +706,11 @@ async function switchDataSource(source) {
 
         if (selectTimePeriod) {
             selectTimePeriod.innerHTML = `
-                <option value="overall" selected>✨ Histórico Total</option>
+                <option value="overall" selected>Histórico Total</option>
                 <option value="curator">🪄 Curador de Playlists Semestrales...</option>
-                <option value="era-spotify">🟢 Era Spotify (2019 - Ago 2025)</option>
-                <option value="era-lastfm">🟣 Nueva Era (Ago 2025 - Hoy)</option>
-                <option value="custom">📅 Elegir Fechas (Rango libre)...</option>
+                <option value="era-spotify">Era Spotify (2019 - Ago 2025)</option>
+                <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
+                <option value="custom">Rango de Fechas Personalizado...</option>
                 <option value="year-2026">Año 2026</option>
                 <option value="year-2025">Año 2025</option>
                 <option value="year-2024">Año 2024</option>
@@ -3295,14 +3295,14 @@ function updateVersusResults(db) {
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <div class="text-start" style="width: 45%;">
                     <div class="fw-bold text-truncate text-white" style="font-size: 0.88rem;">
-                        ${winner === 'A' ? '👑 ' : ''}${artA.name}
+                        ${winner === 'A' ? '<i class="fa-solid fa-crown text-warning me-1"></i>' : ''}${artA.name}
                     </div>
                     <small class="text-secondary">${pctA}% cuota</small>
                 </div>
                 <div class="text-center text-muted fw-bold" style="font-size: 0.76rem;">VS</div>
                 <div class="text-end" style="width: 45%;">
                     <div class="fw-bold text-truncate text-white" style="font-size: 0.88rem;">
-                        ${winner === 'B' ? '👑 ' : ''}${artB.name}
+                        ${winner === 'B' ? '<i class="fa-solid fa-crown text-warning me-1"></i>' : ''}${artB.name}
                     </div>
                     <small class="text-secondary">${pctB}% cuota</small>
                 </div>
@@ -5197,13 +5197,13 @@ function renderTriviaResults() {
     const total = triviaCurrentQuestions.length;
 
     if (triviaScore === total) {
-        title = '👑 Dios de tu Propio Universo Musical';
+        title = 'Dios de tu Propio Universo Musical';
         icon = 'fa-trophy text-warning';
     } else if (triviaScore >= 3) {
-        title = '🔥 Melómano Experto';
+        title = 'Melómano Experto';
         icon = 'fa-fire text-primary';
     } else {
-        title = '🎧 Oyente Casual en Evolución';
+        title = 'Oyente Casual en Evolución';
         icon = 'fa-headphones text-info';
     }
 
@@ -5420,7 +5420,7 @@ function renderTournamentWinner(track) {
     body.innerHTML = `
         <div class="text-center py-3">
             <div class="badge rounded-pill px-3 py-1 mb-2 text-uppercase fw-bold text-warning" style="background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.72rem;">
-                👑 Gran Campeona del Torneo
+                <i class="fa-solid fa-crown text-warning me-1"></i> Gran Campeona del Torneo
             </div>
 
             <div class="my-3">
@@ -5695,12 +5695,12 @@ const PROFILE_KEY = 'spoti_profile_v1';
 const PROFILE_CLOUD_URL = `${SUPABASE_PROJECT_URL}/rest/v1/spotitracker_profile`;
 const STREAK_MEDALS = [7, 30, 100];
 const LEVEL_RANKS = [
-    { min: 1, name: 'Novato', icon: '🌱' },
-    { min: 5, name: 'Oyente', icon: '🎧' },
-    { min: 10, name: 'Melómano', icon: '🎸' },
-    { min: 15, name: 'Experto', icon: '🔥' },
-    { min: 25, name: 'Leyenda', icon: '👑' },
-    { min: 40, name: 'Inmortal', icon: '🌌' }
+    { min: 1, name: 'Novato', icon: '<i class="fa-solid fa-seedling text-success"></i>' },
+    { min: 5, name: 'Oyente', icon: '<i class="fa-solid fa-headphones text-info"></i>' },
+    { min: 10, name: 'Melómano', icon: '<i class="fa-solid fa-guitar text-primary"></i>' },
+    { min: 15, name: 'Experto', icon: '<i class="fa-solid fa-fire text-warning"></i>' },
+    { min: 25, name: 'Leyenda', icon: '<i class="fa-solid fa-crown text-warning"></i>' },
+    { min: 40, name: 'Inmortal', icon: '<i class="fa-solid fa-star text-light"></i>' }
 ];
 
 let profileState = null;
@@ -6063,7 +6063,7 @@ async function refreshEngagement() {
         if (challenge.done && !alreadyDone) {
             st.completed[today] = challenge.ch.id;
             saveProfileState();
-            showEngagementToast('🏅', '¡Reto del día completado!', `${challenge.ch.title}: +40 XP`);
+            showEngagementToast('<i class="fa-solid fa-award text-warning"></i>', '¡Reto del día completado!', `${challenge.ch.title}: +40 XP`);
             engagementConfetti();
         }
         challenge.done = challenge.done || !!st.completed[today];
@@ -6099,7 +6099,7 @@ function renderEngagementPill({ streak, level }) {
     const pill = document.getElementById('btn-open-progress-nav');
     if (pill) {
         pill.classList.remove('d-none');
-        pill.innerHTML = `<span>🔥 ${streak.current}</span><span class="text-secondary">·</span><span>Nv ${level.level}</span>`;
+        pill.innerHTML = `<span><i class="fa-solid fa-fire me-1 text-warning"></i>${streak.current}</span><span class="text-secondary">·</span><span>Nv ${level.level}</span>`;
         pill.title = `Racha de ${streak.current} día(s) · Nivel ${level.level} ${level.rank.name}`;
     }
 
@@ -6154,7 +6154,7 @@ function renderEngagementStrip({ challenge, streak, level }) {
             <!-- Racha y link -->
             <div class="d-flex align-items-center gap-2 flex-shrink-0">
                 <div class="text-center" style="line-height:1.1;">
-                    <div class="fw-bold text-white" style="font-size:0.85rem;">🔥 ${streak.current}</div>
+                    <div class="fw-bold text-white" style="font-size:0.85rem;"><i class="fa-solid fa-fire me-1 text-warning"></i>${streak.current}</div>
                     <div class="text-secondary" style="font-size:0.60rem;">días</div>
                 </div>
                 <i class="fa-solid fa-chevron-right text-muted opacity-50 ms-1" style="font-size:0.70rem;"></i>
@@ -6199,7 +6199,7 @@ function renderProgressModal({ challenge, streak, level }) {
 
     const medals = STREAK_MEDALS.map(n => {
         const got = streak.best >= n;
-        return `<span class="badge rounded-pill px-2.5 py-1" style="background:${got ? 'rgba(234,179,8,0.15)' : 'rgba(255,255,255,0.04)'};border:1px solid ${got ? 'rgba(234,179,8,0.45)' : 'rgba(255,255,255,0.1)'};color:${got ? '#fbbf24' : '#8b8b99'};font-size:0.72rem;">${got ? '🏅' : '🔒'} ${n} días</span>`;
+        return `<span class="badge rounded-pill px-2.5 py-1" style="background:${got ? 'rgba(234,179,8,0.15)' : 'rgba(255,255,255,0.04)'};border:1px solid ${got ? 'rgba(234,179,8,0.45)' : 'rgba(255,255,255,0.1)'};color:${got ? '#fbbf24' : '#8b8b99'};font-size:0.72rem;"><i class="fa-solid ${got ? 'fa-award text-warning' : 'fa-lock opacity-50'} me-1"></i>${n} días</span>`;
     }).join(' ');
 
     body.innerHTML = `
@@ -6246,7 +6246,7 @@ function renderProgressModal({ challenge, streak, level }) {
         <!-- Racha -->
         <div class="p-3 rounded-3" style="background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.08);">
             <div class="d-flex align-items-center justify-content-between mb-2">
-                <span class="fw-bold text-white" style="font-size:0.84rem;"><span style="font-size:1.1rem;">🔥</span> Racha: ${streak.current} día${streak.current === 1 ? '' : 's'}</span>
+                <span class="fw-bold text-white" style="font-size:0.84rem;"><i class="fa-solid fa-fire text-warning me-1"></i> Racha: ${streak.current} día${streak.current === 1 ? '' : 's'}</span>
                 <span class="text-secondary" style="font-size:0.72rem;">Mejor racha: <strong class="text-white">${streak.best}</strong></span>
             </div>
             ${renderStreakCalendar(streak.days)}
@@ -6453,7 +6453,7 @@ async function renderHomeHighlights(db) {
                     <div class="text-secondary text-truncate" style="font-size: 0.78rem;">${escapeHtml(top1.artist)}</div>
                     <div class="d-flex align-items-center gap-2 mt-1">
                         <span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; font-size: 0.68rem; border: 1px solid rgba(168,85,247,0.3);">
-                            🔥 ${formatNumber(top1.plays)} streams
+                            ${formatNumber(top1.plays)} reproducciones
                         </span>
                     </div>
                 </div>
