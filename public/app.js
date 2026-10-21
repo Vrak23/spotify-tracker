@@ -6045,10 +6045,19 @@ async function refreshEngagement() {
 
 function renderEngagementPill({ streak, level }) {
     const pill = document.getElementById('btn-open-progress-nav');
-    if (!pill) return;
-    pill.classList.remove('d-none');
-    pill.innerHTML = `<span>🔥 ${streak.current}</span><span class="text-secondary">·</span><span>Nv ${level.level}</span>`;
-    pill.title = `Racha de ${streak.current} día(s) · Nivel ${level.level} ${level.rank.name}`;
+    if (pill) {
+        pill.classList.remove('d-none');
+        pill.innerHTML = `<span>🔥 ${streak.current}</span><span class="text-secondary">·</span><span>Nv ${level.level}</span>`;
+        pill.title = `Racha de ${streak.current} día(s) · Nivel ${level.level} ${level.rank.name}`;
+    }
+
+    // Actualizar también la tarjeta de usuario en el menú drawer si existe
+    const drawerStreak = document.getElementById('drawer-streak-num');
+    if (drawerStreak) drawerStreak.textContent = streak.current;
+    const drawerLevelTitle = document.getElementById('drawer-level-title');
+    if (drawerLevelTitle) drawerLevelTitle.textContent = `Nivel ${level.level} · ${level.rank.name}`;
+    const drawerLevelBar = document.getElementById('drawer-level-progress-bar');
+    if (drawerLevelBar) drawerLevelBar.style.width = `${level.pct}%`;
 }
 
 function renderEngagementStrip({ challenge, streak, level }) {
@@ -6057,34 +6066,46 @@ function renderEngagementStrip({ challenge, streak, level }) {
     strip.classList.remove('d-none');
 
     const { ch, progress, done, hasSource } = challenge;
-    const pct = Math.round((progress / ch.target) * 100);
+    const pct = Math.min(100, Math.round((progress / ch.target) * 100));
     const status = done
         ? '<span class="text-success fw-semibold"><i class="fa-solid fa-circle-check me-1"></i>¡Completado!</span>'
-        : (hasSource ? `${progress} / ${ch.target}` : 'Conecta Last.fm para jugar');
+        : (hasSource ? `${progress} / ${ch.target}` : 'Conecta Last.fm');
 
     strip.innerHTML = `
-        <div onclick="openProgressModal()" class="d-flex align-items-center gap-3 flex-wrap p-2 px-3 rounded-3" style="cursor:pointer;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+        <div onclick="openProgressModal()" class="d-flex align-items-center justify-content-between gap-3 px-3 py-2 rounded-3 border" style="cursor:pointer;background:linear-gradient(90deg, rgba(168,85,247,0.06), rgba(255,255,255,0.02));border-color:rgba(255,255,255,0.08) !important;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(168,85,247,0.3)'" onmouseleave="this.style.borderColor='rgba(255,255,255,0.08)'">
+            <!-- Nivel e Icono -->
             <div class="d-flex align-items-center gap-2 flex-shrink-0">
-                <span style="font-size:1.5rem;line-height:1;">${level.rank.icon}</span>
-                <div style="width:112px;">
-                    <div class="fw-bold text-white" style="font-size:0.76rem;">Nv ${level.level} · ${level.rank.name}</div>
-                    <div class="progress" style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;">
+                <span style="font-size:1.35rem;line-height:1;">${level.rank.icon}</span>
+                <div style="min-width:85px;">
+                    <div class="fw-bold text-white text-truncate" style="font-size:0.75rem;">Nv ${level.level} · ${level.rank.name}</div>
+                    <div class="progress" style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px;margin-top:2px;">
                         <div class="progress-bar" style="width:${level.pct}%;background:linear-gradient(90deg,#a855f7,#ec4899);"></div>
                     </div>
                 </div>
             </div>
-            <div class="flex-grow-1" style="min-width:170px;">
-                <div class="d-flex align-items-center justify-content-between gap-2" style="font-size:0.74rem;">
-                    <span class="text-white text-truncate"><i class="fa-solid ${ch.icon} text-warning me-1"></i><strong>${ch.title}:</strong> <span class="text-secondary">${ch.desc}</span></span>
-                    <span class="text-secondary flex-shrink-0" style="font-size:0.7rem;">${status}</span>
+
+            <!-- Reto del día compacto -->
+            <div class="flex-grow-1 overflow-hidden px-1" style="min-width:140px;">
+                <div class="d-flex align-items-center justify-content-between gap-2" style="font-size:0.72rem;">
+                    <span class="text-white text-truncate">
+                        <i class="fa-solid ${ch.icon} text-warning me-1"></i>
+                        <strong>${ch.title}:</strong>
+                        <span class="text-secondary d-none d-sm-inline ms-1">${ch.desc}</span>
+                    </span>
+                    <span class="text-secondary flex-shrink-0" style="font-size:0.68rem;">${status}</span>
                 </div>
-                <div class="progress mt-1" style="height:5px;background:rgba(255,255,255,0.08);border-radius:3px;">
+                <div class="progress mt-1" style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px;">
                     <div class="progress-bar ${done ? 'bg-success' : ''}" style="width:${pct}%;${done ? '' : 'background:linear-gradient(90deg,#f59e0b,#eab308);'}"></div>
                 </div>
             </div>
-            <div class="flex-shrink-0 text-center" style="line-height:1.1;">
-                <div class="fw-bold text-white" style="font-size:1rem;">🔥 ${streak.current}</div>
-                <div class="text-secondary" style="font-size:0.62rem;">días de racha</div>
+
+            <!-- Racha y link -->
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                <div class="text-center" style="line-height:1.1;">
+                    <div class="fw-bold text-white" style="font-size:0.85rem;">🔥 ${streak.current}</div>
+                    <div class="text-secondary" style="font-size:0.60rem;">días</div>
+                </div>
+                <i class="fa-solid fa-chevron-right text-muted opacity-50 ms-1" style="font-size:0.70rem;"></i>
             </div>
         </div>
     `;
