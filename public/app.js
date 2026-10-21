@@ -254,6 +254,8 @@ const MONTH_NAMES = [
 const MONTH_SHORT_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 function getRangeLabel(range) {
+    if (range === 'current-month') return 'Este Mes';
+    if (range === '4weeks') return 'Últimas 4 Semanas';
     if (range === 'era-spotify') return 'Era Spotify (2019 - Ago 2025)';
     if (range === 'era-lastfm') return 'Nueva Era / Streaming (Ago 2025 - Actualidad)';
     if (range && range.startsWith('dates_')) {
@@ -307,13 +309,7 @@ function setupEventListeners() {
     document.querySelectorAll('.desktop-nav-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const tab = e.currentTarget.getAttribute('data-tab');
-            if (tab === 'curator') {
-                openPlaylistCuratorModal();
-            } else if (tab === 'profile') {
-                openProgressModal();
-            } else {
-                switchAppView(tab);
-            }
+            switchAppView(tab);
         });
     });
 
@@ -482,10 +478,10 @@ function setupEventListeners() {
         menuOpenRecords.addEventListener('click', openRecordsModal);
     }
     if (menuOpenCurator) {
-        menuOpenCurator.addEventListener('click', openPlaylistCuratorModal);
+        menuOpenCurator.addEventListener('click', openPlaylistCurator);
     }
     if (btnOpenCuratorNav) {
-        btnOpenCuratorNav.addEventListener('click', openPlaylistCuratorModal);
+        btnOpenCuratorNav.addEventListener('click', openPlaylistCurator);
     }
 
     const menuOpenTrophies = document.getElementById('menu-open-trophies');
@@ -507,11 +503,11 @@ function setupEventListeners() {
 
     const menuOpenProgress = document.getElementById('menu-open-progress');
     if (menuOpenProgress) {
-        menuOpenProgress.addEventListener('click', openProgressModal);
+        menuOpenProgress.addEventListener('click', openProfileSection);
     }
     const btnOpenProgressNav = document.getElementById('btn-open-progress-nav');
     if (btnOpenProgressNav) {
-        btnOpenProgressNav.addEventListener('click', openProgressModal);
+        btnOpenProgressNav.addEventListener('click', openProfileSection);
     }
 
     const menuOpenCapsule = document.getElementById('menu-open-capsule');
@@ -681,14 +677,25 @@ async function switchDataSource(source) {
 
         if (selectTimePeriod) {
             selectTimePeriod.innerHTML = `
-                <option value="overall" selected>Histórico Total</option>
-                <option value="7day">Últimos 7 Días</option>
-                <option value="1month">Último Mes</option>
-                <option value="3month">Últimos 3 Meses</option>
-                <option value="6month">Últimos 6 Meses</option>
-                <option value="12month">Último Año</option>
-                <option value="year-2026">Año 2026</option>
-                <option value="year-2025">Año 2025</option>
+                <optgroup label="⚡ Rápido">
+                    <option value="current-month">Este mes</option>
+                    <option value="4weeks">Últimas 4 semanas</option>
+                    <option value="year-2026">Este año (2026)</option>
+                    <option value="overall" selected>Histórico Total</option>
+                </optgroup>
+                <optgroup label="⚙️ Avanzado">
+                    <option value="era-spotify">Era Spotify (2019 - Ago 2025)</option>
+                    <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
+                    <option value="year-2025">Año 2025</option>
+                    <option value="year-2024">Año 2024</option>
+                    <option value="year-2023">Año 2023</option>
+                    <option value="year-2022">Año 2022</option>
+                    <option value="year-2021">Año 2021</option>
+                    <option value="year-2020">Año 2020</option>
+                    <option value="year-2019">Año 2019</option>
+                    <option value="custom">Rango de Fechas...</option>
+                    <option value="curator">Curador Semestral...</option>
+                </optgroup>
             `;
             selectTimePeriod.value = 'overall';
         }
@@ -735,7 +742,7 @@ async function switchDataSource(source) {
 
 function handleTimePeriodChange(val) {
     if (val === 'curator') {
-        openPlaylistCuratorModal();
+        openPlaylistCurator();
         if (selectTimePeriod) selectTimePeriod.value = currentRange || 'overall';
         return;
     }
@@ -752,7 +759,19 @@ function handleTimePeriodChange(val) {
 
     if (customDatePickerContainer) customDatePickerContainer.classList.add('d-none');
 
-    if (val === 'era-spotify') {
+    if (val === 'current-month') {
+        if (selectMonth) {
+            selectMonth.disabled = true;
+            selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
+        }
+        currentRange = 'current-month';
+    } else if (val === '4weeks') {
+        if (selectMonth) {
+            selectMonth.disabled = true;
+            selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
+        }
+        currentRange = '4weeks';
+    } else if (val === 'era-spotify') {
         if (selectMonth) {
             selectMonth.disabled = true;
             selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
@@ -943,6 +962,34 @@ function updateStatStrip() {
 
     const deltaCount = (currentSource === 'unified') ? lastFmRecentDelta.length : 0;
     const deltaHours = deltaCount * (3.5 / 60);
+
+    // Periodo: Este mes
+    if (currentRange === 'current-month') {
+        const rData = getRangeTopData(activeDb, '2026-10-01', '2026-10-31');
+        if (rData) {
+            const extra = (currentSource === 'unified') ? deltaCount : 0;
+            const extraH = (currentSource === 'unified') ? deltaHours : 0;
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(rData.plays + extra);
+            if (stripHours) stripHours.textContent = Math.round(parseFloat(rData.hours) + extraH).toLocaleString();
+            if (stripArtists) stripArtists.textContent = formatNumber(rData.artists.length);
+            if (stripAlbums) stripAlbums.textContent = formatNumber(rData.albums.length);
+            return;
+        }
+    }
+
+    // Periodo: Últimas 4 semanas (28 días)
+    if (currentRange === '4weeks') {
+        const rData = getRangeTopData(activeDb, '2026-09-23', '2026-10-21');
+        if (rData) {
+            const extra = (currentSource === 'unified') ? deltaCount : 0;
+            const extraH = (currentSource === 'unified') ? deltaHours : 0;
+            if (stripPlaycount) stripPlaycount.textContent = formatNumber(rData.plays + extra);
+            if (stripHours) stripHours.textContent = Math.round(parseFloat(rData.hours) + extraH).toLocaleString();
+            if (stripArtists) stripArtists.textContent = formatNumber(rData.artists.length);
+            if (stripAlbums) stripAlbums.textContent = formatNumber(rData.albums.length);
+            return;
+        }
+    }
 
     // Periodo: Era Spotify (2019 - Ago 2025)
     if (currentRange === 'era-spotify') {
@@ -1568,10 +1615,42 @@ async function fetchLastFmGlobalStats(options = {}) {
     }
 }
 
+
+function renderSkeletons(count = 10) {
+    if (!statsList) return;
+    statsList.innerHTML = Array.from({ length: count }).map((_, i) => `
+        <div class="skeleton-card">
+            <div class="skeleton" style="width: 22px; height: 16px;"></div>
+            <div class="skeleton rounded" style="width: 36px; height: 36px; flex-shrink: 0;"></div>
+            <div class="overflow-hidden flex-grow-1 d-flex flex-column gap-1.5" style="min-width: 0;">
+                <div class="skeleton" style="width: ${60 + (i % 4) * 10}%; height: 13px;"></div>
+                <div class="skeleton" style="width: ${40 + (i % 3) * 12}%; height: 10px;"></div>
+            </div>
+            <div class="skeleton rounded-pill" style="width: 48px; height: 18px; flex-shrink: 0;"></div>
+        </div>
+    `).join('');
+}
+window.renderSkeletons = renderSkeletons;
+
+function renderErrorState(container, title, message, retryFnName) {
+    if (!container) return;
+    container.innerHTML = `
+        <div class="text-center py-5 p-4 rounded border border-danger border-opacity-25 my-3" style="background-color: var(--bg-surface); grid-column: 1 / -1;">
+            <i class="fa-solid fa-triangle-exclamation text-danger mb-3" style="font-size: 2.2rem;"></i>
+            <h5 class="fw-bold text-white mb-2">${title}</h5>
+            <p class="text-secondary small mx-auto mb-3" style="max-width: 440px;">${message}</p>
+            <button class="btn btn-sm btn-outline-danger px-4 py-2 rounded-pill fw-semibold" onclick="${retryFnName}()">
+                <i class="fa-solid fa-arrow-rotate-right me-1.5"></i> Reintentar
+            </button>
+        </div>
+    `;
+}
+window.renderErrorState = renderErrorState;
+
 async function loadStats() {
     if (filterSearchInput) filterSearchInput.value = '';
-    statsList.innerHTML = '';
-    loader.classList.remove('d-none');
+    renderSkeletons(currentLimit === 'all' ? 20 : Math.min(parseInt(currentLimit, 10) || 12, 16));
+    if (loader) loader.classList.add('d-none');
 
     // ====================================================
     // MODO HISTORIAL EXTENDIDO SPOTIFY (2019 - 2026) / UNIFICADO
@@ -1584,7 +1663,7 @@ async function loadStats() {
         loader.classList.add('d-none');
 
         if (!activeDb) {
-            statsList.innerHTML = '<div class="text-center text-danger py-5">Error al cargar la base de datos de música.</div>';
+            renderErrorState(statsList, 'Error al cargar la biblioteca', 'No se pudo leer la base de datos histórica unificada.', 'loadStats');
             return;
         }
 
@@ -1596,7 +1675,15 @@ async function loadStats() {
         let isDateRange = false;
         let dateRangeTo = '';
 
-        if (currentRange === 'era-spotify') {
+        if (currentRange === 'current-month') {
+            topData = getRangeTopData(activeDb, '2026-10-01', '2026-10-31');
+            isDateRange = true;
+            dateRangeTo = '2026-10-31';
+        } else if (currentRange === '4weeks') {
+            topData = getRangeTopData(activeDb, '2026-09-23', '2026-10-21');
+            isDateRange = true;
+            dateRangeTo = '2026-10-21';
+        } else if (currentRange === 'era-spotify') {
             topData = getRangeTopData(activeDb, '2019-05-01', '2025-08-31');
         } else if (currentRange === 'era-lastfm') {
             topData = getRangeTopData(activeDb, '2025-08-01', '2026-12-31');
@@ -1909,8 +1996,8 @@ async function loadStats() {
         }
     } catch (err) {
         console.error('Error al cargar stats:', err);
-        loader.classList.add('d-none');
-        statsList.innerHTML = '<div class="text-center text-danger py-5">Error al cargar datos desde Last.fm.</div>';
+        if (loader) loader.classList.add('d-none');
+        renderErrorState(statsList, 'Error de conexión con Last.fm', 'Hubo un inconveniente al consultar las estadísticas en tiempo real de Last.fm.', 'loadStats');
     }
 }
 
@@ -2079,8 +2166,8 @@ async function loadTimestampRangeStats(user, key, fromUTS, toUTS, emptyLabel) {
         }
     } catch (err) {
         console.error('Error al cargar stats por rango:', err);
-        loader.classList.add('d-none');
-        statsList.innerHTML = `<div class="text-center text-danger py-5">Error al consultar datos de ${emptyLabel} en Last.fm.</div>`;
+        if (loader) loader.classList.add('d-none');
+        renderErrorState(statsList, 'Error de conexión con Last.fm', `Hubo un problema al consultar datos de ${emptyLabel}.`, 'loadStats');
     }
 }
 
@@ -3945,19 +4032,14 @@ let curatorCurrentCycleInfo = {
     cycleStart: ''
 };
 
-async function openPlaylistCuratorModal() {
-    const modalEl = document.getElementById('playlistCuratorModal');
-    if (!modalEl) return;
-
+async function openPlaylistCurator() {
+    switchAppView('curator');
+}
+async function initCuratorSectionIfNeeded() {
     if (!window._curatorInitialized) {
         window._curatorInitialized = true;
         initCuratorEvents();
     }
-
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
-
-    // Default vacío: si no hay año ni mitad seleccionados, empezar totalmente limpio
     const year = curatorYear?.value || '';
     const half = curatorHalf?.value || '';
     if (!year || !half) {
@@ -3970,11 +4052,10 @@ async function openPlaylistCuratorModal() {
         curatorSelectedTracks = [];
         curatorBenchTracks = [];
         renderCuratorView();
-        return;
     }
-
-    await loadCuratorCandidates(false);
 }
+window.openPlaylistCurator = openPlaylistCurator;
+window.openPlaylistCuratorModal = openPlaylistCurator;
 
 function initCuratorEvents() {
     if (curatorBtnGenerate) {
@@ -4785,7 +4866,7 @@ async function saveToCloudDatabase(isSilent = false) {
     } catch (err) {
         console.error('Error saveToCloudDatabase:', err);
         if (!isSilent) {
-            showCloudAlert('Error de red al conectar con Supabase.', 'danger');
+            showCloudAlert('Error al conectar con Supabase. <button class="btn btn-sm btn-link text-danger p-0 ms-2 fw-bold text-decoration-underline" onclick="saveToCloudDatabase(false)"><i class="fa-solid fa-rotate-right me-1"></i>Reintentar</button>', 'danger');
         }
     } finally {
         isCloudSyncing = false;
@@ -4846,7 +4927,7 @@ async function loadFromCloudDatabase() {
         }
     } catch (err) {
         console.error('Error loadFromCloudDatabase:', err);
-        showCloudAlert('Error de red al consultar Supabase.', 'danger');
+        showCloudAlert('Error al consultar Supabase. <button class="btn btn-sm btn-link text-danger p-0 ms-2 fw-bold text-decoration-underline" onclick="loadFromCloudDatabase()"><i class="fa-solid fa-rotate-right me-1"></i>Reintentar</button>', 'danger');
     } finally {
         isCloudSyncing = false;
         setTimeout(() => updateCloudUI('active'), 1500);
@@ -6124,7 +6205,7 @@ function renderEngagementStrip({ challenge, streak, level }) {
         : (hasSource ? `${progress} / ${ch.target}` : 'Conecta Last.fm');
 
     strip.innerHTML = `
-        <div onclick="openProgressModal()" class="d-flex align-items-center justify-content-between gap-3 px-3 py-2 rounded-3 border" style="cursor:pointer;background:linear-gradient(90deg, rgba(168,85,247,0.06), rgba(255,255,255,0.02));border-color:rgba(255,255,255,0.08) !important;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(168,85,247,0.3)'" onmouseleave="this.style.borderColor='rgba(255,255,255,0.08)'">
+        <div onclick="openProfileSection()" class="d-flex align-items-center justify-content-between gap-3 px-3 py-2 rounded-3 border" style="cursor:pointer;background:linear-gradient(90deg, rgba(168,85,247,0.06), rgba(255,255,255,0.02));border-color:rgba(255,255,255,0.08) !important;transition:border-color 0.2s;" onmouseenter="this.style.borderColor='rgba(168,85,247,0.3)'" onmouseleave="this.style.borderColor='rgba(255,255,255,0.08)'">
             <!-- Nivel e Icono -->
             <div class="d-flex align-items-center gap-2 flex-shrink-0">
                 <span style="font-size:1.35rem;line-height:1;">${level.rank.icon}</span>
@@ -6186,7 +6267,7 @@ function renderStreakCalendar(daySet) {
 }
 
 function renderProgressModal({ challenge, streak, level }) {
-    const body = document.getElementById('progress-modal-body');
+    const body = document.getElementById('profile-section-content') || document.getElementById('progress-modal-body');
     if (!body) return;
 
     const st = getProfileState();
@@ -6255,22 +6336,11 @@ function renderProgressModal({ challenge, streak, level }) {
     `;
 }
 
-async function openProgressModal() {
-    const modalEl = document.getElementById('progressModal');
-    if (!modalEl) return;
-    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-
-    if (!lastEngagementInfo) {
-        const body = document.getElementById('progress-modal-body');
-        if (body) body.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm me-2"></span>Cargando tu progreso...</div>';
-        const db = await getActiveDatabase();
-        await initEngagement(db);
-        await refreshEngagement();
-    } else {
-        renderProgressModal(lastEngagementInfo);
-        refreshEngagement();
-    }
+async function openProfileSection() {
+    switchAppView('profile');
 }
+window.openProgressModal = openProfileSection;
+window.openProfileSection = openProfileSection;
 
 
 // ----------------------------------------------------
@@ -6328,6 +6398,8 @@ function switchAppView(viewName) {
         if (!currentLoadedItems || currentLoadedItems.length === 0) {
             loadStats();
         }
+    } else if (viewName === 'curator') {
+        initCuratorSectionIfNeeded();
     } else if (viewName === 'profile') {
         renderProfileSection();
     }
@@ -6501,26 +6573,22 @@ async function renderHomeHighlights(db) {
     }
 }
 
-function renderProfileSection() {
+async function renderProfileSection() {
     const container = document.getElementById('profile-section-content');
     if (!container) return;
     if (lastEngagementInfo) {
         renderProgressModal(lastEngagementInfo);
-        const modalBody = document.getElementById('progress-modal-body');
-        if (modalBody) {
-            container.innerHTML = modalBody.innerHTML;
-        }
+        refreshEngagement();
     } else {
-        container.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm me-2"></span>Cargando perfil...</div>';
-        openProgressModal().then(() => {
-            const modalBody = document.getElementById('progress-modal-body');
-            if (modalBody) container.innerHTML = modalBody.innerHTML;
-        });
+        container.innerHTML = '<div class="text-center py-4 text-secondary"><span class="spinner-border spinner-border-sm me-2 text-primary"></span>Cargando perfil y progreso...</div>';
+        const db = await getActiveDatabase();
+        if (db) await initEngagement(db);
+        await refreshEngagement();
     }
 }
 
 // Exponer funciones interactivas globalmente
-window.openProgressModal = openProgressModal;
+window.openProfileSection = openProfileSection;
 window.rerollDailyChallenge = rerollDailyChallenge;
 window.selectCapsuleYear = selectCapsuleYear;
 window.handleTriviaAnswer = handleTriviaAnswer;
@@ -6542,3 +6610,326 @@ window.saveToGoogleDrive = saveToCloudDatabase;
 window.loadFromGoogleDrive = loadFromCloudDatabase;
 window.triggerGoogleDriveAutoSync = triggerGoogleDriveAutoSync;
 
+
+
+// ====================================================
+// MEJORA 5 & 6: COMPARADOR DE PERIODOS Y EXPORTACIÓN
+// ====================================================
+
+function getPeriodStatsHelper(db, periodKey) {
+    if (!db || !db.yearlyTops) return { plays: 0, hours: 0, artists: [], label: periodKey };
+    const deltaCount = (currentSource === 'unified') ? lastFmRecentDelta.length : 0;
+    const deltaHours = deltaCount * (3.5 / 60);
+
+    if (periodKey.startsWith('month-')) {
+        const parts = periodKey.split('-');
+        const y = parts[1];
+        const m = parts[2];
+        const mData = db.yearlyTops?.[y]?.months?.[m];
+        if (!mData) return { plays: 0, hours: 0, artists: [], label: `${MONTH_NAMES[parseInt(m,10)-1]} ${y}` };
+        const extra = (y === '2026' && m === '10') ? deltaCount : 0;
+        const extraH = (y === '2026' && m === '10') ? deltaHours : 0;
+        const plays = (mData.plays || 0) + extra;
+        const hours = (parseFloat(mData.hours || 0) || (plays * 3.5 / 60)) + extraH;
+        return {
+            plays,
+            hours,
+            artists: mData.artists || [],
+            label: `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`
+        };
+    } else if (periodKey.startsWith('year-')) {
+        const y = periodKey.replace('year-', '');
+        const yData = db.yearlyTops?.[y];
+        if (!yData) return { plays: 0, hours: 0, artists: [], label: `Año ${y}` };
+        const extra = (y === '2026') ? deltaCount : 0;
+        const extraH = (y === '2026') ? deltaHours : 0;
+        const plays = (yData.plays || 0) + extra;
+        const hours = (parseFloat(yData.hours || 0) || (plays * 3.5 / 60)) + extraH;
+        return {
+            plays,
+            hours,
+            artists: yData.artists || [],
+            label: `Año ${y}`
+        };
+    }
+    return { plays: 0, hours: 0, artists: [], label: periodKey };
+}
+
+async function openPeriodComparisonModal() {
+    const modalEl = document.getElementById('comparePeriodsModal');
+    if (!modalEl) return;
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+
+    const selectA = document.getElementById('compare-period-a');
+    const selectB = document.getElementById('compare-period-b');
+
+    if (selectA && !selectA.dataset.bound) {
+        selectA.dataset.bound = 'true';
+        selectA.addEventListener('change', runPeriodComparison);
+    }
+    if (selectB && !selectB.dataset.bound) {
+        selectB.dataset.bound = 'true';
+        selectB.addEventListener('change', runPeriodComparison);
+    }
+
+    await runPeriodComparison();
+}
+window.openPeriodComparisonModal = openPeriodComparisonModal;
+
+async function runPeriodComparison() {
+    const container = document.getElementById('compare-results-container');
+    if (!container) return;
+
+    const selectA = document.getElementById('compare-period-a');
+    const selectB = document.getElementById('compare-period-b');
+    const valA = selectA?.value || 'month-2026-10';
+    const valB = selectB?.value || 'month-2026-9';
+
+    const db = await getActiveDatabase();
+    if (!db) {
+        container.innerHTML = '<div class="text-center py-4 text-danger">No se pudo cargar la base de datos para comparar.</div>';
+        return;
+    }
+
+    const dataA = getPeriodStatsHelper(db, valA);
+    const dataB = getPeriodStatsHelper(db, valB);
+
+    // Cálculos de variación %
+    const playsDiff = dataA.plays - dataB.plays;
+    const playsPct = dataB.plays > 0 ? ((playsDiff / dataB.plays) * 100).toFixed(1) : (dataA.plays > 0 ? '+100' : '0');
+    const playsPctSign = playsDiff >= 0 ? '+' : '';
+
+    const hoursDiff = dataA.hours - dataB.hours;
+    const hoursPct = dataB.hours > 0 ? ((hoursDiff / dataB.hours) * 100).toFixed(1) : (dataA.hours > 0 ? '+100' : '0');
+    const hoursPctSign = hoursDiff >= 0 ? '+' : '';
+
+    // Mapeo de ranking de artistas
+    const mapRankA = new Map();
+    dataA.artists.forEach((art, idx) => {
+        const name = art.name || art.artist || '';
+        if (name) mapRankA.set(name.toLowerCase(), { rank: idx + 1, plays: art.plays || 0, origName: name });
+    });
+
+    const mapRankB = new Map();
+    dataB.artists.forEach((art, idx) => {
+        const name = art.name || art.artist || '';
+        if (name) mapRankB.set(name.toLowerCase(), { rank: idx + 1, plays: art.plays || 0, origName: name });
+    });
+
+    // Encontrar artistas que subieron, bajaron o son nuevos
+    const movers = [];
+    mapRankA.forEach((infoA, key) => {
+        const infoB = mapRankB.get(key);
+        if (infoB) {
+            const rankDelta = infoB.rank - infoA.rank; // positivo = subió posiciones
+            movers.push({
+                name: infoA.origName,
+                rankA: infoA.rank,
+                rankB: infoB.rank,
+                rankDelta,
+                playsA: infoA.plays,
+                playsB: infoB.plays,
+                type: rankDelta > 0 ? 'up' : (rankDelta < 0 ? 'down' : 'same')
+            });
+        } else {
+            movers.push({
+                name: infoA.origName,
+                rankA: infoA.rank,
+                rankB: null,
+                rankDelta: 999,
+                playsA: infoA.plays,
+                playsB: 0,
+                type: 'new'
+            });
+        }
+    });
+
+    const artistsUp = movers.filter(m => m.type === 'up' || m.type === 'new').sort((a, b) => b.rankDelta - a.rankDelta).slice(0, 6);
+    const artistsDown = movers.filter(m => m.type === 'down').sort((a, b) => a.rankDelta - b.rankDelta).slice(0, 6);
+
+    const playsClass = playsDiff >= 0 ? 'text-success' : 'text-danger';
+    const playsBadgeBg = playsDiff >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
+    const playsBadgeColor = playsDiff >= 0 ? '#4ade80' : '#f87171';
+
+    const hoursClass = hoursDiff >= 0 ? 'text-success' : 'text-danger';
+    const hoursBadgeBg = hoursDiff >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)';
+    const hoursBadgeColor = hoursDiff >= 0 ? '#4ade80' : '#f87171';
+
+    container.innerHTML = `
+        <!-- Tarjetas de Variación Global -->
+        <div class="row g-2 mb-3">
+            <div class="col-6">
+                <div class="home-card p-3 text-center">
+                    <span class="text-secondary" style="font-size: 0.70rem; text-transform: uppercase; font-weight: 700;">Streams Reproducidos</span>
+                    <div class="d-flex align-items-baseline justify-content-center gap-1.5 mt-1">
+                        <span class="fw-bold text-white fs-5">${dataA.plays.toLocaleString()}</span>
+                        <span class="text-secondary small">vs ${dataB.plays.toLocaleString()}</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="badge rounded-pill px-2 py-1" style="background: ${playsBadgeBg}; color: ${playsBadgeColor}; font-size: 0.74rem;">
+                            <i class="fa-solid ${playsDiff >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} me-1"></i>
+                            ${playsPctSign}${playsPct}% (${playsDiff >= 0 ? '+' : ''}${playsDiff.toLocaleString()})
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="home-card p-3 text-center">
+                    <span class="text-secondary" style="font-size: 0.70rem; text-transform: uppercase; font-weight: 700;">Horas Escuchadas</span>
+                    <div class="d-flex align-items-baseline justify-content-center gap-1.5 mt-1">
+                        <span class="fw-bold text-white fs-5">${Math.round(dataA.hours).toLocaleString()} h</span>
+                        <span class="text-secondary small">vs ${Math.round(dataB.hours).toLocaleString()} h</span>
+                    </div>
+                    <div class="mt-2">
+                        <span class="badge rounded-pill px-2 py-1" style="background: ${hoursBadgeBg}; color: ${hoursBadgeColor}; font-size: 0.74rem;">
+                            <i class="fa-solid ${hoursDiff >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} me-1"></i>
+                            ${hoursPctSign}${hoursPct}% (${hoursDiff >= 0 ? '+' : ''}${hoursDiff.toFixed(1)} h)
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mapeo de Movimientos de Artistas -->
+        <div class="row g-2">
+            <!-- Artistas en Alza / Nuevos -->
+            <div class="col-12 col-md-6">
+                <div class="home-card p-2.5 h-100">
+                    <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom border-secondary border-opacity-10">
+                        <span class="fw-bold text-success" style="font-size: 0.78rem;">
+                            <i class="fa-solid fa-arrow-trend-up me-1"></i> Subieron o Entraron al Top
+                        </span>
+                        <span class="badge bg-success bg-opacity-25 text-success" style="font-size: 0.65rem;">Top Alzas</span>
+                    </div>
+                    <div class="d-flex flex-column gap-1.5">
+                        ${artistsUp.length === 0 ? '<div class="text-secondary small text-center py-2">Sin cambios notables</div>' : ''}
+                        ${artistsUp.map(art => `
+                            <div class="d-flex align-items-center justify-content-between p-1.5 rounded" style="background: rgba(255,255,255,0.02);">
+                                <div class="overflow-hidden me-2" style="min-width: 0;">
+                                    <div class="fw-semibold text-white text-truncate" style="font-size: 0.80rem;">${escapeHtml(art.name)}</div>
+                                    <small class="text-secondary" style="font-size: 0.68rem;">${art.playsA} streams en ${dataA.label}</small>
+                                </div>
+                                <span class="badge rounded-pill flex-shrink-0" style="background: rgba(34,197,94,0.15); color: #4ade80; font-size: 0.70rem;">
+                                    ${art.type === 'new' ? '<i class="fa-solid fa-sparkles me-1"></i>Nuevo' : `+${art.rankDelta} pos (#${art.rankA})`}
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Artistas que Bajaron -->
+            <div class="col-12 col-md-6">
+                <div class="home-card p-2.5 h-100">
+                    <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom border-secondary border-opacity-10">
+                        <span class="fw-bold text-danger" style="font-size: 0.78rem;">
+                            <i class="fa-solid fa-arrow-trend-down me-1"></i> Bajaron Posiciones
+                        </span>
+                        <span class="badge bg-danger bg-opacity-25 text-danger" style="font-size: 0.65rem;">Top Descensos</span>
+                    </div>
+                    <div class="d-flex flex-column gap-1.5">
+                        ${artistsDown.length === 0 ? '<div class="text-secondary small text-center py-2">Sin descensos notables</div>' : ''}
+                        ${artistsDown.map(art => `
+                            <div class="d-flex align-items-center justify-content-between p-1.5 rounded" style="background: rgba(255,255,255,0.02);">
+                                <div class="overflow-hidden me-2" style="min-width: 0;">
+                                    <div class="fw-semibold text-white text-truncate" style="font-size: 0.80rem;">${escapeHtml(art.name)}</div>
+                                    <small class="text-secondary" style="font-size: 0.68rem;">#${art.rankA} (antes #${art.rankB})</small>
+                                </div>
+                                <span class="badge rounded-pill flex-shrink-0" style="background: rgba(239,68,68,0.15); color: #f87171; font-size: 0.70rem;">
+                                    ${art.rankDelta} pos
+                                </span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+window.runPeriodComparison = runPeriodComparison;
+
+// ----------------------------------------------------
+// TAREA 6: EXPORTACIÓN DEL TOP ACTUAL A CSV Y JSON
+// ----------------------------------------------------
+function exportCurrentTop(format = 'csv') {
+    if (!currentLoadedItems || currentLoadedItems.length === 0) {
+        alert('No hay elementos cargados en el listado para exportar.');
+        return;
+    }
+
+    const typeLabel = currentType === 'tracks' ? 'canciones' : (currentType === 'artists' ? 'artistas' : (currentType === 'albums' ? 'albumes' : 'recientes'));
+    const periodLabel = getRangeLabel(currentRange).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `SpotiTracker_${typeLabel}_${periodLabel}_${timestamp}.${format}`;
+
+    if (format === 'json') {
+        const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(currentLoadedItems, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute('href', dataStr);
+        downloadAnchor.setAttribute('download', filename);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+        return;
+    }
+
+    // CSV format
+    let csvRows = [];
+    if (currentType === 'tracks') {
+        csvRows.push(['Posicion', 'Cancion', 'Artista', 'Album', 'Streams', 'URI']);
+        currentLoadedItems.forEach((t, i) => {
+            const artist = t.artist ? (t.artist.name || t.artist['#text'] || t.artist) : '';
+            const album = t.album ? (t.album['#text'] || t.album.name || t.album) : '';
+            csvRows.push([
+                i + 1,
+                `"${(t.name || '').replace(/"/g, '""')}"`,
+                `"${(artist || '').replace(/"/g, '""')}"`,
+                `"${(album || '').replace(/"/g, '""')}"`,
+                t.playcount || t.plays || 0,
+                `"${t.uri || ''}"`
+            ]);
+        });
+    } else if (currentType === 'artists') {
+        csvRows.push(['Posicion', 'Artista', 'Streams']);
+        currentLoadedItems.forEach((a, i) => {
+            csvRows.push([
+                i + 1,
+                `"${(a.name || '').replace(/"/g, '""')}"`,
+                a.playcount || a.plays || 0
+            ]);
+        });
+    } else if (currentType === 'albums') {
+        csvRows.push(['Posicion', 'Album', 'Artista', 'Streams']);
+        currentLoadedItems.forEach((alb, i) => {
+            const artist = alb.artist ? (alb.artist.name || alb.artist['#text'] || alb.artist) : '';
+            csvRows.push([
+                i + 1,
+                `"${(alb.name || '').replace(/"/g, '""')}"`,
+                `"${(artist || '').replace(/"/g, '""')}"`,
+                alb.playcount || alb.plays || 0
+            ]);
+        });
+    } else {
+        csvRows.push(['Posicion', 'Cancion', 'Artista', 'Fecha/Hora']);
+        currentLoadedItems.forEach((r, i) => {
+            const artist = r.artist ? (r.artist['#text'] || r.artist.name || r.artist) : '';
+            const dateStr = r.date ? (r.date['#text'] || new Date(r.date.uts * 1000).toLocaleString()) : '';
+            csvRows.push([
+                i + 1,
+                `"${(r.name || '').replace(/"/g, '""')}"`,
+                `"${(artist || '').replace(/"/g, '""')}"`,
+                `"${dateStr}"`
+            ]);
+        });
+    }
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvRows.map(e => e.join(',')).join('\n'));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', csvContent);
+    downloadAnchor.setAttribute('download', filename);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+}
+window.exportCurrentTop = exportCurrentTop;

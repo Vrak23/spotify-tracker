@@ -3,7 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Spotify Tracker</title>
+    <title>SpotiTracker — Tus Estadísticas Musicales Reales</title>
+    <meta name="description" content="Visualiza tus tops de canciones, artistas y horas de escucha unificando tu historial de Spotify y Last.fm en tiempo real.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://spotitracker.app/">
+    <meta property="og:title" content="SpotiTracker — Tus Estadísticas Musicales Reales">
+    <meta property="og:description" content="Visualiza tus tops de canciones, artistas y horas de escucha unificando tu historial de Spotify y Last.fm en tiempo real.">
+    <meta property="og:image" content="/logo_square_1024.png">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://spotitracker.app/">
+    <meta name="twitter:title" content="SpotiTracker — Tus Estadísticas Musicales Reales">
+    <meta name="twitter:description" content="Visualiza tus tops de canciones, artistas y horas de escucha unificando tu historial de Spotify y Last.fm en tiempo real.">
+    <meta name="twitter:image" content="/logo_square_1024.png">
 
     <!-- PWA & Mobile Meta Tags -->
     <meta name="theme-color" content="#a855f7">
@@ -868,6 +883,29 @@
             transform: translateY(-1px);
         }
 
+    
+        /* Skeleton Loading UI */
+        .skeleton {
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.04) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-pulse 1.5s infinite ease-in-out;
+            border-radius: 4px;
+        }
+        @keyframes skeleton-pulse {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skeleton-card {
+            background-color: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: 6px 10px;
+            min-height: 48px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
     </style>
 </head>
 <body>
@@ -918,9 +956,6 @@
                 <div class="d-flex align-items-center gap-2 mt-1">
                     <button id="btn-login-lastfm" class="btn btn-outline-secondary rounded-pill py-1.5 px-3" style="font-size: 0.84rem;" data-bs-toggle="modal" data-bs-target="#lastFmModal">
                         <i class="fa-brands fa-lastfm me-1.5 text-danger"></i> Conectar Last.fm
-                    </button>
-                    <button id="btn-login-demo" class="btn btn-outline-secondary rounded-pill py-1.5 px-3" style="font-size: 0.84rem;">
-                        <i class="fa-solid fa-arrow-right-to-bracket me-1.5 text-primary"></i> Entrar a la app
                     </button>
                 </div>
                 <button id="btn-install-login" class="btn btn-link text-secondary text-decoration-none mt-2" style="font-size: 0.82rem;">
@@ -974,7 +1009,7 @@
                         <div id="home-greeting" class="fw-bold text-white fs-5" style="letter-spacing: -0.3px;">¡Hola de nuevo!</div>
                         <small class="text-secondary" style="font-size: 0.76rem;">Aquí tienes el pulso de tu música y tus metas de hoy</small>
                     </div>
-                    <div id="home-streak-pill" class="badge rounded-pill px-2.5 py-1.5 d-flex align-items-center gap-1.5" style="background: rgba(234, 179, 8, 0.12); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.74rem; cursor: pointer;" onclick="openProgressModal()">
+                    <div id="home-streak-pill" class="badge rounded-pill px-2.5 py-1.5 d-flex align-items-center gap-1.5" style="background: rgba(234, 179, 8, 0.12); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.74rem; cursor: pointer;" onclick="switchAppView('profile')">
                         <i class="fa-solid fa-fire me-1 text-warning"></i><strong id="home-streak-count">0</strong> días
                     </div>
                 </div>
@@ -1055,7 +1090,7 @@
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="home-quick-pill" onclick="openPlaylistCuratorModal()">
+                            <div class="home-quick-pill" onclick="switchAppView('curator')">
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <i class="fa-solid fa-wand-magic-sparkles text-info"></i>
                                     <strong style="font-size: 0.80rem;">Curador Semestral</strong>
@@ -1137,19 +1172,25 @@
                         <div class="col-6 col-sm-3">
                             <label class="filter-label"><i class="fa-regular fa-calendar-days me-1 text-muted"></i> Periodo</label>
                             <select id="select-time-period" class="form-select form-select-sm filter-select">
-                                <option value="overall" selected>Histórico Total</option>
-                                <option value="curator">Curador Semestral...</option>
-                                <option value="era-spotify">Era Spotify (2019 - Ago 2025)</option>
-                                <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
-                                <option value="custom">Rango de Fechas Personalizado...</option>
-                                <option value="year-2026">Año 2026</option>
-                                <option value="year-2025">Año 2025</option>
-                                <option value="year-2024">Año 2024</option>
-                                <option value="year-2023">Año 2023</option>
-                                <option value="year-2022">Año 2022</option>
-                                <option value="year-2021">Año 2021</option>
-                                <option value="year-2020">Año 2020</option>
-                                <option value="year-2019">Año 2019</option>
+                                <optgroup label="⚡ Rápido">
+                                    <option value="current-month">Este mes</option>
+                                    <option value="4weeks">Últimas 4 semanas</option>
+                                    <option value="year-2026">Este año (2026)</option>
+                                    <option value="overall" selected>Histórico Total</option>
+                                </optgroup>
+                                <optgroup label="⚙️ Avanzado">
+                                    <option value="era-spotify">Era Spotify (2019 - Ago 2025)</option>
+                                    <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
+                                    <option value="year-2025">Año 2025</option>
+                                    <option value="year-2024">Año 2024</option>
+                                    <option value="year-2023">Año 2023</option>
+                                    <option value="year-2022">Año 2022</option>
+                                    <option value="year-2021">Año 2021</option>
+                                    <option value="year-2020">Año 2020</option>
+                                    <option value="year-2019">Año 2019</option>
+                                    <option value="custom">Rango de Fechas...</option>
+                                    <option value="curator">Curador Semestral...</option>
+                                </optgroup>
                             </select>
                         </div>
 
@@ -1169,6 +1210,23 @@
                                 <option value="200">Top 200</option>
                                 <option value="all">Ver Todos</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- Barra de Acciones: Comparar Periodos y Exportar -->
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2 pt-2 border-top border-secondary border-opacity-10">
+                        <button id="btn-open-compare" class="btn btn-sm btn-outline-brand rounded-pill px-2.5 py-1 fw-semibold d-inline-flex align-items-center gap-1.5" style="font-size: 0.76rem;" onclick="openPeriodComparisonModal()">
+                            <i class="fa-solid fa-code-compare text-primary"></i>
+                            <span>Comparar Periodos</span>
+                        </button>
+                        <div class="d-flex align-items-center gap-1.5">
+                            <span class="text-secondary" style="font-size: 0.72rem;"><i class="fa-solid fa-download me-1 text-muted"></i>Exportar top:</span>
+                            <button id="btn-export-csv" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 text-white" style="font-size: 0.74rem;" onclick="exportCurrentTop('csv')">
+                                <i class="fa-solid fa-file-csv text-success me-1"></i>CSV
+                            </button>
+                            <button id="btn-export-json" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 text-white" style="font-size: 0.74rem;" onclick="exportCurrentTop('json')">
+                                <i class="fa-solid fa-file-code text-info me-1"></i>JSON
+                            </button>
                         </div>
                     </div>
 
@@ -1334,29 +1392,166 @@
             </div>
 
             <!-- ============================================== -->
-            <!-- VISTA 4: CURADOR SEMESTRAL VISTA RÁPIDA         -->
+            <!-- VISTA 4: CURADOR SEMESTRAL (APARTADO COMPLETO) -->
             <!-- ============================================== -->
             <div id="section-curator" class="dashboard-section d-none">
-                <div class="home-card p-4 text-center">
-                    <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center mb-3" style="width: 56px; height: 56px; background: rgba(168,85,247,0.16); color: #c084fc; font-size: 1.6rem;">
-                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <div class="home-card p-3 p-md-4 mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom border-secondary border-opacity-10">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <div class="rounded-3 p-2 d-flex align-items-center justify-content-center" style="background: rgba(168,85,247,0.15); color: #c084fc;">
+                                <i class="fa-solid fa-wand-magic-sparkles fs-4"></i>
+                            </div>
+                            <div>
+                                <h5 class="fw-bold mb-0 text-white" style="font-size: 1.05rem;">Curador de Playlists Semestrales</h5>
+                                <small class="text-secondary d-block" style="font-size: 0.74rem;">Selección inteligente (~18 temas): 1 Ene — 20 May / 1 Jun — 20 Nov</small>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 text-white" style="font-size: 0.74rem;" onclick="switchAppView('home')">
+                            <i class="fa-solid fa-arrow-left me-1"></i> Volver al Inicio
+                        </button>
                     </div>
-                    <h5 class="fw-bold text-white mb-2">Curador de Playlists Semestrales</h5>
-                    <p class="text-secondary mx-auto mb-3" style="max-width: 480px; font-size: 0.78rem;">
-                        Crea una playlist representativa de ~18 temas equilibrados para los periodos de Enero a Mayo o Junio a Noviembre, con selección guiada y sustitutos.
-                    </p>
-                    <button class="btn btn-brand rounded-pill px-4 py-2 fw-semibold" style="font-size: 0.84rem;" onclick="openPlaylistCuratorModal()">
-                        <i class="fa-solid fa-play me-1.5"></i> Abrir Curador Asistido
-                    </button>
+
+                    <!-- Barra de Controles y Configuración -->
+                    <div class="p-3 mb-3 rounded-3 border border-secondary border-opacity-15" style="background: rgba(255, 255, 255, 0.02);">
+                        <div class="row g-2 align-items-end">
+                            <!-- Selector de Año -->
+                            <div class="col-6 col-sm-3">
+                                <label class="filter-label"><i class="fa-regular fa-calendar me-1 text-primary"></i> Año</label>
+                                <select id="curator-year" class="form-select form-select-sm filter-select">
+                                    <option value="" selected disabled>Elegir año...</option>
+                                    <option value="2026">2026</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2024">2024</option>
+                                    <option value="2023">2023</option>
+                                    <option value="2022">2022</option>
+                                    <option value="2021">2021</option>
+                                    <option value="2020">2020</option>
+                                    <option value="2019">2019</option>
+                                </select>
+                            </div>
+
+                            <!-- Selector de Mitad del Año -->
+                            <div class="col-6 col-sm-5">
+                                <label class="filter-label"><i class="fa-solid fa-timeline me-1 text-info"></i> Periodo</label>
+                                <select id="curator-half" class="form-select form-select-sm filter-select">
+                                    <option value="" selected disabled>Elegir periodo...</option>
+                                    <option value="1">1ra Mitad (1 Ene — 20 May)</option>
+                                    <option value="2">2da Mitad (1 Jun — 20 Nov)</option>
+                                </select>
+                            </div>
+
+                            <!-- Cantidad Objetivo -->
+                            <div class="col-6 col-sm-4">
+                                <label class="filter-label"><i class="fa-solid fa-list-ol me-1 text-warning"></i> Objetivo</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" id="curator-target-count" class="form-control form-control-sm text-center bg-dark text-white border-secondary border-opacity-30" value="18" min="5" max="40" style="font-size: 0.8rem; height: 32px;">
+                                    <span class="input-group-text bg-dark text-secondary border-secondary border-opacity-30 small" style="font-size: 0.75rem;">temas</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filtro de canciones de años pasados -->
+                        <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top border-secondary border-opacity-10 flex-wrap gap-2">
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="curator-exclude-past" checked>
+                                <label class="form-check-label text-secondary small" for="curator-exclude-past" style="font-size: 0.74rem;">
+                                    Excluir canciones de años anteriores <span class="text-muted">(priorizar música de esta etapa)</span>
+                                </label>
+                            </div>
+                            <button id="curator-btn-generate" class="btn btn-sm btn-brand rounded-pill px-3 py-1 fw-semibold text-nowrap" style="font-size: 0.76rem;">
+                                <i class="fa-solid fa-rotate me-1"></i> Generar Selección
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Resumen del Ciclo y Contador -->
+                    <div class="d-flex align-items-center justify-content-between mb-3 px-1 flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span id="curator-period-badge" class="curator-badge-period">
+                                <i class="fa-regular fa-clock me-1 text-primary"></i> Sin periodo seleccionado
+                            </span>
+                            <span id="curator-counter-badge" class="curator-badge-counter">
+                                0 / 18 seleccionadas
+                            </span>
+                            <button type="button" id="curator-btn-cloud" class="curator-badge-period border-0" style="cursor: pointer; background: rgba(16, 185, 129, 0.12) !important; color: #10b981 !important; border: 1px solid rgba(16, 185, 129, 0.28) !important;" title="Base de Datos en la Nube (Supabase)">
+                                <i class="fa-solid fa-cloud me-1 text-success"></i> <span id="curator-cloud-label">Nube Activa</span>
+                            </button>
+                        </div>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" id="curator-tab-selected" class="btn btn-sm btn-dark border border-secondary border-opacity-30 active" style="font-size: 0.74rem;">
+                                <i class="fa-solid fa-list-check me-1"></i> Mi Selección (<span id="curator-selected-num">18</span>)
+                            </button>
+                            <button type="button" id="curator-tab-bench" class="btn btn-sm btn-dark border border-secondary border-opacity-30" style="font-size: 0.74rem;">
+                                <i class="fa-solid fa-box-archive me-1"></i> Banca / Descarte (<span id="curator-bench-num">0</span>)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Contenedor 1: Lista Seleccionada -->
+                    <div id="curator-selected-view">
+                        <div id="curator-selected-list" class="d-flex flex-column gap-1.5 mb-2">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Contenedor 2: Banco de Canciones del Periodo -->
+                    <div id="curator-bench-view" class="d-none">
+                        <div class="mb-2">
+                            <input type="text" id="curator-bench-search" class="search-input" placeholder="Buscar entre las canciones restantes de este periodo..." autocomplete="off">
+                        </div>
+                        <div id="curator-bench-list" class="d-flex flex-column gap-1.5" style="max-height: 440px; overflow-y: auto;">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Barra de Acciones del Curador -->
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-3 mt-3 border-top border-secondary border-opacity-10">
+                        <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                            <button type="button" id="curator-btn-copy" class="btn btn-sm btn-outline-secondary rounded-pill px-3" style="font-size: 0.76rem;">
+                                <i class="fa-regular fa-copy me-1"></i> Copiar Texto
+                            </button>
+                            <button type="button" id="curator-btn-clear" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5" style="font-size: 0.76rem;" title="Vaciar mi selección">
+                                <i class="fa-solid fa-eraser me-1"></i> Vaciar
+                            </button>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <button type="button" id="curator-btn-ytmusic" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold" style="font-size: 0.76rem;" title="Exportar o abrir en YouTube Music">
+                                <i class="fa-brands fa-youtube me-1"></i> YouTube Music
+                            </button>
+                            <button type="button" id="curator-btn-spotify" class="btn btn-sm btn-brand rounded-pill px-3 fw-semibold" style="font-size: 0.76rem;">
+                                <i class="fa-brands fa-spotify me-1"></i> Crear en Spotify
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- ============================================== -->
-            <!-- VISTA 5: MI PROGRESO / PERFIL                  -->
+            <!-- VISTA 5: MI PROGRESO / PERFIL (APARTADO NATIVO) -->
             <!-- ============================================== -->
             <div id="section-profile" class="dashboard-section d-none">
-                <div id="profile-section-content" class="pb-2">
-                    <!-- Se inyectará dinámicamente el progreso idéntico al modal -->
+                <div class="home-card p-3 p-md-4 mb-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom border-secondary border-opacity-10">
+                        <div class="d-flex align-items-center gap-2.5">
+                            <div class="rounded-3 p-2 d-flex align-items-center justify-content-center" style="background: rgba(239,68,68,0.15); color: #f87171;">
+                                <i class="fa-solid fa-fire fs-4"></i>
+                            </div>
+                            <div>
+                                <h5 class="fw-bold mb-0 text-white" style="font-size: 1.05rem;">Mi Progreso & Hitos</h5>
+                                <small class="text-secondary d-block" style="font-size: 0.74rem;">Nivel XP, racha diaria, medallas y reto musical del día</small>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 text-white" style="font-size: 0.74rem;" onclick="switchAppView('home')">
+                            <i class="fa-solid fa-arrow-left me-1"></i> Volver al Inicio
+                        </button>
+                    </div>
+
+                    <div id="profile-section-content" class="pb-2">
+                        <div class="text-center py-5 text-secondary">
+                            <div class="spinner-border spinner-border-sm me-2 text-primary"></div>
+                            Cargando tu progreso y nivel...
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1377,7 +1572,7 @@
             <!-- Top Section -->
             <div class="d-flex flex-column gap-3">
                 <!-- User Profile & Level Card en Drawer (Interactivo, abre Mi Progreso) -->
-                <div id="drawer-profile-card" class="p-3 rounded-3 border d-flex flex-column gap-2" style="background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(168,85,247,0.06)); border-color: rgba(255,255,255,0.08) !important; cursor: pointer;" title="Toca para ver tu progreso, nivel y racha" onclick="bootstrap.Offcanvas.getInstance(document.getElementById('burgerMenu'))?.hide(); openProgressModal();">
+                <div id="drawer-profile-card" class="p-3 rounded-3 border d-flex flex-column gap-2" style="background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(168,85,247,0.06)); border-color: rgba(255,255,255,0.08) !important; cursor: pointer;" title="Toca para ver tu progreso, nivel y racha" onclick="bootstrap.Offcanvas.getInstance(document.getElementById('burgerMenu'))?.hide(); switchAppView('profile');">
                     <div class="d-flex align-items-center justify-content-between">
                         <div class="d-flex align-items-center gap-2.5 overflow-hidden">
                             <img id="drawer-user-img" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44' width='44' height='44'%3E%3Crect width='44' height='44' fill='%2318181c' rx='22'/%3E%3Ccircle cx='22' cy='16' r='6' fill='%23a855f7'/%3E%3Cpath d='M10 34c0-5 5.5-8 12-8s12 3 12 8z' fill='%23a855f7'/%3E%3C/svg%3e" class="rounded-circle border" style="width: 42px; height: 42px; object-fit: cover; border-color: var(--brand-primary) !important;" alt="Avatar" onerror="safeAvatarError(this)">
@@ -1402,175 +1597,201 @@
                     </div>
                 </div>
 
-                <!-- Categoría 1: Juegos & Experiencias Musicales -->
-                <div>
-                    <div class="text-secondary px-2 mb-1.5 d-flex align-items-center gap-1.5" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;">
-                        <i class="fa-solid fa-gamepad text-primary"></i>
-                        <span>Experiencias & Juegos</span>
+                <!-- Menú de 4 Secciones Colapsables (Experiencias, Análisis, Herramientas, Sistema) -->
+                <div class="accordion accordion-flush" id="burgerAccordion">
+                    <!-- 1. Experiencias -->
+                    <div class="accordion-item bg-transparent border-0 mb-1">
+                        <h2 class="accordion-header" id="headingExp">
+                            <button class="accordion-button bg-transparent text-white px-2 py-2 shadow-none border-bottom border-secondary border-opacity-10" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExp" aria-expanded="true" aria-controls="collapseExp" style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;">
+                                <i class="fa-solid fa-gamepad text-primary me-2"></i>
+                                <span>Experiencias</span>
+                            </button>
+                        </h2>
+                        <div id="collapseExp" class="accordion-collapse collapse show" aria-labelledby="headingExp">
+                            <div class="accordion-body px-0 py-1 d-flex flex-column gap-1">
+                                <button class="offcanvas-menu-item" id="menu-open-hub-view" data-bs-dismiss="offcanvas" onclick="switchAppView('hub')">
+                                    <i class="fa-solid fa-shapes text-primary fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold text-primary">Centro de Experiencias</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Explora todos los juegos y módulos interactivos</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-progress" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-fire text-danger fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Mi Progreso & Reto del Día</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Nivel XP, racha diaria y reto de hoy</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-trophies" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-award text-warning fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Sala de Trofeos & Hitos</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Logros desbloqueados y metas</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-capsule" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-clock-rotate-left text-info fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Cápsula del Tiempo</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Qué escuchabas en este mes en años anteriores</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-trivia" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-brain text-primary fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Trivia Musical Personal</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">¿Cuánto conoces tus propias estadísticas?</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-tournament" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-trophy text-danger fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Torneo de Canciones</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Duelos de eliminación directa hasta coronar tu #1</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-iceberg" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-mountain text-info fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Iceberg Musical</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Superficie comercial vs rarezas abisales</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-eras" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-chart-line text-success fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Carrera de Eras</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Evolución animada de tus artistas mes a mes</small>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex flex-column gap-1">
-                        <button class="offcanvas-menu-item" id="menu-open-progress" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-fire text-danger fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Mi Progreso & Reto del Día</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Nivel XP, racha diaria y reto de hoy (+40 XP)</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-trophies" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-award text-warning fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Sala de Trofeos & Hitos (+100)</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Logros desbloqueados y artistas cerca de 100 streams</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-capsule" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-clock-rotate-left text-info fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Cápsula del Tiempo</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Qué escuchabas en este mes en años anteriores</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-trivia" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-brain text-primary fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Trivia Musical Personal</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">¿Cuánto conoces tus propias estadísticas?</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-tournament" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-trophy text-danger fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Torneo de Canciones</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Duelos de eliminación directa hasta coronar tu #1</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-iceberg" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-mountain text-info fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Iceberg Musical</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Tus artistas en estratos: superficie vs rarezas abisales</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-eras" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-chart-line text-success fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Carrera de Eras (Bar Chart Race)</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Evolución animada de tus artistas mes a mes</small>
-                            </div>
-                        </button>
-                    </div>
-                </div>
 
-                <!-- Categoría 2: Análisis & Estadísticas Profundas -->
-                <div>
-                    <div class="text-secondary px-2 mb-1.5 d-flex align-items-center gap-1.5" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;">
-                        <i class="fa-solid fa-chart-simple text-info"></i>
-                        <span>Análisis & Catálogo</span>
+                    <!-- 2. Análisis -->
+                    <div class="accordion-item bg-transparent border-0 mb-1">
+                        <h2 class="accordion-header" id="headingAnalysis">
+                            <button class="accordion-button bg-transparent text-white px-2 py-2 shadow-none border-bottom border-secondary border-opacity-10" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAnalysis" aria-expanded="true" aria-controls="collapseAnalysis" style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;">
+                                <i class="fa-solid fa-chart-pie text-info me-2"></i>
+                                <span>Análisis</span>
+                            </button>
+                        </h2>
+                        <div id="collapseAnalysis" class="accordion-collapse collapse show" aria-labelledby="headingAnalysis">
+                            <div class="accordion-body px-0 py-1 d-flex flex-column gap-1">
+                                <button class="offcanvas-menu-item" id="menu-open-habits" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-chart-column text-info fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Hábitos de Escucha</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Horas pico del día y días más activos</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-forgotten" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-ghost text-warning fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Artistas Olvidados</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Música que amabas y hace tiempo no escuchas</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-versus" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-scale-balanced text-primary fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Comparador Versus</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Compara dos artistas cara a cara</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-records" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-medal text-warning fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Récords y Logros</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Día récord de escuchas y marcas históricas</small>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex flex-column gap-1">
-                        <button class="offcanvas-menu-item" id="menu-open-habits" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-chart-column text-info fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Hábitos de Escucha</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Horas pico del día y días más activos</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-forgotten" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-ghost text-warning fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Artistas Olvidados</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Música que amabas y hace tiempo no escuchas</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-versus" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-scale-balanced text-primary fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Comparador Versus</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Compara dos artistas de tu catálogo cara a cara</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-records" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-medal text-warning fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Récords y Logros</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Día con más escuchas de tu vida y marcas históricas</small>
-                            </div>
-                        </button>
-                    </div>
-                </div>
 
-                <!-- Categoría 3: Herramientas & Utilidades -->
-                <div>
-                    <div class="text-secondary px-2 mb-1.5 d-flex align-items-center gap-1.5" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;">
-                        <i class="fa-solid fa-screwdriver-wrench text-warning"></i>
-                        <span>Herramientas</span>
+                    <!-- 3. Herramientas -->
+                    <div class="accordion-item bg-transparent border-0 mb-1">
+                        <h2 class="accordion-header" id="headingTools">
+                            <button class="accordion-button bg-transparent text-white px-2 py-2 shadow-none border-bottom border-secondary border-opacity-10" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTools" aria-expanded="true" aria-controls="collapseTools" style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;">
+                                <i class="fa-solid fa-screwdriver-wrench text-warning me-2"></i>
+                                <span>Herramientas</span>
+                            </button>
+                        </h2>
+                        <div id="collapseTools" class="accordion-collapse collapse show" aria-labelledby="headingTools">
+                            <div class="accordion-body px-0 py-1 d-flex flex-column gap-1">
+                                <button class="offcanvas-menu-item" id="menu-open-curator" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-primary fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Curador de Playlists Semestrales</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Selección guiada ~18 temas</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-save-playlist" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-plus text-success fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Guardar Top como Playlist</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Crear playlist directa en tu Spotify</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-open-share" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-share-nodes text-warning fs-5"></i>
+                                    <div>
+                                        <div class="fw-semibold">Compartir Tarjeta</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Generar imagen descargable de tu Top actual</small>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex flex-column gap-1">
-                        <button class="offcanvas-menu-item" id="menu-open-curator" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-wand-magic-sparkles text-primary fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Curador de Playlists Semestrales</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Selección guiada ~18 temas (Ene-May / Jun-Nov)</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-save-playlist" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-plus text-success fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Guardar Top como Playlist</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Crear playlist directa en tu Spotify</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-open-share" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-share-nodes text-warning fs-5"></i>
-                            <div>
-                                <div class="fw-semibold">Compartir Tarjeta</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Generar imagen descargable de tu Top actual</small>
-                            </div>
-                        </button>
-                    </div>
-                </div>
 
-                <!-- Categoría 4: Conexión & App -->
-                <div>
-                    <div class="text-secondary px-2 mb-1.5 d-flex align-items-center gap-1.5" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;">
-                        <i class="fa-solid fa-sliders text-muted"></i>
-                        <span>Conexión & Sistema</span>
-                    </div>
-                    <div class="d-flex flex-column gap-1">
-                        <button class="offcanvas-menu-item" id="menu-lastfm-connect" data-bs-dismiss="offcanvas">
-                            <i class="fa-brands fa-lastfm text-danger fs-5"></i>
-                            <div>
-                                <div class="d-flex align-items-center gap-2">
-                                    <span class="fw-semibold">Conectar con Last.fm</span>
-                                    <span id="drawer-lastfm-status" class="badge bg-secondary bg-opacity-25" style="font-size: 0.65rem;">Opcional</span>
-                                </div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Ver conteo real de streams (scrobbles)</small>
+                    <!-- 4. Sistema -->
+                    <div class="accordion-item bg-transparent border-0 mb-1">
+                        <h2 class="accordion-header" id="headingSystem">
+                            <button class="accordion-button bg-transparent text-white px-2 py-2 shadow-none border-bottom border-secondary border-opacity-10" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSystem" aria-expanded="true" aria-controls="collapseSystem" style="font-size: 0.76rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px;">
+                                <i class="fa-solid fa-sliders text-muted me-2"></i>
+                                <span>Sistema</span>
+                            </button>
+                        </h2>
+                        <div id="collapseSystem" class="accordion-collapse collapse show" aria-labelledby="headingSystem">
+                            <div class="accordion-body px-0 py-1 d-flex flex-column gap-1">
+                                <button class="offcanvas-menu-item" id="menu-lastfm-connect" data-bs-dismiss="offcanvas">
+                                    <i class="fa-brands fa-lastfm text-danger fs-5"></i>
+                                    <div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="fw-semibold">Conectar con Last.fm</span>
+                                            <span id="drawer-lastfm-status" class="badge bg-secondary bg-opacity-25" style="font-size: 0.65rem;">Opcional</span>
+                                        </div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Ver conteo real de streams (scrobbles)</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-gdrive-connect" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-cloud text-success fs-5"></i>
+                                    <div>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="fw-semibold">Nube Supabase</span>
+                                            <span id="drawer-gdrive-status" class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.65rem;">Activo</span>
+                                        </div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Sincronizado con Central-de-estudio</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-install-app" data-bs-dismiss="offcanvas">
+                                    <i class="fa-solid fa-download fs-5" style="color: var(--brand-primary);"></i>
+                                    <div>
+                                        <div class="fw-semibold">Descargar App Web (PWA)</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Instalar acceso directo en pantalla de inicio</small>
+                                    </div>
+                                </button>
+                                <button class="offcanvas-menu-item" id="menu-force-update">
+                                    <i class="fa-solid fa-arrows-rotate text-info fs-5"></i>
+                                    <div>
+                                        <div class="text-info fw-semibold">Actualizar App / Limpiar Caché</div>
+                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Fuerza la descarga de la última versión</small>
+                                    </div>
+                                </button>
                             </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-gdrive-connect" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-cloud text-success fs-5"></i>
-                            <div>
-                                <div class="d-flex align-items-center gap-2">
-                                    <span class="fw-semibold">Nube Supabase</span>
-                                    <span id="drawer-gdrive-status" class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.65rem;">Activo</span>
-                                </div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Sincronizado con Central-de-estudio</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-install-app" data-bs-dismiss="offcanvas">
-                            <i class="fa-solid fa-download fs-5" style="color: var(--brand-primary);"></i>
-                            <div>
-                                <div class="fw-semibold">Descargar App Web (PWA)</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Instalar acceso directo en pantalla de inicio</small>
-                            </div>
-                        </button>
-                        <button class="offcanvas-menu-item" id="menu-force-update">
-                            <i class="fa-solid fa-arrows-rotate text-info fs-5"></i>
-                            <div>
-                                <div class="text-info fw-semibold">Actualizar App / Limpiar Caché</div>
-                                <small class="text-secondary d-block" style="font-size: 0.73rem;">Fuerza la descarga de la última versión</small>
-                            </div>
-                        </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1896,137 +2117,7 @@
         </div>
     </div>
 
-    <!-- Modal: Curador de Playlists Semestrales -->
-    <div class="modal fade" id="playlistCuratorModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-curator-dialog">
-            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 14px;">
-                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="fa-solid fa-wand-magic-sparkles text-primary fs-5"></i>
-                        <div>
-                            <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.95rem;">Curador de Playlists Semestrales</h6>
-                            <small class="text-secondary d-block" style="font-size: 0.72rem;">Selección inteligente (~18 temas): 1 Ene - 20 May / 1 Jun - 20 Nov</small>
-                        </div>
-                    </div>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                
-                <div class="modal-body p-3" style="font-size: 0.82rem;">
-                    <!-- Barra de Controles y Configuración -->
-                    <div class="p-3 mb-3 rounded-3 border border-secondary border-opacity-15" style="background: rgba(255, 255, 255, 0.02);">
-                        <div class="row g-2 align-items-end">
-                            <!-- Selector de Año -->
-                            <div class="col-6 col-sm-3">
-                                <label class="filter-label"><i class="fa-regular fa-calendar me-1 text-primary"></i> Año</label>
-                                <select id="curator-year" class="form-select form-select-sm filter-select">
-                                    <option value="" selected disabled>Elegir año...</option>
-                                    <option value="2026">2026</option>
-                                    <option value="2025">2025</option>
-                                    <option value="2024">2024</option>
-                                    <option value="2023">2023</option>
-                                    <option value="2022">2022</option>
-                                    <option value="2021">2021</option>
-                                    <option value="2020">2020</option>
-                                    <option value="2019">2019</option>
-                                </select>
-                            </div>
-
-                            <!-- Selector de Mitad del Año -->
-                            <div class="col-6 col-sm-5">
-                                <label class="filter-label"><i class="fa-solid fa-timeline me-1 text-info"></i> Periodo</label>
-                                <select id="curator-half" class="form-select form-select-sm filter-select">
-                                    <option value="" selected disabled>Elegir periodo...</option>
-                                    <option value="1">1ra Mitad (1 Ene — 20 May)</option>
-                                    <option value="2">2da Mitad (1 Jun — 20 Nov)</option>
-                                </select>
-                            </div>
-
-                            <!-- Cantidad Objetivo -->
-                            <div class="col-6 col-sm-4">
-                                <label class="filter-label"><i class="fa-solid fa-list-ol me-1 text-warning"></i> Objetivo</label>
-                                <div class="input-group input-group-sm">
-                                    <input type="number" id="curator-target-count" class="form-control form-control-sm text-center bg-dark text-white border-secondary border-opacity-30" value="18" min="5" max="40" style="font-size: 0.8rem; height: 32px;">
-                                    <span class="input-group-text bg-dark text-secondary border-secondary border-opacity-30 small" style="font-size: 0.75rem;">temas</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Filtro de canciones de años pasados -->
-                        <div class="d-flex align-items-center justify-content-between mt-2 pt-2 border-top border-secondary border-opacity-10 flex-wrap gap-2">
-                            <div class="form-check form-switch mb-0">
-                                <input class="form-check-input" type="checkbox" id="curator-exclude-past" checked>
-                                <label class="form-check-label text-secondary small" for="curator-exclude-past" style="font-size: 0.74rem;">
-                                    Excluir canciones de años anteriores <span class="text-muted">(priorizar música de esta etapa)</span>
-                                </label>
-                            </div>
-                            <button id="curator-btn-generate" class="btn btn-sm btn-brand rounded-pill px-3 py-1 fw-semibold text-nowrap" style="font-size: 0.76rem;">
-                                <i class="fa-solid fa-rotate me-1"></i> Generar Selección
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Resumen del Ciclo y Contador -->
-                    <div class="d-flex align-items-center justify-content-between mb-2 px-1 flex-wrap gap-2">
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <span id="curator-period-badge" class="curator-badge-period">
-                                <i class="fa-regular fa-clock me-1 text-primary"></i> Sin periodo seleccionado
-                            </span>
-                            <span id="curator-counter-badge" class="curator-badge-counter">
-                                0 / 18 seleccionadas
-                            </span>
-                            <button type="button" id="curator-btn-cloud" class="curator-badge-period border-0" style="cursor: pointer; background: rgba(16, 185, 129, 0.12) !important; color: #10b981 !important; border: 1px solid rgba(16, 185, 129, 0.28) !important;" title="Base de Datos en la Nube (Supabase)">
-                                <i class="fa-solid fa-cloud me-1 text-success"></i> <span id="curator-cloud-label">Nube Activa</span>
-                            </button>
-                        </div>
-                        <div class="btn-group btn-group-sm" role="group">
-                            <button type="button" id="curator-tab-selected" class="btn btn-sm btn-dark border border-secondary border-opacity-30 active" style="font-size: 0.74rem;">
-                                <i class="fa-solid fa-list-check me-1"></i> Mi Selección (<span id="curator-selected-num">18</span>)
-                            </button>
-                            <button type="button" id="curator-tab-bench" class="btn btn-sm btn-dark border border-secondary border-opacity-30" style="font-size: 0.74rem;">
-                                <i class="fa-solid fa-box-archive me-1"></i> Banca / Descarte (<span id="curator-bench-num">0</span>)
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Contenedor 1: Lista Seleccionada -->
-                    <div id="curator-selected-view">
-                        <div id="curator-selected-list" class="d-flex flex-column gap-1.5 mb-2">
-                            <!-- Injected dynamically -->
-                        </div>
-                    </div>
-
-                    <!-- Contenedor 2: Banco de Canciones del Periodo -->
-                    <div id="curator-bench-view" class="d-none">
-                        <div class="mb-2">
-                            <input type="text" id="curator-bench-search" class="search-input" placeholder="Buscar entre las canciones restantes de este periodo..." autocomplete="off">
-                        </div>
-                        <div id="curator-bench-list" class="d-flex flex-column gap-1.5" style="max-height: 380px; overflow-y: auto;">
-                            <!-- Injected dynamically -->
-                        </div>
-                    </div>
-                </div>
-
-                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3 justify-content-between flex-wrap gap-2">
-                    <div class="d-flex align-items-center gap-1.5 flex-wrap">
-                        <button type="button" id="curator-btn-copy" class="btn btn-sm btn-outline-secondary rounded-pill px-3" style="font-size: 0.76rem;">
-                            <i class="fa-regular fa-copy me-1"></i> Copiar Texto
-                        </button>
-                        <button type="button" id="curator-btn-clear" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5" style="font-size: 0.76rem;" title="Vaciar mi selección">
-                            <i class="fa-solid fa-eraser me-1"></i> Vaciar
-                        </button>
-                    </div>
-                    <div class="d-flex align-items-center gap-2 flex-wrap">
-                        <button type="button" id="curator-btn-ytmusic" class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold" style="font-size: 0.76rem;" title="Exportar o abrir en YouTube Music">
-                            <i class="fa-brands fa-youtube me-1"></i> YouTube Music
-                        </button>
-                        <button type="button" id="curator-btn-spotify" class="btn btn-sm btn-brand rounded-pill px-3 fw-semibold" style="font-size: 0.76rem;">
-                            <i class="fa-brands fa-spotify me-1"></i> Crear en Spotify
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-3" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <!-- Modal playlistCuratorModal migrado a apartado de navegación #section-curator -->
     </div>
 
     <!-- Modal: Felicitaciones por Hito de Artista (+100 Streams) -->
@@ -2256,21 +2347,7 @@
         </div>
     </div>
 
-        <!-- Modal: Mi Progreso (Nivel, Racha, Reto del Día) -->
-    <div class="modal fade" id="progressModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 560px;">
-            <div class="modal-content bg-dark text-white border-0 shadow-lg" style="border: 1px solid var(--border-subtle) !important; border-radius: 18px;">
-                <div class="modal-header border-bottom border-secondary border-opacity-15 py-2.5 px-3">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="fa-solid fa-fire text-danger fs-5"></i>
-                        <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;">Mi Progreso</h6>
-                    </div>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-3" id="progress-modal-body"></div>
-            </div>
-        </div>
-    </div>
+        <!-- Modal progressModal migrado a apartado de navegación #section-profile -->
 
     <!-- Canvas Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
@@ -2293,15 +2370,74 @@
             <i class="fa-solid fa-gamepad"></i>
             <span>Juegos</span>
         </button>
-        <button class="bottom-nav-item" data-tab="curator" onclick="openPlaylistCuratorModal()">
+        <button class="bottom-nav-item" data-tab="curator" onclick="switchAppView('curator')">
             <i class="fa-solid fa-wand-magic-sparkles"></i>
             <span>Curador</span>
         </button>
-        <button class="bottom-nav-item" data-tab="profile" onclick="openProgressModal()">
+        <button class="bottom-nav-item" data-tab="profile" onclick="switchAppView('profile')">
             <i class="fa-solid fa-user-astronaut"></i>
             <span>Perfil</span>
         </button>
     </nav>
+
+
+    <!-- Modal: Comparador de Periodos (Mes actual vs anterior o personalizados) -->
+    <div class="modal fade" id="comparePeriodsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 14px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-code-compare text-primary fs-5"></i>
+                        <div>
+                            <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.95rem;">Comparador de Periodos Musicales</h6>
+                            <small class="text-secondary" style="font-size: 0.70rem;">Analiza la evolución de streams, horas y artistas en subida o bajada</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <!-- Selectores de los 2 periodos -->
+                    <div class="row g-2 mb-3 p-2.5 rounded-3 border" style="background: rgba(255,255,255,0.02); border-color: var(--border-subtle) !important;">
+                        <div class="col-12 col-sm-5">
+                            <label class="filter-label text-primary"><i class="fa-regular fa-calendar-check me-1"></i> Periodo Actual / Objetivo</label>
+                            <select id="compare-period-a" class="form-select form-select-sm filter-select">
+                                <option value="month-2026-10" selected>Octubre 2026 (Este mes)</option>
+                                <option value="month-2026-9">Septiembre 2026</option>
+                                <option value="month-2026-8">Agosto 2026</option>
+                                <option value="year-2026">Año 2026 completo</option>
+                                <option value="year-2025">Año 2025 completo</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-2 d-flex align-items-end justify-content-center pb-1">
+                            <span class="badge rounded-pill px-2.5 py-1.5" style="background: rgba(168,85,247,0.15); color: #c084fc; font-weight: 700; font-size: 0.75rem;">VS</span>
+                        </div>
+                        <div class="col-12 col-sm-5">
+                            <label class="filter-label text-info"><i class="fa-regular fa-calendar me-1"></i> Periodo de Comparación</label>
+                            <select id="compare-period-b" class="form-select form-select-sm filter-select">
+                                <option value="month-2026-9" selected>Septiembre 2026 (Mes anterior)</option>
+                                <option value="month-2026-8">Agosto 2026</option>
+                                <option value="month-2026-7">Julio 2026</option>
+                                <option value="year-2025">Año 2025 completo</option>
+                                <option value="year-2024">Año 2024 completo</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Resultados de la Comparación dinámicos -->
+                    <div id="compare-results-container">
+                        <div class="text-center py-4 text-secondary">
+                            <div class="spinner-border spinner-border-sm me-2 text-primary"></div>
+                            Calculando diferencias...
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3 justify-content-between">
+                    <small class="text-secondary" style="font-size: 0.72rem;">Cálculo instantáneo sobre el catálogo unificado</small>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>
