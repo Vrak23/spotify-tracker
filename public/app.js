@@ -89,8 +89,8 @@ const currentlyPlayingContainer = document.getElementById('currently-playing-con
 const selectDataSource = document.getElementById('select-data-source');
 const selectTimePeriod = document.getElementById('select-time-period');
 const selectMonth = document.getElementById('select-month');
-const selectLimit = document.getElementById('select-limit');
-const customDatePickerContainer = document.getElementById('custom-date-picker-container');
+const selectLimit = document.getElementById('select-page-size') || document.getElementById('select-limit');
+const customDatePickerContainer = document.getElementById('custom-date-container') || document.getElementById('custom-date-picker-container');
 const inputDateFrom = document.getElementById('input-date-from');
 const inputDateTo = document.getElementById('input-date-to');
 const btnSwapDates = document.getElementById('btn-swap-dates');
@@ -1126,27 +1126,36 @@ async function showDashboard() {
     if (selectDataSource) selectDataSource.value = currentSource;
     if (selectLimit) selectLimit.value = String(currentLimit);
 
-    updateStatStrip();
-
     // Iniciar con la vista de Inicio por defecto (portada)
     switchAppView('home');
 
-    if (currentSource === 'unified') {
-        loadUnifiedDatabase().then(() => {
+    try {
+        if (currentSource === 'unified') {
+            const db = await loadUnifiedDatabase();
+            if (db) {
+                initEngagement(db);
+                updateStatStrip();
+                refreshHomeView();
+            }
             fetchLastFmDelta().then(() => {
                 updateStatStrip();
                 refreshHomeView();
-                // Pre-cargar stats en segundo plano para que al tocar 'Tops' ya estén listas
                 loadStats();
             });
-        });
-    } else if (currentSource === 'spotify') {
-        loadSpotifyDatabase().then(() => {
-            updateStatStrip();
+        } else if (currentSource === 'spotify') {
+            const db = await loadSpotifyDatabase();
+            if (db) {
+                initEngagement(db);
+                updateStatStrip();
+                refreshHomeView();
+            }
+            loadStats();
+        } else {
             refreshHomeView();
             loadStats();
-        });
-    } else {
+        }
+    } catch (err) {
+        console.error('Error durante la carga inicial de showDashboard:', err);
         refreshHomeView();
         loadStats();
     }
@@ -6343,31 +6352,34 @@ async function refreshHomeView() {
             greetingEl.innerHTML = `${greeting}, <span style="color: var(--brand-primary);">${escapeHtml(name)}</span>`;
         }
 
-        // 2. Racha en home
-        const st = getProfileState();
-        const streakDays = computeStreak(new Set(st.activeDays || []));
+        // 2. Racha en home usando getStreakInfo
+        const streakInfo = getStreakInfo();
         const streakCountEl = document.getElementById('home-streak-count');
-        if (streakCountEl) streakCountEl.textContent = streakDays.current;
+        if (streakCountEl) streakCountEl.textContent = streakInfo.current;
 
         // 3. Métricas clave (Streams, Horas, Artistas)
         const db = await getActiveDatabase();
-        if (db && db.summary) {
-            const s = db.summary;
-            const homeStreams = document.getElementById('home-stat-streams');
-            const homeHours = document.getElementById('home-stat-hours');
-            const homeArtists = document.getElementById('home-stat-artists');
+        if (db) {
+            initEngagement(db);
 
-            const deltaPlays = lastFmRecentDelta.length;
-            const totalStreams = (s.total_plays || 0) + deltaPlays;
-            const totalHours = Math.round((s.total_ms_played || 0) / (1000 * 60 * 60)) + Math.round((deltaPlays * 3.5 * 60 * 1000) / (1000 * 60 * 60));
+            if (db.summary) {
+                const s = db.summary;
+                const homeStreams = document.getElementById('home-stat-streams');
+                const homeHours = document.getElementById('home-stat-hours');
+                const homeArtists = document.getElementById('home-stat-artists');
 
-            if (homeStreams) homeStreams.textContent = formatNumber(totalStreams);
-            if (homeHours) homeHours.textContent = formatNumber(totalHours);
-            if (homeArtists) homeArtists.textContent = formatNumber(s.unique_artists || 0);
+                const deltaPlays = Array.isArray(lastFmRecentDelta) ? lastFmRecentDelta.length : 0;
+                const totalStreams = (s.total_plays || 0) + deltaPlays;
+                const totalHours = Math.round((s.total_ms_played || 0) / (1000 * 60 * 60)) + Math.round((deltaPlays * 3.5 * 60 * 1000) / (1000 * 60 * 60));
+
+                if (homeStreams) homeStreams.textContent = formatNumber(totalStreams);
+                if (homeHours) homeHours.textContent = formatNumber(totalHours);
+                if (homeArtists) homeArtists.textContent = formatNumber(s.unique_artists || 0);
+            }
+
+            // 4. Tu #1 y Mini-Top 5
+            await renderHomeHighlights(db);
         }
-
-        // 4. Tu #1 del mes y Mini-Top 5
-        await renderHomeHighlights(db);
     } catch (err) {
         console.error('Error al actualizar Home View:', err);
     }
@@ -6379,19 +6391,26 @@ async function renderHomeHighlights(db) {
     if (!db) return;
 
     try {
-        // En la base de datos unificada, los tops están en db.yearlyTops['2026'] o db.yearlyTops['overall']
-        const currentYear = String(new Date().getFullYear());
         const yearlyTops = db.yearlyTops || {};
-        const yearTarget = yearlyTops[currentYear] || yearlyTops['overall'] || {};
-        const baseTracks = yearTarget.tracks || [];
+        // Tomar tracks de 2026, o mes actual 10 de 2026, o overall
+        let baseTracks = yearlyTops['2026']?.months?.['10']?.tracks
+            || yearlyTops['2026']?.tracks
+            || yearlyTops['overall']?.tracks
+            || [];
+
+        // Si no hay tracks en el mes, tomar el año 2026 o el general
+        if (!baseTracks || baseTracks.length === 0) {
+            baseTracks = yearlyTops['2026']?.tracks || yearlyTops['overall']?.tracks || [];
+        }
 
         const tracksMap = new Map();
         baseTracks.forEach(t => {
-            const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+            const artistName = t.artist ? (t.artist.name || t.artist['#text'] || t.artist) : '';
+            const k = `${normalizeKey(t.name)}:::${normalizeKey(artistName)}`;
             tracksMap.set(k, {
                 name: t.name,
-                artist: t.artist,
-                album: t.album,
+                artist: artistName,
+                album: t.album || '',
                 plays: t.plays || 0,
                 uri: t.uri || null
             });
@@ -6416,7 +6435,7 @@ async function renderHomeHighlights(db) {
         const sorted = Array.from(tracksMap.values()).sort((a, b) => b.plays - a.plays);
 
         if (sorted.length === 0) {
-            if (spotlightEl) spotlightEl.innerHTML = '<span class="text-secondary small">Aún no hay reproducciones registradas para este periodo.</span>';
+            if (spotlightEl) spotlightEl.innerHTML = '<span class="text-secondary small">Aún no hay reproducciones registradas este mes.</span>';
             if (miniListEl) miniListEl.innerHTML = '<span class="text-secondary small">Sin canciones recientes.</span>';
             return;
         }
