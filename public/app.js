@@ -207,6 +207,18 @@ async function triggerInstallFlow() {
 // ----------------------------------------------------
 // UTILIDADES
 // ----------------------------------------------------
+
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+window.escapeHtml = escapeHtml;
+
 function formatNumber(num) {
     if (!num) return '0';
     const n = parseInt(num, 10);
@@ -6317,44 +6329,48 @@ function switchAppView(viewName) {
 window.switchAppView = switchAppView;
 
 async function refreshHomeView() {
-    // 1. Saludo según hora del día y usuario
-    const greetingEl = document.getElementById('home-greeting');
-    if (greetingEl) {
-        const hour = new Date().getHours();
-        let greeting = '¡Hola de nuevo!';
-        if (hour >= 5 && hour < 12) greeting = 'Buenos días';
-        else if (hour >= 12 && hour < 19) greeting = 'Buenas tardes';
-        else greeting = 'Buenas noches';
+    try {
+        // 1. Saludo según hora del día y usuario
+        const greetingEl = document.getElementById('home-greeting');
+        if (greetingEl) {
+            const hour = new Date().getHours();
+            let greeting = '¡Hola de nuevo!';
+            if (hour >= 5 && hour < 12) greeting = 'Buenos días';
+            else if (hour >= 12 && hour < 19) greeting = 'Buenas tardes';
+            else greeting = 'Buenas noches';
 
-        const name = (userProfileData && userProfileData.display_name) ? userProfileData.display_name.split(' ')[0] : 'Rodrigo';
-        greetingEl.innerHTML = `${greeting}, <span style="color: var(--brand-primary);">${escapeHtml(name)}</span>`;
+            const name = (userProfileData && userProfileData.display_name) ? userProfileData.display_name.split(' ')[0] : 'Rodrigo';
+            greetingEl.innerHTML = `${greeting}, <span style="color: var(--brand-primary);">${escapeHtml(name)}</span>`;
+        }
+
+        // 2. Racha en home
+        const st = getProfileState();
+        const streakDays = computeStreak(new Set(st.activeDays || []));
+        const streakCountEl = document.getElementById('home-streak-count');
+        if (streakCountEl) streakCountEl.textContent = streakDays.current;
+
+        // 3. Métricas clave (Streams, Horas, Artistas)
+        const db = await getActiveDatabase();
+        if (db && db.summary) {
+            const s = db.summary;
+            const homeStreams = document.getElementById('home-stat-streams');
+            const homeHours = document.getElementById('home-stat-hours');
+            const homeArtists = document.getElementById('home-stat-artists');
+
+            const deltaPlays = lastFmRecentDelta.length;
+            const totalStreams = (s.total_plays || 0) + deltaPlays;
+            const totalHours = Math.round((s.total_ms_played || 0) / (1000 * 60 * 60)) + Math.round((deltaPlays * 3.5 * 60 * 1000) / (1000 * 60 * 60));
+
+            if (homeStreams) homeStreams.textContent = formatNumber(totalStreams);
+            if (homeHours) homeHours.textContent = formatNumber(totalHours);
+            if (homeArtists) homeArtists.textContent = formatNumber(s.unique_artists || 0);
+        }
+
+        // 4. Tu #1 del mes y Mini-Top 5
+        await renderHomeHighlights(db);
+    } catch (err) {
+        console.error('Error al actualizar Home View:', err);
     }
-
-    // 2. Racha en home
-    const st = getProfileState();
-    const streakDays = computeStreak(new Set(st.activeDays || []));
-    const streakCountEl = document.getElementById('home-streak-count');
-    if (streakCountEl) streakCountEl.textContent = streakDays.current;
-
-    // 3. Métricas clave (Streams, Horas, Artistas)
-    const db = await getActiveDatabase();
-    if (db && db.summary) {
-        const s = db.summary;
-        const homeStreams = document.getElementById('home-stat-streams');
-        const homeHours = document.getElementById('home-stat-hours');
-        const homeArtists = document.getElementById('home-stat-artists');
-
-        const deltaPlays = lastFmRecentDelta.length;
-        const totalStreams = (s.total_plays || 0) + deltaPlays;
-        const totalHours = Math.round((s.total_ms_played || 0) / (1000 * 60 * 60)) + Math.round((deltaPlays * 3.5 * 60 * 1000) / (1000 * 60 * 60));
-
-        if (homeStreams) homeStreams.textContent = formatNumber(totalStreams);
-        if (homeHours) homeHours.textContent = formatNumber(totalHours);
-        if (homeArtists) homeArtists.textContent = formatNumber(s.unique_artists || 0);
-    }
-
-    // 4. Tu #1 del mes y Mini-Top 5
-    renderHomeHighlights(db);
 }
 
 async function renderHomeHighlights(db) {
@@ -6362,84 +6378,107 @@ async function renderHomeHighlights(db) {
     const miniListEl = document.getElementById('home-top-mini-list');
     if (!db) return;
 
-    // Obtenemos los top tracks del año actual o periodo reciente
-    const tracksMap = new Map();
+    try {
+        // En la base de datos unificada, los tops están en db.yearlyTops['2026'] o db.yearlyTops['overall']
+        const currentYear = String(new Date().getFullYear());
+        const yearlyTops = db.yearlyTops || {};
+        const yearTarget = yearlyTops[currentYear] || yearlyTops['overall'] || {};
+        const baseTracks = yearTarget.tracks || [];
 
-    const currentYear = new Date().getFullYear();
-    const yearKey = `year-${currentYear}`;
-    const targetData = db[yearKey] || db['overall'] || {};
-    const baseTracks = targetData.tracks || [];
-
-    baseTracks.forEach(t => {
-        const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
-        tracksMap.set(k, {
-            name: t.name,
-            artist: t.artist,
-            album: t.album,
-            plays: t.plays,
-            uri: t.uri
+        const tracksMap = new Map();
+        baseTracks.forEach(t => {
+            const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+            tracksMap.set(k, {
+                name: t.name,
+                artist: t.artist,
+                album: t.album,
+                plays: t.plays || 0,
+                uri: t.uri || null
+            });
         });
-    });
 
-    // Agregar delta reciente
-    lastFmRecentDelta.forEach(dt => {
-        const dtName = dt.name;
-        const dtArtist = dt.artist ? (dt.artist['#text'] || dt.artist.name || '') : '';
-        const dtAlbum = dt.album ? (dt.album['#text'] || dt.album.name || '') : '';
-        const k = `${normalizeKey(dtName)}:::${normalizeKey(dtArtist)}`;
-        if (tracksMap.has(k)) {
-            tracksMap.get(k).plays += 1;
-        } else {
-            tracksMap.set(k, { name: dtName, artist: dtArtist, album: dtAlbum, plays: 1, uri: null });
+        // Agregar delta reciente de Last.fm si existe
+        if (Array.isArray(lastFmRecentDelta)) {
+            lastFmRecentDelta.forEach(dt => {
+                const dtName = dt.name;
+                const dtArtist = dt.artist ? (dt.artist['#text'] || dt.artist.name || '') : '';
+                const dtAlbum = dt.album ? (dt.album['#text'] || dt.album.name || '') : '';
+                if (!dtName) return;
+                const k = `${normalizeKey(dtName)}:::${normalizeKey(dtArtist)}`;
+                if (tracksMap.has(k)) {
+                    tracksMap.get(k).plays += 1;
+                } else {
+                    tracksMap.set(k, { name: dtName, artist: dtArtist, album: dtAlbum, plays: 1, uri: null });
+                }
+            });
         }
-    });
 
-    const sorted = Array.from(tracksMap.values()).sort((a, b) => b.plays - a.plays);
+        const sorted = Array.from(tracksMap.values()).sort((a, b) => b.plays - a.plays);
 
-    if (sorted.length === 0) {
-        if (spotlightEl) spotlightEl.innerHTML = '<span class="text-secondary small">Aún no hay reproducciones este mes.</span>';
-        if (miniListEl) miniListEl.innerHTML = '<span class="text-secondary small">Sin canciones recientes.</span>';
-        return;
-    }
+        if (sorted.length === 0) {
+            if (spotlightEl) spotlightEl.innerHTML = '<span class="text-secondary small">Aún no hay reproducciones registradas para este periodo.</span>';
+            if (miniListEl) miniListEl.innerHTML = '<span class="text-secondary small">Sin canciones recientes.</span>';
+            return;
+        }
 
-    // El #1 destacado
-    const top1 = sorted[0];
-    const top1Cover = (db.cover_lookup && db.cover_lookup[`${normalizeKey(top1.name)}:::${normalizeKey(top1.artist)}`]) || FALLBACK_ART_SVG;
+        // 1. Destacado #1
+        const top1 = sorted[0];
+        const top1Key = `track::${normalizeKey(top1.name)}::${normalizeKey(top1.artist)}`;
+        const top1Cover = artCache[top1Key] || FALLBACK_ART_SVG;
 
-    if (spotlightEl) {
-        spotlightEl.innerHTML = `
-            <img src="${top1Cover}" class="rounded-3 shadow-sm border border-secondary border-opacity-10" style="width: 58px; height: 58px; object-fit: cover;" alt="Cover" onerror="safeImgError(this)">
-            <div class="overflow-hidden flex-grow-1">
-                <div class="fw-bold text-white text-truncate" style="font-size: 0.92rem;">${escapeHtml(top1.name)}</div>
-                <div class="text-secondary text-truncate" style="font-size: 0.78rem;">${escapeHtml(top1.artist)}</div>
-                <div class="d-flex align-items-center gap-2 mt-1">
-                    <span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; font-size: 0.68rem; border: 1px solid rgba(168,85,247,0.3);">
-                        🔥 ${formatNumber(top1.plays)} streams
-                    </span>
-                </div>
-            </div>
-        `;
-    }
-
-    // Mini Top 5
-    if (miniListEl) {
-        const top5 = sorted.slice(0, 5);
-        miniListEl.innerHTML = top5.map((t, idx) => {
-            const cover = (db.cover_lookup && db.cover_lookup[`${normalizeKey(t.name)}:::${normalizeKey(t.artist)}`]) || FALLBACK_ART_SVG;
-            return `
-                <div class="d-flex align-items-center justify-content-between p-2 rounded-2" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); cursor: pointer;" onclick="switchAppView('catalog')">
-                    <div class="d-flex align-items-center gap-2.5 overflow-hidden">
-                        <span class="fw-bold text-secondary text-center" style="width: 18px; font-size: 0.78rem;">#${idx + 1}</span>
-                        <img src="${cover}" class="rounded" style="width: 36px; height: 36px; object-fit: cover;" alt="Cover" onerror="safeImgError(this)">
-                        <div class="overflow-hidden">
-                            <div class="fw-semibold text-white text-truncate" style="font-size: 0.80rem;">${escapeHtml(t.name)}</div>
-                            <div class="text-secondary text-truncate" style="font-size: 0.70rem;">${escapeHtml(t.artist)}</div>
-                        </div>
+        if (spotlightEl) {
+            spotlightEl.innerHTML = `
+                <img id="home-spotlight-img" src="${top1Cover}" class="rounded-3 shadow-sm border border-secondary border-opacity-10" style="width: 58px; height: 58px; object-fit: cover;" alt="Cover" onerror="safeImgError(this)">
+                <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                    <div class="fw-bold text-white text-truncate" style="font-size: 0.92rem;" title="${escapeHtml(top1.name)}">${escapeHtml(top1.name)}</div>
+                    <div class="text-secondary text-truncate" style="font-size: 0.78rem;">${escapeHtml(top1.artist)}</div>
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                        <span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; font-size: 0.68rem; border: 1px solid rgba(168,85,247,0.3);">
+                            🔥 ${formatNumber(top1.plays)} streams
+                        </span>
                     </div>
-                    <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0" style="font-size: 0.68rem;">${formatNumber(t.plays)} plays</span>
                 </div>
             `;
-        }).join('');
+
+            if (!artCache[top1Key]) {
+                resolveSpotifyArtwork(top1.name, top1.artist, 'track', 'home-spotlight-img');
+            }
+        }
+
+        // 2. Mini Top 5
+        if (miniListEl) {
+            const top5 = sorted.slice(0, 5);
+            miniListEl.innerHTML = top5.map((t, idx) => {
+                const tKey = `track::${normalizeKey(t.name)}::${normalizeKey(t.artist)}`;
+                const tCover = artCache[tKey] || FALLBACK_ART_SVG;
+                const imgElementId = `home-mini-track-${idx}`;
+
+                return `
+                    <div class="d-flex align-items-center justify-content-between p-2 rounded-2" style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05); cursor: pointer;" onclick="showItemStats('track', '${escapeHtml(t.name)}', '${escapeHtml(t.artist)}')">
+                        <div class="d-flex align-items-center gap-2.5 overflow-hidden" style="min-width: 0;">
+                            <span class="fw-bold text-secondary text-center flex-shrink-0" style="width: 18px; font-size: 0.78rem;">#${idx + 1}</span>
+                            <img id="${imgElementId}" src="${tCover}" class="rounded flex-shrink-0" style="width: 36px; height: 36px; object-fit: cover;" alt="Cover" onerror="safeImgError(this)">
+                            <div class="overflow-hidden" style="min-width: 0;">
+                                <div class="fw-semibold text-white text-truncate" style="font-size: 0.80rem;">${escapeHtml(t.name)}</div>
+                                <div class="text-secondary text-truncate" style="font-size: 0.70rem;">${escapeHtml(t.artist)}</div>
+                            </div>
+                        </div>
+                        <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0 ms-2" style="font-size: 0.68rem;">${formatNumber(t.plays)} plays</span>
+                    </div>
+                `;
+            }).join('');
+
+            // Resolver carátulas de forma asíncrona
+            top5.forEach((t, idx) => {
+                const tKey = `track::${normalizeKey(t.name)}::${normalizeKey(t.artist)}`;
+                const imgElementId = `home-mini-track-${idx}`;
+                if (!artCache[tKey]) {
+                    resolveSpotifyArtwork(t.name, t.artist, 'track', imgElementId);
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Error renderizando highlights del home:', err);
     }
 }
 
