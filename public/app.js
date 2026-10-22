@@ -694,7 +694,6 @@ async function switchDataSource(source) {
                     <option value="year-2020">Año 2020</option>
                     <option value="year-2019">Año 2019</option>
                     <option value="custom">Rango de Fechas...</option>
-                    <option value="curator">Curador Semestral...</option>
                 </optgroup>
             `;
             selectTimePeriod.value = 'overall';
@@ -714,7 +713,6 @@ async function switchDataSource(source) {
         if (selectTimePeriod) {
             selectTimePeriod.innerHTML = `
                 <option value="overall" selected>Histórico Total</option>
-                <option value="curator">🪄 Curador de Playlists Semestrales...</option>
                 <option value="era-spotify">Era Spotify (2019 - Ago 2025)</option>
                 <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
                 <option value="custom">Rango de Fechas Personalizado...</option>
@@ -6164,7 +6162,7 @@ async function refreshEngagement() {
         }
 
         lastEngagementInfo = { challenge, streak, level };
-        renderEngagementStrip(lastEngagementInfo);
+        // renderEngagementStrip(lastEngagementInfo);
         renderEngagementPill(lastEngagementInfo);
 
         const modalEl = document.getElementById('progressModal');
@@ -6245,25 +6243,62 @@ function renderEngagementStrip({ challenge, streak, level }) {
 }
 
 function renderStreakCalendar(daySet) {
-    const WEEKS = 15;
+    // Registro Semanal de Actividad (Lunes a Domingo con días claros y estadísticas comprensibles)
     const today = new Date();
-    today.setHours(12, 0, 0, 0);
-    const start = new Date(today);
-    start.setDate(start.getDate() - today.getDay() - (WEEKS - 1) * 7);
+    const dayOfWeek = (today.getDay() + 6) % 7; // 0=Lun, 1=Mar, ..., 6=Dom
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - dayOfWeek);
+    monday.setHours(12, 0, 0, 0);
 
-    let cells = '';
-    for (let i = 0; i < WEEKS * 7; i++) {
-        const d = new Date(start);
-        d.setDate(start.getDate() + i);
+    const dayLabels = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    let completedThisWeek = 0;
+
+    let weekChips = '';
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
         const key = localDateKey(d);
-        const isFuture = d > today;
-        const active = daySet.has(key);
-        const isToday = key === localDateKey(today);
-        const bg = isFuture ? 'transparent' : (active ? '#a855f7' : 'rgba(255,255,255,0.07)');
-        const outline = isToday ? 'outline:1.5px solid #fbbf24;' : '';
-        cells += `<div title="${key}${active ? ' · activo' : ''}" style="width:14px;height:14px;border-radius:3px;background:${bg};${outline}"></div>`;
+        const isToday = i === dayOfWeek;
+        const isFuture = i > dayOfWeek;
+        const active = daySet && daySet.has(key);
+        if (active) completedThisWeek++;
+
+        const bg = active 
+            ? 'background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(236, 72, 153, 0.25)); border: 1.5px solid #a855f7;' 
+            : (isFuture ? 'background: rgba(255, 255, 255, 0.02); border: 1px dashed rgba(255, 255, 255, 0.1); opacity: 0.45;' : 'background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1);');
+        
+        const badgeIcon = active 
+            ? '<i class="fa-solid fa-check text-success fs-6"></i>' 
+            : (isToday ? '<i class="fa-solid fa-fire text-warning animate-pulse"></i>' : '<i class="fa-regular fa-circle text-secondary opacity-50"></i>');
+
+        weekChips += `
+            <div class="flex-grow-1 p-2 rounded-3 text-center" style="${bg} min-width: 44px; ${isToday ? 'box-shadow: 0 0 12px rgba(251, 191, 36, 0.25); border-color: #fbbf24 !important;' : ''}">
+                <div class="fw-bold mb-1 ${isToday ? 'text-warning' : 'text-secondary'}" style="font-size: 0.72rem;">${dayLabels[i]}</div>
+                <div class="d-flex align-items-center justify-content-center" style="height: 26px;">${badgeIcon}</div>
+                <small class="text-secondary d-block mt-0.5" style="font-size: 0.65rem;">${d.getDate()}</small>
+            </div>
+        `;
     }
-    return `<div style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,14px);gap:3px;overflow-x:auto;padding-bottom:4px;">${cells}</div>`;
+
+    return `
+        <div class="mt-2 mb-2 p-2.5 rounded-3" style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.06);">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-secondary small fw-semibold" style="font-size: 0.74rem;">
+                    <i class="fa-regular fa-calendar-check text-info me-1.5"></i>Actividad de esta semana
+                </span>
+                <span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 0.70rem;">
+                    ${completedThisWeek} de 7 días completados
+                </span>
+            </div>
+            <div class="d-flex gap-1.5 justify-content-between overflow-x-auto pb-1" style="scrollbar-width: none;">
+                ${weekChips}
+            </div>
+            <div class="d-flex align-items-center justify-content-between mt-2 pt-1 border-top border-secondary border-opacity-10 text-secondary" style="font-size: 0.70rem;">
+                <span><i class="fa-solid fa-circle-info me-1 text-primary"></i>Ingresa cada día y escucha música para mantener tu racha viva.</span>
+                <strong class="text-white">${daySet ? daySet.size : 0} días activos en total</strong>
+            </div>
+        </div>
+    `;
 }
 
 function renderProgressModal({ challenge, streak, level }) {
@@ -6434,20 +6469,8 @@ async function refreshHomeView() {
         if (db) {
             initEngagement(db);
 
-            if (db.summary) {
-                const s = db.summary;
-                const homeStreams = document.getElementById('home-stat-streams');
-                const homeHours = document.getElementById('home-stat-hours');
-                const homeArtists = document.getElementById('home-stat-artists');
-
-                const deltaPlays = Array.isArray(lastFmRecentDelta) ? lastFmRecentDelta.length : 0;
-                const totalStreams = (s.total_plays || 0) + deltaPlays;
-                const totalHours = Math.round((s.total_ms_played || 0) / (1000 * 60 * 60)) + Math.round((deltaPlays * 3.5 * 60 * 1000) / (1000 * 60 * 60));
-
-                if (homeStreams) homeStreams.textContent = formatNumber(totalStreams);
-                if (homeHours) homeHours.textContent = formatNumber(totalHours);
-                if (homeArtists) homeArtists.textContent = formatNumber(s.unique_artists || 0);
-            }
+            // 3. Mini Desafío / Gancho Interactivo de Portada
+            generateHomeHookGame(db);
 
             // 4. Tu #1 y Mini-Top 5
             await renderHomeHighlights(db);
@@ -6933,3 +6956,185 @@ function exportCurrentTop(format = 'csv') {
     downloadAnchor.remove();
 }
 window.exportCurrentTop = exportCurrentTop;
+
+// ----------------------------------------------------
+// MINI RETO INTERACTIVO / GANCHO EN PORTADA (HOME HOOK)
+// ----------------------------------------------------
+let currentHomeHookQuestion = null;
+
+async function generateHomeHookGame(db) {
+    const container = document.getElementById('home-hook-body');
+    if (!container) return;
+
+    if (!db) {
+        try {
+            db = await getActiveDatabase();
+        } catch (e) {
+            console.warn('No se pudo cargar la base para el mini reto:', e);
+        }
+    }
+    if (!db) return;
+
+    const yearlyTops = db.yearlyTops || {};
+    const overallTracks = yearlyTops.overall?.tracks || [];
+    const overallArtists = yearlyTops.overall?.artists || [];
+
+    if (overallTracks.length < 5) {
+        container.innerHTML = '<span class="text-secondary small">Cargando biblioteca musical para tu desafío...</span>';
+        return;
+    }
+
+    // Modalidades de reto al azar:
+    // 0: ¿Cuál de estas 3 canciones has escuchado MÁS veces?
+    // 1: ¿A qué artista pertenece esta canción de tu historial?
+    // 2: ¿Cuál de estos 3 artistas tiene más reproducciones en tu historia?
+    const mode = Math.floor(Math.random() * 3);
+
+    if (mode === 0) {
+        // Modo: ¿Cuál canción tiene más streams?
+        // Elegir 3 canciones con diferente rango de plays
+        const shuffled = [...overallTracks].sort(() => 0.5 - Math.random()).slice(0, 3);
+        shuffled.sort((a, b) => (b.plays || 0) - (a.plays || 0));
+        const winner = shuffled[0];
+        
+        // Mezclar las opciones visualmente
+        const options = [...shuffled].sort(() => 0.5 - Math.random());
+        currentHomeHookQuestion = {
+            type: 'plays_track',
+            winnerId: winner.name + ':::' + (winner.artist?.name || winner.artist || ''),
+            winnerPlays: winner.plays || 0
+        };
+
+        container.innerHTML = `
+            <div class="mb-2.5">
+                <div class="fw-bold text-white mb-1" style="font-size: 0.88rem;">
+                    🔥 ¿Cuál de estas canciones has escuchado <span class="text-warning text-decoration-underline">más veces</span>?
+                </div>
+                <small class="text-secondary" style="font-size: 0.72rem;">Elige una opción para comprobar tus números:</small>
+            </div>
+            <div class="d-flex flex-column gap-1.5" id="hook-options-container">
+                ${options.map((opt, i) => {
+                    const optId = opt.name + ':::' + (opt.artist?.name || opt.artist || '');
+                    const optArtist = opt.artist?.name || opt.artist || '';
+                    return `
+                        <button type="button" class="btn btn-sm btn-dark text-start p-2 rounded-2 d-flex align-items-center justify-content-between border border-secondary border-opacity-25" style="font-size: 0.78rem; transition: all 0.2s;" onclick="handleHomeHookAnswer('${escapeHtml(optId)}', ${opt.plays || 0})">
+                            <span class="text-truncate me-2">
+                                <strong class="text-white">${escapeHtml(opt.name)}</strong>
+                                <span class="text-secondary ms-1">· ${escapeHtml(optArtist)}</span>
+                            </span>
+                            <i class="fa-regular fa-circle-question text-secondary flex-shrink-0"></i>
+                        </button>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    } else if (mode === 1) {
+        // Modo: Adivina el artista de una canción top
+        const candidateTracks = overallTracks.filter(t => (t.artist?.name || t.artist) && t.name).slice(0, 80);
+        const randomTrack = candidateTracks[Math.floor(Math.random() * candidateTracks.length)];
+        const correctArtist = randomTrack.artist?.name || randomTrack.artist;
+
+        // Escoger 2 artistas falsos
+        const otherArtists = overallArtists
+            .map(a => a.name || a['#text'] || a)
+            .filter(a => a && a !== correctArtist)
+            .sort(() => 0.5 - Math.random())
+            .slice(0, 2);
+
+        const options = [correctArtist, ...otherArtists].sort(() => 0.5 - Math.random());
+        currentHomeHookQuestion = {
+            type: 'guess_artist',
+            winnerId: correctArtist,
+            trackName: randomTrack.name
+        };
+
+        container.innerHTML = `
+            <div class="mb-2.5">
+                <div class="fw-bold text-white mb-1" style="font-size: 0.88rem;">
+                    🎵 ¿Quién canta tu tema top <span class="text-info">"${escapeHtml(randomTrack.name)}"</span>?
+                </div>
+                <small class="text-secondary" style="font-size: 0.72rem;">Selecciona el artista correcto:</small>
+            </div>
+            <div class="d-flex flex-column gap-1.5" id="hook-options-container">
+                ${options.map(art => {
+                    return `
+                        <button type="button" class="btn btn-sm btn-dark text-start p-2 rounded-2 d-flex align-items-center justify-content-between border border-secondary border-opacity-25" style="font-size: 0.78rem; transition: all 0.2s;" onclick="handleHomeHookAnswer('${escapeHtml(art)}', 0)">
+                            <span class="text-white fw-semibold text-truncate me-2">${escapeHtml(art)}</span>
+                            <i class="fa-regular fa-circle-question text-secondary flex-shrink-0"></i>
+                        </button>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    } else {
+        // Modo: ¿Cuál de estos 3 artistas tiene más reproducciones?
+        const shuffled = [...overallArtists].filter(a => a.plays || a.playcount).sort(() => 0.5 - Math.random()).slice(0, 3);
+        shuffled.sort((a, b) => ((b.plays || b.playcount || 0) - (a.plays || a.playcount || 0)));
+        const winner = shuffled[0];
+        const winnerName = winner.name || winner['#text'] || winner;
+        const winnerPlays = winner.plays || winner.playcount || 0;
+
+        const options = [...shuffled].sort(() => 0.5 - Math.random());
+        currentHomeHookQuestion = {
+            type: 'plays_artist',
+            winnerId: winnerName,
+            winnerPlays: winnerPlays
+        };
+
+        container.innerHTML = `
+            <div class="mb-2.5">
+                <div class="fw-bold text-white mb-1" style="font-size: 0.88rem;">
+                    👑 ¿Cuál artista tiene <span class="text-primary text-decoration-underline">más reproducciones</span> en tu historial?
+                </div>
+                <small class="text-secondary" style="font-size: 0.72rem;">Elige a tu rey o reina de streams:</small>
+            </div>
+            <div class="d-flex flex-column gap-1.5" id="hook-options-container">
+                ${options.map(opt => {
+                    const name = opt.name || opt['#text'] || opt;
+                    const plays = opt.plays || opt.playcount || 0;
+                    return `
+                        <button type="button" class="btn btn-sm btn-dark text-start p-2 rounded-2 d-flex align-items-center justify-content-between border border-secondary border-opacity-25" style="font-size: 0.78rem; transition: all 0.2s;" onclick="handleHomeHookAnswer('${escapeHtml(name)}', ${plays})">
+                            <span class="text-white fw-semibold text-truncate me-2">${escapeHtml(name)}</span>
+                            <i class="fa-regular fa-circle-question text-secondary flex-shrink-0"></i>
+                        </button>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    }
+}
+
+function handleHomeHookAnswer(selectedId, selectedPlays) {
+    if (!currentHomeHookQuestion) return;
+    const container = document.getElementById('home-hook-body');
+    if (!container) return;
+
+    const isCorrect = selectedId === currentHomeHookQuestion.winnerId;
+
+    if (isCorrect) {
+        if (typeof confetti === 'function') {
+            confetti({ particleCount: 40, spread: 60, origin: { y: 0.3 } });
+        }
+    }
+
+    let detailMsg = '';
+    if (currentHomeHookQuestion.type === 'plays_track') {
+        detailMsg = `Tiene <strong>${formatNumber(currentHomeHookQuestion.winnerPlays)}</strong> reproducciones en tu cuenta.`;
+    } else if (currentHomeHookQuestion.type === 'guess_artist') {
+        detailMsg = `El artista correcto es <strong>${escapeHtml(currentHomeHookQuestion.winnerId)}</strong>.`;
+    } else {
+        detailMsg = `Tiene un total de <strong>${formatNumber(currentHomeHookQuestion.winnerPlays)}</strong> streams registrados.`;
+    }
+
+    container.innerHTML = `
+        <div class="p-3 rounded-2 text-center ${isCorrect ? 'bg-success bg-opacity-15 border border-success border-opacity-40' : 'bg-danger bg-opacity-15 border border-danger border-opacity-40'}">
+            <div class="fs-4 mb-1">${isCorrect ? '🎉 ¡Acertaste!' : '😅 ¡Casi!'}</div>
+            <div class="text-white small mb-2">${detailMsg}</div>
+            <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-3 py-1 fw-semibold text-white" style="font-size: 0.76rem;" onclick="generateHomeHookGame()">
+                <i class="fa-solid fa-play me-1"></i> Siguiente desafío
+            </button>
+        </div>
+    `;
+}
+window.generateHomeHookGame = generateHomeHookGame;
+window.handleHomeHookAnswer = handleHomeHookAnswer;

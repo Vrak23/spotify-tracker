@@ -1017,33 +1017,25 @@
                 <!-- Currently Playing Bar flotante -->
                 <div id="currently-playing-container" class="mb-2.5"></div>
 
-                <!-- Franja de Reto del Día / Nivel / Racha -->
-                <div id="engagement-strip" class="d-none mb-3"></div>
-
-                
-
-                <!-- Resumen de Métricas Clave (Stats Strips) -->
-                <div class="row g-2 mb-3">
-                    <div class="col-4">
-                        <div class="home-card p-2.5 text-center">
-                            <div class="text-secondary" style="font-size: 0.68rem; text-transform: uppercase; font-weight: 600;">Streams</div>
-                            <div id="home-stat-streams" class="fw-bold text-white fs-6 mt-0.5">...</div>
+                                <!-- Widget Interactivo / Gancho: Blind Test Diario -->
+                <div id="home-interactive-hook" class="home-card p-3 mb-3" style="background: radial-gradient(circle at top right, rgba(168, 85, 247, 0.12), rgba(15, 15, 20, 0.95)); border: 1px solid rgba(168, 85, 247, 0.35);">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge rounded-pill px-2.5 py-1 fw-bold" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 0.70rem;">
+                                <i class="fa-solid fa-gamepad me-1"></i> MINI RETO MUSICAL
+                            </span>
+                            <span class="text-secondary small" style="font-size: 0.72rem;">¿Qué tanto conoces tus gustos?</span>
                         </div>
+                        <button type="button" class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" style="font-size: 0.75rem;" onclick="generateHomeHookGame()">
+                            <i class="fa-solid fa-rotate-right me-1"></i> Otra pregunta
+                        </button>
                     </div>
-                    <div class="col-4">
-                        <div class="home-card p-2.5 text-center">
-                            <div class="text-secondary" style="font-size: 0.68rem; text-transform: uppercase; font-weight: 600;">Horas</div>
-                            <div id="home-stat-hours" class="fw-bold text-white fs-6 mt-0.5">...</div>
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="home-card p-2.5 text-center">
-                            <div class="text-secondary" style="font-size: 0.68rem; text-transform: uppercase; font-weight: 600;">Artistas</div>
-                            <div id="home-stat-artists" class="fw-bold text-white fs-6 mt-0.5">...</div>
+                    <div id="home-hook-body">
+                        <div class="text-center py-2 text-secondary" style="font-size: 0.78rem;">
+                            <div class="spinner-border spinner-border-sm text-primary me-2"></div>Preparando tu desafío...
                         </div>
                     </div>
                 </div>
-
                 <!-- Tu Número 1 Actual del Mes -->
                 <div id="home-top-spotlight" class="home-card p-3 mb-3">
                     <div class="d-flex align-items-center justify-content-between mb-2">
@@ -1189,7 +1181,6 @@
                                     <option value="year-2020">Año 2020</option>
                                     <option value="year-2019">Año 2019</option>
                                     <option value="custom">Rango de Fechas...</option>
-                                    <option value="curator">Curador Semestral...</option>
                                 </optgroup>
                             </select>
                         </div>
