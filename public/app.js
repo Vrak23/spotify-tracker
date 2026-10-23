@@ -647,8 +647,8 @@ async function getActiveDatabase() {
     return await loadSpotifyDatabase();
 }
 
-async function fetchLastFmDelta() {
-    if (hasFetchedLastFmDelta) return lastFmRecentDelta;
+async function fetchLastFmDelta(force = false) {
+    if (hasFetchedLastFmDelta && !force) return lastFmRecentDelta;
     const { user, key } = getLastFmCredentials();
     if (!user || !key) return [];
     try {
@@ -1488,9 +1488,10 @@ async function fetchCurrentlyPlaying() {
     const { user, key } = getLastFmCredentials();
     if (user && key) {
         try {
-            const lfRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&limit=1&format=json`);
+            const lfRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&limit=2&format=json`);
             const lfData = await lfRes.json();
             const firstTrack = lfData?.recenttracks?.track?.[0];
+            handleLiveScrobbleCheck(lfData?.recenttracks?.track);
             const isPlaying = firstTrack && firstTrack['@attr']?.nowplaying === 'true';
 
             if (isPlaying) {
@@ -1538,6 +1539,44 @@ async function fetchCurrentlyPlaying() {
     }
 }
 
+// Detecta scrobbles nuevos y refresca home, listados y modales sin recargar la página
+let lastSeenScrobbleUts = null;
+let liveRefreshRunning = false;
+function handleLiveScrobbleCheck(rawTracks) {
+    const list = Array.isArray(rawTracks) ? rawTracks : (rawTracks ? [rawTracks] : []);
+    const done = list.find(t => t && t.date && t.date.uts);
+    if (!done) return;
+    const uts = String(done.date.uts);
+    if (lastSeenScrobbleUts === null) { lastSeenScrobbleUts = uts; return; }
+    if (uts === lastSeenScrobbleUts) return;
+    lastSeenScrobbleUts = uts;
+    refreshLiveData();
+}
+
+async function refreshLiveData() {
+    if (liveRefreshRunning) return;
+    liveRefreshRunning = true;
+    try {
+        await fetchLastFmDelta(true);
+        todayPlaysCache = { day: '', at: 0, plays: [] };
+        try { updateStatStrip(); } catch (e) {}
+        const db = await getActiveDatabase();
+        if (db) { try { checkArtistMilestones(db); } catch (e) {} }
+        if (currentActiveView === 'catalog') await loadStats(true);
+        else if (currentActiveView === 'home') await refreshHomeView();
+        else if (currentActiveView === 'profile') renderProfileSection();
+        try { refreshEngagement(); } catch (e) {}
+        const modalEl = document.getElementById('itemStatsModal');
+        if (modalEl && modalEl.classList.contains('show') && currentOpenStats) {
+            await showItemStats(currentOpenStats.type, currentOpenStats.name, currentOpenStats.artist, true);
+        }
+    } catch (e) {
+        console.warn('Error en actualización en vivo:', e);
+    } finally {
+        liveRefreshRunning = false;
+    }
+}
+window.refreshLiveData = refreshLiveData;
 function startCurrentlyPlayingPolling() {
     if (currentlyPlayingTimer) clearInterval(currentlyPlayingTimer);
     fetchCurrentlyPlaying();
@@ -1645,9 +1684,11 @@ function renderErrorState(container, title, message, retryFnName) {
 }
 window.renderErrorState = renderErrorState;
 
-async function loadStats() {
-    if (filterSearchInput) filterSearchInput.value = '';
-    renderSkeletons(currentLimit === 'all' ? 20 : Math.min(parseInt(currentLimit, 10) || 12, 16));
+async function loadStats(silent = false) {
+    if (silent !== true) {
+        if (filterSearchInput) filterSearchInput.value = '';
+        renderSkeletons(currentLimit === 'all' ? 20 : Math.min(parseInt(currentLimit, 10) || 12, 16));
+    }
     if (loader) loader.classList.add('d-none');
 
     // ====================================================
