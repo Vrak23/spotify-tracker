@@ -1073,15 +1073,6 @@
                             </div>
                         </div>
                         <div class="col-6">
-                            <div class="home-quick-pill" onclick="openTournamentModal()">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <i class="fa-solid fa-trophy text-danger"></i>
-                                    <strong style="font-size: 0.80rem;">Torneo</strong>
-                                </div>
-                                <small class="text-secondary d-block" style="font-size: 0.68rem;">Elimina canciones cara a cara</small>
-                            </div>
-                        </div>
-                        <div class="col-6">
                             <div class="home-quick-pill" onclick="switchAppView('curator')">
                                 <div class="d-flex align-items-center gap-2 mb-1">
                                     <i class="fa-solid fa-wand-magic-sparkles text-info"></i>
@@ -1287,24 +1278,6 @@
                                 <p class="text-secondary mb-3" style="font-size: 0.74rem;">Preguntas generadas en tiempo real a partir de tus canciones y hábitos reales.</p>
                             </div>
                             <button class="btn btn-sm btn-outline-brand rounded-pill w-100 py-1" style="font-size: 0.76rem;">Jugar ahora</button>
-                        </div>
-                    </div>
-
-                    <div class="col-12 col-sm-6">
-                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openTournamentModal()">
-                            <div>
-                                <div class="d-flex align-items-center gap-2 mb-2">
-                                    <div class="rounded-3 p-2" style="background: rgba(239,68,68,0.15); color: #f87171;">
-                                        <i class="fa-solid fa-trophy fs-5"></i>
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Torneo de Canciones</div>
-                                        
-                                    </div>
-                                </div>
-                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Enfrenta a tus 8, 16 o 32 canciones más escuchadas en duelos mano a mano.</p>
-                            </div>
-                            <button class="btn btn-sm btn-outline-danger rounded-pill w-100 py-1" style="font-size: 0.76rem;">Iniciar Torneo</button>
                         </div>
                     </div>
 
@@ -1537,6 +1510,8 @@
                         </button>
                     </div>
 
+                    <div id="wrapped-teaser" class="mb-3"></div>
+
                     <div id="profile-section-content" class="pb-2">
                         <div class="text-center py-5 text-secondary">
                             <div class="spinner-border spinner-border-sm me-2 text-primary"></div>
@@ -1633,13 +1608,6 @@
                                     <div>
                                         <div class="fw-semibold">Trivia Musical Personal</div>
                                         <small class="text-secondary d-block" style="font-size: 0.73rem;">¿Cuánto conoces tus propias estadísticas?</small>
-                                    </div>
-                                </button>
-                                <button class="offcanvas-menu-item" id="menu-open-tournament" data-bs-dismiss="offcanvas">
-                                    <i class="fa-solid fa-trophy text-danger fs-5"></i>
-                                    <div>
-                                        <div class="fw-semibold">Torneo de Canciones</div>
-                                        <small class="text-secondary d-block" style="font-size: 0.73rem;">Duelos de eliminación directa hasta coronar tu #1</small>
                                     </div>
                                 </button>
                                 <button class="offcanvas-menu-item" id="menu-open-iceberg" data-bs-dismiss="offcanvas">
@@ -2240,6 +2208,19 @@
         </div>
     </div>
 
+    <!-- Modal: Pistas del Wrapped -->
+    <div class="modal fade" id="wrappedHintModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 460px;">
+            <div class="modal-content bg-dark text-white border-0 shadow-lg" style="background: radial-gradient(circle at top, #2a1247 0%, #0d0d12 100%) !important; border: 1px solid rgba(168, 85, 247, 0.4) !important; border-radius: 18px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-15 py-2.5 px-3">
+                    <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;"><i class="fa-solid fa-gift text-primary me-2"></i>Pista del Wrapped de Diciembre</h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3.5" id="wrapped-hint-body"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: Cápsula del Tiempo -->
     <div class="modal fade" id="capsuleModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-stats-dialog" style="max-width: 600px;">
@@ -2279,24 +2260,6 @@
                 </div>
                 <div class="modal-body p-3.5" id="trivia-modal-body">
                     <!-- Vista previa / Quiz dinámico -->
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Torneo de Canciones (Bracket) -->
-    <div class="modal fade" id="tournamentModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered" style="max-width: 560px;">
-            <div class="modal-content bg-dark text-white border-0 shadow-lg" style="background: radial-gradient(circle at top, #240c1a 0%, #0d0d12 100%) !important; border: 1px solid rgba(244, 63, 94, 0.35) !important; border-radius: 18px;">
-                <div class="modal-header border-bottom border-secondary border-opacity-15 py-2.5 px-3">
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="fa-solid fa-trophy text-danger fs-5"></i>
-                        <h6 class="modal-title fw-bold text-white mb-0" style="font-size: 0.95rem;">Torneo de Canciones (Duelo Cara a Cara)</h6>
-                    </div>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-3.5" id="tournament-modal-body">
-                    <!-- Arena de Duelo dinámica -->
                 </div>
             </div>
         </div>
@@ -2345,7 +2308,7 @@
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=44"></script>
+    <script src="/app.js?v=45"></script>
 
     <!-- Barra de Navegación Inferior Móvil (Bottom Navigation Bar) -->
     <nav id="bottom-nav-bar" class="bottom-nav-bar d-none">

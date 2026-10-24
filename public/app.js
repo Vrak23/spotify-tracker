@@ -52,6 +52,11 @@ window.safeAvatarError = safeAvatarError;
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').then((registration) => {
+            // Actualizaciones en vivo: buscar nueva version cada minuto y al volver a la app
+            const checkForAppUpdate = () => { if (navigator.onLine) registration.update().catch(() => {}); };
+            setInterval(checkForAppUpdate, 60000);
+            document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForAppUpdate(); });
+            window.addEventListener('focus', checkForAppUpdate);
             registration.onupdatefound = () => {
                 const installingWorker = registration.installing;
                 if (installingWorker) {
@@ -518,10 +523,6 @@ function setupEventListeners() {
     if (menuOpenTrivia) {
         menuOpenTrivia.addEventListener('click', openTriviaModal);
     }
-    const menuOpenTournament = document.getElementById('menu-open-tournament');
-    if (menuOpenTournament) {
-        menuOpenTournament.addEventListener('click', openTournamentModal);
-    }
     const menuOpenIceberg = document.getElementById('menu-open-iceberg');
     if (menuOpenIceberg) {
         menuOpenIceberg.addEventListener('click', openIcebergModal);
@@ -653,11 +654,23 @@ async function fetchLastFmDelta(force = false) {
     if (!user || !key) return [];
     try {
         const cutoffUTS = Math.floor(new Date('2026-10-14T21:59:34Z').getTime() / 1000);
-        const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(user)}&from=${cutoffUTS}&api_key=${encodeURIComponent(key)}&limit=200&format=json`);
-        if (res.ok) {
+        const all = [];
+        let page = 1;
+        let totalPages = 1;
+        let ok = true;
+        // Paginado: con el paso de los días el delta supera los 200 scrobbles
+        while (page <= totalPages && page <= 25) {
+            const res = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(user)}&from=${cutoffUTS}&api_key=${encodeURIComponent(key)}&limit=200&page=${page}&format=json`);
+            if (!res.ok) { ok = false; break; }
             const data = await res.json();
-            const tracks = data?.recenttracks?.track || [];
-            lastFmRecentDelta = Array.isArray(tracks) ? tracks : (tracks ? [tracks] : []);
+            const raw = data?.recenttracks?.track || [];
+            const list = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+            list.forEach(t => { if (t && t.date && t.date.uts) all.push(t); });
+            totalPages = parseInt(data?.recenttracks?.['@attr']?.totalPages || '1', 10) || 1;
+            page++;
+        }
+        if (ok) {
+            lastFmRecentDelta = all;
             hasFetchedLastFmDelta = true;
         }
     } catch (e) {
@@ -1542,7 +1555,11 @@ async function fetchCurrentlyPlaying() {
 // Detecta scrobbles nuevos y refresca home, listados y modales sin recargar la página
 let lastSeenScrobbleUts = null;
 let liveRefreshRunning = false;
+let lastLiveDayKey = null;
 function handleLiveScrobbleCheck(rawTracks) {
+    const todayK = localDateKey();
+    if (lastLiveDayKey === null) lastLiveDayKey = todayK;
+    else if (lastLiveDayKey !== todayK) { lastLiveDayKey = todayK; refreshLiveData(); }
     const list = Array.isArray(rawTracks) ? rawTracks : (rawTracks ? [rawTracks] : []);
     const done = list.find(t => t && t.date && t.date.uts);
     if (!done) return;
@@ -2536,6 +2553,8 @@ async function showItemStats(type, name, artist, isBack = false) {
     // Integración de escuchas en vivo de Last.fm en modo unificado
     let deltaItemPlays = 0;
     let lastDeltaIso = null;
+    const deltaMonths = {};
+    const deltaYears = {};
     if (currentSource === 'unified' && lastFmRecentDelta.length > 0) {
         const normN = normalizeKey(name);
         const normA = normalizeKey(artist || '');
@@ -2551,11 +2570,14 @@ async function showItemStats(type, name, artist, isBack = false) {
             } else if (type === 'album') {
                 if (tAlbum === normN && (!normA || !tArtist || tArtist.includes(normA) || normA.includes(tArtist))) match = true;
             }
-            if (match) {
+            if (match && t.date?.uts) {
                 deltaItemPlays++;
-                if (!lastDeltaIso && t.date?.uts) {
-                    lastDeltaIso = new Date(parseInt(t.date.uts, 10) * 1000).toISOString();
-                }
+                const dObj = new Date(parseInt(t.date.uts, 10) * 1000);
+                const mKey = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}`;
+                deltaMonths[mKey] = (deltaMonths[mKey] || 0) + 1;
+                deltaYears[String(dObj.getFullYear())] = (deltaYears[String(dObj.getFullYear())] || 0) + 1;
+                const iso = dObj.toISOString();
+                if (!lastDeltaIso || iso > lastDeltaIso) lastDeltaIso = iso;
             }
         });
     }
@@ -2569,8 +2591,8 @@ async function showItemStats(type, name, artist, isBack = false) {
             skips: 0,
             first: lastDeltaIso,
             last: lastDeltaIso,
-            years: { '2026': deltaItemPlays },
-            months: { '2026-10': deltaItemPlays }
+            years: {},
+            months: {}
         };
     }
 
@@ -2646,10 +2668,9 @@ async function showItemStats(type, name, artist, isBack = false) {
 
     // Barras de evolución anual (2019-2026) con suma en vivo
     const yearsObj = { ...(data.years || {}) };
-    if (deltaItemPlays > 0) {
-        yearsObj['2026'] = (yearsObj['2026'] || 0) + deltaItemPlays;
-    }
-    const yearsList = ['2019', '2020', '2021', '2022', '2023', '2024', '2025', '2026'];
+    Object.entries(deltaYears).forEach(([y, c]) => { yearsObj[y] = (yearsObj[y] || 0) + c; });
+    const yearsList = [];
+    for (let y = 2019; y <= Math.max(2026, new Date().getFullYear()); y++) yearsList.push(String(y));
     const maxYearPlays = Math.max(1, ...Object.values(yearsObj));
 
     const annualBarsHtml = yearsList.map(y => {
@@ -2669,8 +2690,10 @@ async function showItemStats(type, name, artist, isBack = false) {
 
     // Meses con mayor actividad (Top 3)
     let peakMonthsHtml = '';
-    if (data.months && Object.keys(data.months).length > 0) {
-        const sortedMonths = Object.entries(data.months).sort((a, b) => b[1] - a[1]).slice(0, 3);
+    const monthsObj = { ...(data.months || {}) };
+    Object.entries(deltaMonths).forEach(([mk, c]) => { monthsObj[mk] = (monthsObj[mk] || 0) + c; });
+    if (Object.keys(monthsObj).length > 0) {
+        const sortedMonths = Object.entries(monthsObj).sort((a, b) => b[1] - a[1]).slice(0, 3);
         peakMonthsHtml = `
             <div class="mt-2.5 p-2 rounded" style="background-color: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.05);">
                 <div class="fw-semibold text-secondary mb-1.5" style="font-size: 0.72rem;"><i class="fa-solid fa-fire text-warning me-1"></i> Meses pico de más escuchas</div>
@@ -5359,219 +5382,6 @@ function renderTriviaResults() {
 }
 
 // ----------------------------------------------------
-// 8. TORNEO DE CANCIONES (BRACKET POR ELIMINACIÓN DIRECTA)
-// ----------------------------------------------------
-let tournamentMatches = [];
-let tournamentRoundName = 'Octavos de Final';
-let tournamentCurrentMatchIdx = 0;
-let tournamentNextRoundTracks = [];
-
-async function openTournamentModal() {
-    const modalEl = document.getElementById('tournamentModal');
-    if (!modalEl) return;
-
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
-
-    const db = await getActiveDatabase();
-    if (!db) return;
-
-    renderTournamentLobby(db);
-}
-
-function renderTournamentLobby(db) {
-    const body = document.getElementById('tournament-modal-body');
-    if (!body) return;
-
-    body.innerHTML = `
-        <div class="text-center py-2 mb-3">
-            <h5 class="fw-bold text-white mb-1"><i class="fa-solid fa-trophy text-danger me-1.5"></i> Elige el Campo de Batalla</h5>
-            <p class="text-secondary small mb-0">Selecciona con qué canciones se formará la llave de 16 participantes:</p>
-        </div>
-
-        <div class="d-flex flex-column gap-2 mb-3">
-            <button type="button" class="btn btn-outline-secondary text-start text-white p-3 rounded-3 d-flex align-items-center justify-content-between" onclick="initTournamentTracks('overall')" style="background: rgba(244, 63, 94, 0.08); border-color: rgba(244, 63, 94, 0.25);">
-                <div>
-                    <strong class="text-white d-block" style="font-size: 0.85rem;"><i class="fa-solid fa-crown text-warning me-1.5"></i> Torneo de tu Top 16 Histórico</strong>
-                    <small class="text-secondary" style="font-size: 0.72rem;">Los 16 temas más reproducidos de toda tu vida (2019 - 2026).</small>
-                </div>
-                <i class="fa-solid fa-chevron-right text-secondary fs-6"></i>
-            </button>
-
-            <button type="button" class="btn btn-outline-secondary text-start text-white p-3 rounded-3 d-flex align-items-center justify-content-between" onclick="initTournamentTracks('2024')" style="background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.08);">
-                <div>
-                    <strong class="text-white d-block" style="font-size: 0.85rem;"><i class="fa-solid fa-calendar-star text-info me-1.5"></i> Torneo de tu 2024</strong>
-                    <small class="text-secondary" style="font-size: 0.72rem;">Las 16 canciones más destacadas de tu año 2024.</small>
-                </div>
-                <i class="fa-solid fa-chevron-right text-secondary fs-6"></i>
-            </button>
-
-            <button type="button" class="btn btn-outline-secondary text-start text-white p-3 rounded-3 d-flex align-items-center justify-content-between" onclick="initTournamentTracks('2023')" style="background: rgba(255, 255, 255, 0.03); border-color: rgba(255, 255, 255, 0.08);">
-                <div>
-                    <strong class="text-white d-block" style="font-size: 0.85rem;"><i class="fa-solid fa-clock-rotate-left text-primary me-1.5"></i> Torneo de tu 2023</strong>
-                    <small class="text-secondary" style="font-size: 0.72rem;">Las 16 canciones más sonadas de tu año 2023.</small>
-                </div>
-                <i class="fa-solid fa-chevron-right text-secondary fs-6"></i>
-            </button>
-        </div>
-    `;
-}
-
-async function initTournamentTracks(type) {
-    const db = await getActiveDatabase();
-    if (!db) return;
-
-    let rawTracks = [];
-    if (type === 'overall') {
-        rawTracks = db.yearlyTops?.overall?.tracks || Object.values(db.tracksLookup || {});
-    } else {
-        rawTracks = db.yearlyTops?.[type]?.tracks || [];
-    }
-
-    const participants = rawTracks.slice(0, 16);
-    if (participants.length < 4) {
-        alert('No hay suficientes canciones en este periodo para armar un torneo.');
-        return;
-    }
-
-    tournamentMatches = [];
-    for (let i = 0; i < participants.length; i += 2) {
-        if (i + 1 < participants.length) {
-            tournamentMatches.push([participants[i], participants[i + 1]]);
-        }
-    }
-
-    tournamentRoundName = participants.length === 16 ? 'Octavos de Final' : 'Semifinales';
-    tournamentCurrentMatchIdx = 0;
-    tournamentNextRoundTracks = [];
-
-    renderTournamentMatch();
-}
-
-function renderTournamentMatch() {
-    const body = document.getElementById('tournament-modal-body');
-    if (!body) return;
-
-    if (tournamentCurrentMatchIdx >= tournamentMatches.length) {
-        if (tournamentNextRoundTracks.length === 1) {
-            renderTournamentWinner(tournamentNextRoundTracks[0]);
-            return;
-        }
-
-        tournamentMatches = [];
-        for (let i = 0; i < tournamentNextRoundTracks.length; i += 2) {
-            if (i + 1 < tournamentNextRoundTracks.length) {
-                tournamentMatches.push([tournamentNextRoundTracks[i], tournamentNextRoundTracks[i + 1]]);
-            }
-        }
-        if (tournamentMatches.length === 4) tournamentRoundName = 'Cuartos de Final';
-        else if (tournamentMatches.length === 2) tournamentRoundName = 'Semifinales';
-        else if (tournamentMatches.length === 1) tournamentRoundName = 'Gran Final';
-
-        tournamentCurrentMatchIdx = 0;
-        tournamentNextRoundTracks = [];
-    }
-
-    const [trackA, trackB] = tournamentMatches[tournamentCurrentMatchIdx];
-    const matchNum = tournamentCurrentMatchIdx + 1;
-    const totalMatches = tournamentMatches.length;
-
-    const coverAKey = `track::${normalizeKey(trackA.name)}::${normalizeKey(trackA.artist || '')}`;
-    const coverBKey = `track::${normalizeKey(trackB.name)}::${normalizeKey(trackB.artist || '')}`;
-    const coverA = artCache[coverAKey] || '/logo.png';
-    const coverB = artCache[coverBKey] || '/logo.png';
-
-    body.innerHTML = `
-        <div class="d-flex align-items-center justify-content-between mb-3 text-secondary" style="font-size: 0.74rem;">
-            <span class="badge border border-danger border-opacity-30 text-white" style="background: rgba(244, 63, 94, 0.2);">${tournamentRoundName}</span>
-            <span>Duelo <strong class="text-white">${matchNum}</strong> de ${totalMatches}</span>
-        </div>
-
-        <div class="row g-2 align-items-center mb-3">
-            <div class="col-6">
-                <div class="p-3 rounded-3 text-center border border-secondary border-opacity-15 h-100 d-flex flex-column justify-content-between" style="background: rgba(255, 255, 255, 0.03);">
-                    <div>
-                        <img id="tourn-cover-a" src="${coverA}" class="rounded-3 shadow mb-2" style="width: 80px; height: 80px; object-fit: cover;" onerror="safeImgError(this)">
-                        <h6 class="fw-bold text-white mb-0 text-truncate" title="${trackA.name}" style="font-size: 0.85rem;">${trackA.name}</h6>
-                        <small class="text-secondary text-truncate d-block mb-1" style="font-size: 0.72rem;">${trackA.artist}</small>
-                        <span class="badge bg-secondary bg-opacity-25 text-white mb-2" style="font-size: 0.65rem;">${trackA.plays} reps</span>
-                    </div>
-                    <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill py-1.5 fw-semibold" onclick="voteTournament(0)" style="font-size: 0.78rem;">
-                        <i class="fa-solid fa-heart me-1"></i> Elegir
-                    </button>
-                </div>
-            </div>
-
-            <div class="col-6">
-                <div class="p-3 rounded-3 text-center border border-secondary border-opacity-15 h-100 d-flex flex-column justify-content-between" style="background: rgba(255, 255, 255, 0.03);">
-                    <div>
-                        <img id="tourn-cover-b" src="${coverB}" class="rounded-3 shadow mb-2" style="width: 80px; height: 80px; object-fit: cover;" onerror="safeImgError(this)">
-                        <h6 class="fw-bold text-white mb-0 text-truncate" title="${trackB.name}" style="font-size: 0.85rem;">${trackB.name}</h6>
-                        <small class="text-secondary text-truncate d-block mb-1" style="font-size: 0.72rem;">${trackB.artist}</small>
-                        <span class="badge bg-secondary bg-opacity-25 text-white mb-2" style="font-size: 0.65rem;">${trackB.plays} reps</span>
-                    </div>
-                    <button type="button" class="btn btn-sm btn-outline-danger w-100 rounded-pill py-1.5 fw-semibold" onclick="voteTournament(1)" style="font-size: 0.78rem;">
-                        <i class="fa-solid fa-heart me-1"></i> Elegir
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-
-    if (!artCache[coverAKey]) resolveSpotifyArtwork(trackA.name, trackA.artist || '', 'track', 'tourn-cover-a');
-    if (!artCache[coverBKey]) resolveSpotifyArtwork(trackB.name, trackB.artist || '', 'track', 'tourn-cover-b');
-}
-
-function voteTournament(choiceIdx) {
-    const currentPair = tournamentMatches[tournamentCurrentMatchIdx];
-    const winner = currentPair[choiceIdx];
-    tournamentNextRoundTracks.push(winner);
-    tournamentCurrentMatchIdx++;
-    renderTournamentMatch();
-}
-
-function renderTournamentWinner(track) {
-    const body = document.getElementById('tournament-modal-body');
-    if (!body) return;
-
-    const coverKey = `track::${normalizeKey(track.name)}::${normalizeKey(track.artist || '')}`;
-    const cover = artCache[coverKey] || '/logo.png';
-
-    body.innerHTML = `
-        <div class="text-center py-3">
-            <div class="badge rounded-pill px-3 py-1 mb-2 text-uppercase fw-bold text-warning" style="background: rgba(234, 179, 8, 0.15); border: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.72rem;">
-                <i class="fa-solid fa-crown text-warning me-1"></i> Gran Campeona del Torneo
-            </div>
-
-            <div class="my-3">
-                <img id="tourn-champ-img" src="${cover}" class="rounded-3 shadow-lg border border-2 border-warning" style="width: 110px; height: 110px; object-fit: cover;" onerror="safeImgError(this)">
-            </div>
-
-            <h4 class="fw-bold text-white mb-0">${track.name}</h4>
-            <div class="text-secondary small mb-3">${track.artist}</div>
-
-            <p class="text-secondary mx-auto mb-4" style="max-width: 360px; font-size: 0.78rem;">
-                ¡Esta canción superó todas las rondas de eliminación directa y se corona como tu favorita indiscutible de este torneo!
-            </p>
-
-            <div class="d-flex align-items-center justify-content-center gap-2">
-                <button type="button" class="btn btn-sm btn-brand rounded-pill px-4 py-1.5 fw-semibold" onclick="openTournamentModal()" style="font-size: 0.8rem;">
-                    <i class="fa-solid fa-rotate me-1"></i> Nuevo Torneo
-                </button>
-                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1.5 text-white" data-bs-dismiss="modal" style="font-size: 0.8rem;">
-                    Cerrar
-                </button>
-            </div>
-        </div>
-    `;
-
-    if (!artCache[coverKey]) resolveSpotifyArtwork(track.name, track.artist || '', 'track', 'tourn-champ-img');
-    if (typeof confetti === 'function') {
-        confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
-    }
-}
-
-// ----------------------------------------------------
 // 9. ICEBERG MUSICAL PERSONALIZADO
 // ----------------------------------------------------
 async function openIcebergModal() {
@@ -6478,6 +6288,7 @@ function switchAppView(viewName) {
         initCuratorSectionIfNeeded();
     } else if (viewName === 'profile') {
         renderProfileSection();
+        renderWrappedTeaser();
     }
 
     // Scroll suave hacia el inicio
@@ -6657,8 +6468,6 @@ window.rerollDailyChallenge = rerollDailyChallenge;
 window.selectCapsuleYear = selectCapsuleYear;
 window.handleTriviaAnswer = handleTriviaAnswer;
 window.advanceTriviaQuestion = advanceTriviaQuestion;
-window.initTournamentTracks = initTournamentTracks;
-window.voteTournament = voteTournament;
 window.toggleErasRacePlay = toggleErasRacePlay;
 window.scrubErasRace = scrubErasRace;
 window.resetErasRace = resetErasRace;
@@ -7179,3 +6988,168 @@ function handleHomeHookAnswer(selectedId, selectedPlays) {
 }
 window.generateHomeHookGame = generateHomeHookGame;
 window.handleHomeHookAnswer = handleHomeHookAnswer;
+
+// ----------------------------------------------------
+// WRAPPED DE DICIEMBRE: PISTAS QUINCENALES (en Mi Progreso)
+// ----------------------------------------------------
+const WRAPPED_HINTS_KEY = 'spotitracker_wrapped_hints_v1';
+const MESES_ES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+function getWrappedState() {
+    try {
+        const s = JSON.parse(localStorage.getItem(WRAPPED_HINTS_KEY) || '{}');
+        return { used: s.used || {} };
+    } catch (e) { return { used: {} }; }
+}
+function saveWrappedState(st) {
+    try { localStorage.setItem(WRAPPED_HINTS_KEY, JSON.stringify(st)); } catch (e) {}
+}
+function getQuincenaInfo(date = new Date()) {
+    const y = date.getFullYear();
+    const m = date.getMonth();
+    const half = date.getDate() <= 15 ? 1 : 2;
+    const next = half === 1 ? new Date(y, m, 16, 0, 0, 0) : new Date(y, m + 1, 1, 0, 0, 0);
+    return { key: `${y}-${String(m + 1).padStart(2, '0')}-Q${half}`, ordinal: y * 24 + m * 2 + half, next };
+}
+
+function entryName(x) {
+    if (!x) return '';
+    if (typeof x === 'string') return x;
+    return x.name || x['#text'] || '';
+}
+function entryArtist(x) {
+    if (!x || !x.artist) return '';
+    return typeof x.artist === 'string' ? x.artist : (x.artist.name || x.artist['#text'] || '');
+}
+
+function buildWrappedHints(db) {
+    const hints = [];
+    const y2026 = db?.yearlyTops?.['2026'] || {};
+    const tracks = (y2026.tracks || []).slice();
+    const artists = (y2026.artists || []).slice();
+    const albums = (y2026.albums || []).slice();
+
+    // Sumar escuchas recientes (delta Last.fm) a las listas del año
+    const addDelta = (list, keyFn, nameFn) => {
+        const map = new Map(list.map(it => [keyFn(it), { ...it, plays: it.plays || 0 }]));
+        (lastFmRecentDelta || []).forEach(t => {
+            if (!t?.date?.uts) return;
+            const nm = nameFn(t);
+            if (!nm) return;
+            const k = normalizeKey(nm.name) + ':::' + normalizeKey(nm.artist || '');
+            if (map.has(k)) map.get(k).plays += 1;
+            else map.set(k, { name: nm.name, artist: nm.artist, plays: 1 });
+        });
+        return Array.from(map.values()).sort((a, b) => (b.plays || 0) - (a.plays || 0));
+    };
+    const trackList = addDelta(tracks, it => normalizeKey(entryName(it)) + ':::' + normalizeKey(entryArtist(it)),
+        t => ({ name: t.name, artist: t.artist ? (t.artist['#text'] || t.artist.name || '') : '' }));
+    const artistMap = new Map();
+    artists.forEach(a => artistMap.set(normalizeKey(entryName(a)), { name: entryName(a), plays: a.plays || 0 }));
+    (lastFmRecentDelta || []).forEach(t => {
+        if (!t?.date?.uts) return;
+        const an = t.artist ? (t.artist['#text'] || t.artist.name || '') : '';
+        if (!an) return;
+        const k = normalizeKey(an);
+        if (artistMap.has(k)) artistMap.get(k).plays += 1; else artistMap.set(k, { name: an, plays: 1 });
+    });
+    const artistList = Array.from(artistMap.values()).sort((a, b) => b.plays - a.plays);
+
+    if (artistList[0]) {
+        const n = artistList[0].name;
+        hints.push(`Tu artista #1 de 2026 empieza con la letra «${n.charAt(0).toUpperCase()}» y su nombre tiene ${n.length} caracteres.`);
+    }
+    if (trackList[0]) {
+        const floor = Math.max(10, Math.floor((trackList[0].plays || 0) / 10) * 10);
+        hints.push(`Tu canción del año ya superó las ${formatNumber(floor)} reproducciones… y sigue sumando.`);
+    }
+    if (artistList.length >= 5) {
+        const pick = artistList[1 + (new Date().getDate() % 4)];
+        hints.push(`Uno de tus 5 artistas más escuchados de 2026 es «${pick.name}». ¿En qué lugar quedará?`);
+    }
+    if (albums.length) {
+        const al = albums[0];
+        const an = entryArtist(al);
+        if (an) hints.push(`Tu álbum más escuchado de 2026 es de «${an}».`);
+    }
+    const months = y2026.months || {};
+    const monthTotals = Object.entries(months).map(([mk, v]) => {
+        const sum = (v?.tracks || []).reduce((acc, t) => acc + (t.plays || 0), 0);
+        return [parseInt(mk, 10), sum];
+    }).filter(([, s]) => s > 0).sort((a, b) => b[1] - a[1]);
+    if (monthTotals.length) {
+        hints.push(`Tu mes más intenso de 2026 hasta ahora fue ${MESES_ES[monthTotals[0][0] - 1]}.`);
+    }
+    if (trackList.length) {
+        hints.push(`Ya escuchaste al menos ${formatNumber(trackList.length)} canciones distintas en 2026. El Wrapped las pondrá en orden.`);
+    }
+    hints.push('El Wrapped llegará en diciembre con tu canción del año, tus artistas top, tu mes pico y un final sorpresa.');
+    return hints;
+}
+
+function renderWrappedTeaser() {
+    const box = document.getElementById('wrapped-teaser');
+    if (!box) return;
+    const q = getQuincenaInfo();
+    const st = getWrappedState();
+    const used = !!st.used[q.key];
+    const msLeft = q.next.getTime() - Date.now();
+    const daysLeft = Math.max(1, Math.ceil(msLeft / 86400000));
+    const nextLabel = `${q.next.getDate()} de ${MESES_ES[q.next.getMonth()]}`;
+    const hintCount = Object.keys(st.used).length;
+    const status = used
+        ? `Ya viste la pista de esta quincena. Próxima: <strong class="text-white">${nextLabel}</strong> (en ${daysLeft} día${daysLeft === 1 ? '' : 's'}).`
+        : '¡Tienes una pista disponible esta quincena!';
+
+    box.innerHTML = `
+        <div class="p-3 rounded-3" style="background: linear-gradient(135deg, rgba(168,85,247,0.18), rgba(236,72,153,0.10)); border: 1px solid rgba(168,85,247,0.4);">
+            <div class="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                <div style="min-width: 0;">
+                    <div class="fw-bold text-white" style="font-size: 0.95rem;"><i class="fa-solid fa-gift text-primary me-2"></i>Wrapped 2026 · Se está cocinando 🍳</div>
+                    <div class="text-secondary mt-1" style="font-size: 0.76rem;">${status}</div>
+                    <div class="text-secondary" style="font-size: 0.70rem;">Pistas descubiertas: ${hintCount} · 2 por mes (1 por quincena)</div>
+                </div>
+                <button type="button" class="btn btn-sm ${used ? 'btn-outline-secondary' : 'btn-brand'} rounded-pill px-3 py-1.5 fw-semibold text-nowrap" style="font-size: 0.78rem;" ${used ? 'disabled' : ''} onclick="openWrappedHint()">
+                    <i class="fa-solid ${used ? 'fa-lock' : 'fa-magnifying-glass'} me-1"></i>Ver pistas
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function openWrappedHint() {
+    const q = getQuincenaInfo();
+    const st = getWrappedState();
+    if (st.used[q.key]) return;
+
+    let db = null;
+    try { db = await getActiveDatabase(); } catch (e) {}
+    const hints = buildWrappedHints(db);
+    const hint = hints[q.ordinal % hints.length];
+
+    st.used[q.key] = { text: hint, at: new Date().toISOString() };
+    saveWrappedState(st);
+
+    const prev = Object.entries(st.used).filter(([k]) => k !== q.key).sort((a, b) => b[0].localeCompare(a[0]));
+    const body = document.getElementById('wrapped-hint-body');
+    if (body) {
+        body.innerHTML = `
+            <div class="p-3 rounded-3 text-center mb-3" style="background: rgba(168,85,247,0.12); border: 1px solid rgba(168,85,247,0.35);">
+                <div style="font-size: 2rem;">🔮</div>
+                <div class="text-white fw-semibold mt-1" style="font-size: 0.92rem;">${escapeHtml(hint)}</div>
+            </div>
+            <div class="text-secondary text-center" style="font-size: 0.72rem;">Próxima pista: ${q.next.getDate()} de ${MESES_ES[q.next.getMonth()]}</div>
+            ${prev.length ? `
+                <div class="mt-3 pt-2 border-top border-secondary border-opacity-15">
+                    <div class="text-secondary fw-semibold mb-1" style="font-size: 0.72rem;">Pistas anteriores</div>
+                    ${prev.map(([k, v]) => `<div class="text-secondary mb-1" style="font-size: 0.74rem;">• ${escapeHtml(v.text || '')}</div>`).join('')}
+                </div>` : ''}
+        `;
+    }
+    const modalEl = document.getElementById('wrappedHintModal');
+    if (modalEl) bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    renderWrappedTeaser();
+    if (typeof confetti === 'function') confetti({ particleCount: 50, spread: 70, origin: { y: 0.5 } });
+}
+window.openWrappedHint = openWrappedHint;
+window.renderWrappedTeaser = renderWrappedTeaser;
