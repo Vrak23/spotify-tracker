@@ -135,310 +135,723 @@
     }
   },
   "artists": {
-    "Megadeth": { "plays": 3190, "years": { "2025": 1055, "2026": 2135 } },
-    "Sylosis": { "plays": 1963, "years": { "2025": 289, "2026": 1674 } },
-    "Linkin Park": { "plays": 1969, "years": { "2025": 860, "2026": 1109 } },
-    "Bleed From Within": { "plays": 789, "years": { "2025": 116, "2026": 673 } },
-    "Slipknot": { "plays": 695, "years": { "2025": 319, "2026": 376 } },
-    "Three Days Grace": { "plays": 320, "years": { "2025": 274, "2026": 46 } },
-    "Trivium": { "plays": 220, "years": { "2025": 0, "2026": 220 } },
-    "Life Cycles": { "plays": 170, "years": { "2025": 0, "2026": 170 } },
-    "Rodrigo y Gabriela": { "plays": 165, "years": { "2025": 90, "2026": 75 } },
-    "Dead by Sunrise": { "plays": 235, "years": { "2025": 115, "2026": 120 } },
-    "Placebo": { "plays": 140, "years": { "2025": 109, "2026": 31 } },
-    "Yungblud": { "plays": 100, "years": { "2025": 40, "2026": 60 } },
-    "Death": { "plays": 90, "years": { "2025": 0, "2026": 90 } },
-    "Kid Bookie": { "plays": 65, "years": { "2025": 25, "2026": 40 } },
-    "Michael Jackson": { "plays": 55, "years": { "2025": 10, "2026": 45 } }
+    "Megadeth": {
+      "plays": 3190,
+      "years": {
+        "2025": 1055,
+        "2026": 2135
+      }
+    },
+    "Sylosis": {
+      "plays": 1963,
+      "years": {
+        "2025": 289,
+        "2026": 1674
+      }
+    },
+    "Linkin Park": {
+      "plays": 1969,
+      "years": {
+        "2025": 860,
+        "2026": 1109
+      }
+    },
+    "Bleed From Within": {
+      "plays": 789,
+      "years": {
+        "2025": 116,
+        "2026": 673
+      }
+    },
+    "Slipknot": {
+      "plays": 695,
+      "years": {
+        "2025": 319,
+        "2026": 376
+      }
+    },
+    "Three Days Grace": {
+      "plays": 320,
+      "years": {
+        "2025": 274,
+        "2026": 46
+      }
+    },
+    "Trivium": {
+      "plays": 220,
+      "years": {
+        "2025": 0,
+        "2026": 220
+      }
+    },
+    "Life Cycles": {
+      "plays": 170,
+      "years": {
+        "2025": 0,
+        "2026": 170
+      }
+    },
+    "Rodrigo y Gabriela": {
+      "plays": 165,
+      "years": {
+        "2025": 90,
+        "2026": 75
+      }
+    },
+    "Dead by Sunrise": {
+      "plays": 235,
+      "years": {
+        "2025": 115,
+        "2026": 120
+      }
+    },
+    "Placebo": {
+      "plays": 140,
+      "years": {
+        "2025": 109,
+        "2026": 31
+      }
+    },
+    "Yungblud": {
+      "plays": 100,
+      "years": {
+        "2025": 40,
+        "2026": 60
+      }
+    },
+    "Death": {
+      "plays": 90,
+      "years": {
+        "2025": 0,
+        "2026": 90
+      }
+    },
+    "Kid Bookie": {
+      "plays": 65,
+      "years": {
+        "2025": 25,
+        "2026": 40
+      }
+    },
+    "Michael Jackson": {
+      "plays": 55,
+      "years": {
+        "2025": 10,
+        "2026": 45
+      }
+    }
   },
   "tracks": {
-    "tipping point:::megadeth": {
+    "tippingpoint:::megadeth": {
       "name": "Tipping Point",
       "artist": "Megadeth",
       "album": "The Sick, The Dying… And The Dead!",
       "plays": 250,
-      "years": { "2025": 70, "2026": 180 },
-      "months": { "2025-11": 35, "2025-12": 35, "2026-03": 50, "2026-04": 50, "2026-05": 50, "2026-06": 30 }
+      "years": {
+        "2025": 70,
+        "2026": 180
+      },
+      "months": {
+        "2025-11": 35,
+        "2025-12": 35,
+        "2026-03": 50,
+        "2026-04": 50,
+        "2026-05": 50,
+        "2026-06": 30
+      }
     },
-    "hey god?!:::megadeth": {
+    "heygod:::megadeth": {
       "name": "Hey God?!",
       "artist": "Megadeth",
       "album": "The Sick, The Dying… And The Dead!",
       "plays": 215,
-      "years": { "2025": 65, "2026": 150 },
-      "months": { "2025-10": 30, "2025-11": 35, "2026-02": 40, "2026-03": 50, "2026-05": 60 }
+      "years": {
+        "2025": 65,
+        "2026": 150
+      },
+      "months": {
+        "2025-10": 30,
+        "2025-11": 35,
+        "2026-02": 40,
+        "2026-03": 50,
+        "2026-05": 60
+      }
     },
-    "i am war:::megadeth": {
+    "iamwar:::megadeth": {
       "name": "I Am War",
       "artist": "Megadeth",
       "album": "The Sick, The Dying… And The Dead!",
       "plays": 200,
-      "years": { "2025": 60, "2026": 140 },
-      "months": { "2025-08": 30, "2025-11": 30, "2026-03": 50, "2026-04": 50, "2026-05": 40 }
+      "years": {
+        "2025": 60,
+        "2026": 140
+      },
+      "months": {
+        "2025-08": 30,
+        "2025-11": 30,
+        "2026-03": 50,
+        "2026-04": 50,
+        "2026-05": 40
+      }
     },
-    "puppet parade:::megadeth": {
+    "puppetparade:::megadeth": {
       "name": "Puppet Parade",
       "artist": "Megadeth",
       "album": "The Sick, The Dying… And The Dead!",
       "plays": 180,
-      "years": { "2025": 50, "2026": 130 },
-      "months": { "2025-11": 30, "2025-12": 20, "2026-02": 45, "2026-03": 45, "2026-05": 40 }
+      "years": {
+        "2025": 50,
+        "2026": 130
+      },
+      "months": {
+        "2025-11": 30,
+        "2025-12": 20,
+        "2026-02": 45,
+        "2026-03": 45,
+        "2026-05": 40
+      }
     },
-    "the last note:::megadeth": {
+    "thelastnote:::megadeth": {
       "name": "The Last Note",
       "artist": "Megadeth",
       "album": "The Sick, The Dying… And The Dead!",
       "plays": 180,
-      "years": { "2025": 50, "2026": 130 },
-      "months": { "2025-08": 25, "2025-10": 25, "2026-02": 35, "2026-03": 50, "2026-05": 45 }
+      "years": {
+        "2025": 50,
+        "2026": 130
+      },
+      "months": {
+        "2025-08": 25,
+        "2025-10": 25,
+        "2026-02": 35,
+        "2026-03": 50,
+        "2026-05": 45
+      }
     },
-    "tears in a vial - 2019 remaster:::megadeth": {
+    "tearsinavial2019remaster:::megadeth": {
       "name": "Tears In a Vial - 2019 Remaster",
       "artist": "Megadeth",
       "album": "The System Has Failed",
       "plays": 165,
-      "years": { "2025": 55, "2026": 110 },
-      "months": { "2025-08": 30, "2025-11": 25, "2026-01": 30, "2026-03": 40, "2026-05": 40 }
+      "years": {
+        "2025": 55,
+        "2026": 110
+      },
+      "months": {
+        "2025-08": 30,
+        "2025-11": 25,
+        "2026-01": 30,
+        "2026-03": 40,
+        "2026-05": 40
+      }
     },
-    "tears in a vial:::megadeth": {
+    "tearsinavial:::megadeth": {
       "name": "Tears In a Vial",
       "artist": "Megadeth",
       "album": "The System Has Failed",
       "plays": 165,
-      "years": { "2025": 55, "2026": 110 },
-      "months": { "2025-08": 30, "2025-11": 25, "2026-01": 30, "2026-03": 40, "2026-05": 40 }
+      "years": {
+        "2025": 55,
+        "2026": 110
+      },
+      "months": {
+        "2025-08": 30,
+        "2025-11": 25,
+        "2026-01": 30,
+        "2026-03": 40,
+        "2026-05": 40
+      }
     },
-    "i don't care:::megadeth": {
+    "idontcare:::megadeth": {
       "name": "I Don't Care",
       "artist": "Megadeth",
       "album": "The Sick, The Dying… And The Dead!",
       "plays": 150,
-      "years": { "2025": 50, "2026": 100 },
-      "months": { "2025-09": 25, "2025-11": 25, "2026-02": 30, "2026-03": 40, "2026-05": 30 }
+      "years": {
+        "2025": 50,
+        "2026": 100
+      },
+      "months": {
+        "2025-09": 25,
+        "2025-11": 25,
+        "2026-02": 30,
+        "2026-03": 40,
+        "2026-05": 30
+      }
     },
-    "let there be shred:::megadeth": {
+    "lettherebeshred:::megadeth": {
       "name": "Let There Be Shred",
       "artist": "Megadeth",
       "album": "The Sick, The Dying… And The Dead!",
       "plays": 100,
-      "years": { "2025": 30, "2026": 70 },
-      "months": { "2025-11": 20, "2025-12": 10, "2026-02": 20, "2026-03": 30, "2026-04": 20 }
+      "years": {
+        "2025": 30,
+        "2026": 70
+      },
+      "months": {
+        "2025-11": 20,
+        "2025-12": 10,
+        "2026-02": 20,
+        "2026-03": 30,
+        "2026-04": 20
+      }
     },
-    "made to kill:::megadeth": {
+    "madetokill:::megadeth": {
       "name": "Made To Kill",
       "artist": "Megadeth",
       "album": "The Sick, The Dying… And The Dead!",
       "plays": 50,
-      "years": { "2025": 15, "2026": 35 },
-      "months": { "2025-11": 15, "2026-03": 20, "2026-05": 15 }
+      "years": {
+        "2025": 15,
+        "2026": 35
+      },
+      "months": {
+        "2025-11": 15,
+        "2026-03": 20,
+        "2026-05": 15
+      }
     },
-    "the new flesh:::sylosis": {
+    "thenewflesh:::sylosis": {
       "name": "The New Flesh",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 310,
-      "years": { "2025": 50, "2026": 260 },
-      "months": { "2025-11": 30, "2025-12": 20, "2026-02": 50, "2026-03": 70, "2026-05": 80, "2026-06": 60 }
+      "years": {
+        "2025": 50,
+        "2026": 260
+      },
+      "months": {
+        "2025-11": 30,
+        "2025-12": 20,
+        "2026-02": 50,
+        "2026-03": 70,
+        "2026-05": 80,
+        "2026-06": 60
+      }
     },
-    "spared from the guillotine:::sylosis": {
+    "sparedfromtheguillotine:::sylosis": {
       "name": "Spared From The Guillotine",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 180,
-      "years": { "2025": 30, "2026": 150 },
-      "months": { "2025-11": 20, "2025-12": 10, "2026-02": 35, "2026-03": 45, "2026-05": 40, "2026-06": 30 }
+      "years": {
+        "2025": 30,
+        "2026": 150
+      },
+      "months": {
+        "2025-11": 20,
+        "2025-12": 10,
+        "2026-02": 35,
+        "2026-03": 45,
+        "2026-05": 40,
+        "2026-06": 30
+      }
     },
-    "a sign of things to come:::sylosis": {
+    "asignofthingstocome:::sylosis": {
       "name": "A Sign of Things to Come",
       "artist": "Sylosis",
       "album": "A Sign of Things to Come",
       "plays": 170,
-      "years": { "2025": 30, "2026": 140 },
-      "months": { "2025-10": 15, "2025-11": 15, "2026-02": 30, "2026-03": 40, "2026-05": 40, "2026-06": 30 }
+      "years": {
+        "2025": 30,
+        "2026": 140
+      },
+      "months": {
+        "2025-10": 15,
+        "2025-11": 15,
+        "2026-02": 30,
+        "2026-03": 40,
+        "2026-05": 40,
+        "2026-06": 30
+      }
     },
-    "mirror mirror:::sylosis": {
+    "mirrormirror:::sylosis": {
       "name": "Mirror Mirror",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 120,
-      "years": { "2025": 20, "2026": 100 },
-      "months": { "2025-11": 15, "2026-02": 25, "2026-03": 30, "2026-05": 25, "2026-06": 20 }
+      "years": {
+        "2025": 20,
+        "2026": 100
+      },
+      "months": {
+        "2025-11": 15,
+        "2026-02": 25,
+        "2026-03": 30,
+        "2026-05": 25,
+        "2026-06": 20
+      }
     },
-    "beneath the surface:::sylosis": {
+    "beneaththesurface:::sylosis": {
       "name": "Beneath The Surface",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 110,
-      "years": { "2025": 20, "2026": 90 },
-      "months": { "2025-11": 15, "2026-02": 20, "2026-03": 25, "2026-05": 25, "2026-06": 20 }
+      "years": {
+        "2025": 20,
+        "2026": 90
+      },
+      "months": {
+        "2025-11": 15,
+        "2026-02": 20,
+        "2026-03": 25,
+        "2026-05": 25,
+        "2026-06": 20
+      }
     },
-    "adorn my throne:::sylosis": {
+    "adornmythrone:::sylosis": {
       "name": "Adorn My Throne",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 80,
-      "years": { "2025": 10, "2026": 70 },
-      "months": { "2025-12": 10, "2026-02": 15, "2026-03": 20, "2026-06": 20, "2026-07": 15 }
+      "years": {
+        "2025": 10,
+        "2026": 70
+      },
+      "months": {
+        "2025-12": 10,
+        "2026-02": 15,
+        "2026-03": 20,
+        "2026-06": 20,
+        "2026-07": 15
+      }
     },
     "erased:::sylosis": {
       "name": "Erased",
       "artist": "Sylosis",
       "album": "Erased",
       "plays": 65,
-      "years": { "2025": 15, "2026": 50 },
-      "months": { "2025-11": 10, "2026-02": 15, "2026-03": 15, "2026-05": 20 }
+      "years": {
+        "2025": 15,
+        "2026": 50
+      },
+      "months": {
+        "2025-11": 10,
+        "2026-02": 15,
+        "2026-03": 15,
+        "2026-05": 20
+      }
     },
-    "seeds in the river:::sylosis": {
+    "seedsintheriver:::sylosis": {
       "name": "Seeds In The River",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 52,
-      "years": { "2025": 10, "2026": 42 },
-      "months": { "2025-11": 10, "2026-03": 15, "2026-05": 15, "2026-06": 12 }
+      "years": {
+        "2025": 10,
+        "2026": 42
+      },
+      "months": {
+        "2025-11": 10,
+        "2026-03": 15,
+        "2026-05": 15,
+        "2026-06": 12
+      }
     },
-    "circle of swords:::sylosis": {
+    "circleofswords:::sylosis": {
       "name": "Circle Of Swords",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 45,
-      "years": { "2025": 10, "2026": 35 },
-      "months": { "2025-11": 10, "2026-02": 10, "2026-03": 15, "2026-05": 10 }
+      "years": {
+        "2025": 10,
+        "2026": 35
+      },
+      "months": {
+        "2025-11": 10,
+        "2026-02": 10,
+        "2026-03": 15,
+        "2026-05": 10
+      }
     },
     "lacerations:::sylosis": {
       "name": "Lacerations",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 45,
-      "years": { "2025": 10, "2026": 35 },
-      "months": { "2025-11": 10, "2026-02": 10, "2026-03": 15, "2026-06": 10 }
+      "years": {
+        "2025": 10,
+        "2026": 35
+      },
+      "months": {
+        "2025-11": 10,
+        "2026-02": 10,
+        "2026-03": 15,
+        "2026-06": 10
+      }
     },
-    "all glory, no valour:::sylosis": {
+    "allglorynovalour:::sylosis": {
       "name": "All Glory, No Valour",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 40,
-      "years": { "2025": 10, "2026": 30 },
-      "months": { "2025-11": 10, "2026-03": 10, "2026-05": 10, "2026-06": 10 }
+      "years": {
+        "2025": 10,
+        "2026": 30
+      },
+      "months": {
+        "2025-11": 10,
+        "2026-03": 10,
+        "2026-05": 10,
+        "2026-06": 10
+      }
     },
-    "everywhere at once:::sylosis": {
+    "everywhereatonce:::sylosis": {
       "name": "Everywhere At Once",
       "artist": "Sylosis",
       "album": "The New Flesh",
       "plays": 18,
-      "years": { "2025": 5, "2026": 13 },
-      "months": { "2025-11": 5, "2026-03": 5, "2026-05": 8 }
+      "years": {
+        "2025": 5,
+        "2026": 13
+      },
+      "months": {
+        "2025-11": 5,
+        "2026-03": 5,
+        "2026-05": 8
+      }
     },
-    "talking to myself:::linkin park": {
+    "talkingtomyself:::linkinpark": {
       "name": "Talking to Myself",
       "artist": "Linkin Park",
       "album": "One More Light",
       "plays": 150,
-      "years": { "2025": 65, "2026": 85 },
-      "months": { "2025-08": 25, "2025-10": 20, "2025-11": 20, "2026-02": 25, "2026-03": 30, "2026-05": 30 }
+      "years": {
+        "2025": 65,
+        "2026": 85
+      },
+      "months": {
+        "2025-08": 25,
+        "2025-10": 20,
+        "2025-11": 20,
+        "2026-02": 25,
+        "2026-03": 30,
+        "2026-05": 30
+      }
     },
-    "overflow:::linkin park": {
+    "overflow:::linkinpark": {
       "name": "Overflow",
       "artist": "Linkin Park",
       "album": "From Zero",
       "plays": 120,
-      "years": { "2025": 50, "2026": 70 },
-      "months": { "2025-10": 25, "2025-11": 25, "2026-02": 20, "2026-03": 25, "2026-05": 25 }
+      "years": {
+        "2025": 50,
+        "2026": 70
+      },
+      "months": {
+        "2025-10": 25,
+        "2025-11": 25,
+        "2026-02": 20,
+        "2026-03": 25,
+        "2026-05": 25
+      }
     },
-    "violent nature:::bleed from within": {
+    "violentnature:::bleedfromwithin": {
       "name": "Violent Nature",
       "artist": "Bleed From Within",
       "album": "Zenith",
       "plays": 140,
-      "years": { "2025": 30, "2026": 110 },
-      "months": { "2025-10": 15, "2025-12": 15, "2026-02": 25, "2026-03": 30, "2026-05": 30, "2026-06": 25 }
+      "years": {
+        "2025": 30,
+        "2026": 110
+      },
+      "months": {
+        "2025-10": 15,
+        "2025-12": 15,
+        "2026-02": 25,
+        "2026-03": 30,
+        "2026-05": 30,
+        "2026-06": 25
+      }
     },
-    "a hope in hell:::bleed from within": {
+    "ahopeinhell:::bleedfromwithin": {
       "name": "A Hope in Hell",
       "artist": "Bleed From Within",
       "album": "A Hope in Hell",
       "plays": 125,
-      "years": { "2025": 25, "2026": 100 },
-      "months": { "2025-10": 15, "2025-11": 10, "2026-02": 20, "2026-03": 30, "2026-05": 30, "2026-06": 20 }
+      "years": {
+        "2025": 25,
+        "2026": 100
+      },
+      "months": {
+        "2025-10": 15,
+        "2025-11": 10,
+        "2026-02": 20,
+        "2026-03": 30,
+        "2026-05": 30,
+        "2026-06": 20
+      }
     },
-    "god complex:::bleed from within": {
+    "godcomplex:::bleedfromwithin": {
       "name": "God Complex",
       "artist": "Bleed From Within",
       "album": "God Complex",
       "plays": 115,
-      "years": { "2025": 25, "2026": 90 },
-      "months": { "2025-10": 10, "2025-12": 15, "2026-02": 20, "2026-03": 25, "2026-05": 25, "2026-06": 20 }
+      "years": {
+        "2025": 25,
+        "2026": 90
+      },
+      "months": {
+        "2025-10": 10,
+        "2025-12": 15,
+        "2026-02": 20,
+        "2026-03": 25,
+        "2026-05": 25,
+        "2026-06": 20
+      }
     },
-    "dying sun:::bleed from within": {
+    "dyingsun:::bleedfromwithin": {
       "name": "Dying Sun",
       "artist": "Bleed From Within",
       "album": "Zenith",
       "plays": 90,
-      "years": { "2025": 20, "2026": 70 },
-      "months": { "2025-11": 15, "2026-02": 15, "2026-03": 20, "2026-05": 20, "2026-06": 15 }
+      "years": {
+        "2025": 20,
+        "2026": 70
+      },
+      "months": {
+        "2025-11": 15,
+        "2026-02": 15,
+        "2026-03": 20,
+        "2026-05": 20,
+        "2026-06": 15
+      }
     },
-    "abandon:::bleed from within": {
+    "abandon:::bleedfromwithin": {
       "name": "Abandon",
       "artist": "Bleed From Within",
       "album": "Zenith",
       "plays": 70,
-      "years": { "2025": 15, "2026": 55 },
-      "months": { "2025-10": 10, "2026-02": 15, "2026-03": 15, "2026-05": 15, "2026-06": 10 }
+      "years": {
+        "2025": 15,
+        "2026": 55
+      },
+      "months": {
+        "2025-10": 10,
+        "2026-02": 15,
+        "2026-03": 15,
+        "2026-05": 15,
+        "2026-06": 10
+      }
     },
-    "hanuman:::rodrigo y gabriela": {
+    "hanuman:::rodrigoygabriela": {
       "name": "Hanuman",
       "artist": "Rodrigo y Gabriela",
       "album": "11:11",
       "plays": 90,
-      "years": { "2025": 45, "2026": 45 },
-      "months": { "2025-11": 35, "2025-12": 10, "2026-02": 15, "2026-03": 15, "2026-05": 15 }
+      "years": {
+        "2025": 45,
+        "2026": 45
+      },
+      "months": {
+        "2025-11": 35,
+        "2025-12": 10,
+        "2026-02": 15,
+        "2026-03": 15,
+        "2026-05": 15
+      }
     },
-    "the soundmaker:::rodrigo y gabriela": {
+    "thesoundmaker:::rodrigoygabriela": {
       "name": "The Soundmaker",
       "artist": "Rodrigo y Gabriela",
       "album": "9 Dead Alive",
       "plays": 75,
-      "years": { "2025": 35, "2026": 40 },
-      "months": { "2025-11": 30, "2025-12": 5, "2026-02": 15, "2026-03": 15, "2026-05": 10 }
+      "years": {
+        "2025": 35,
+        "2026": 40
+      },
+      "months": {
+        "2025-11": 30,
+        "2025-12": 5,
+        "2026-02": 15,
+        "2026-03": 15,
+        "2026-05": 10
+      }
     },
-    "too late:::dead by sunrise": {
+    "toolate:::deadbysunrise": {
       "name": "Too Late",
       "artist": "Dead by Sunrise",
       "album": "Out Of Ashes",
       "plays": 125,
-      "years": { "2025": 60, "2026": 65 },
-      "months": { "2025-08": 20, "2025-10": 20, "2025-11": 20, "2026-02": 25, "2026-03": 20, "2026-04": 20 }
+      "years": {
+        "2025": 60,
+        "2026": 65
+      },
+      "months": {
+        "2025-08": 20,
+        "2025-10": 20,
+        "2025-11": 20,
+        "2026-02": 25,
+        "2026-03": 20,
+        "2026-04": 20
+      }
     },
-    "let down:::dead by sunrise": {
+    "letdown:::deadbysunrise": {
       "name": "Let Down",
       "artist": "Dead by Sunrise",
       "album": "Out Of Ashes",
       "plays": 110,
-      "years": { "2025": 55, "2026": 55 },
-      "months": { "2025-08": 20, "2025-10": 20, "2025-11": 15, "2026-02": 20, "2026-03": 20, "2026-04": 15 }
+      "years": {
+        "2025": 55,
+        "2026": 55
+      },
+      "months": {
+        "2025-08": 20,
+        "2025-10": 20,
+        "2025-11": 15,
+        "2026-02": 20,
+        "2026-03": 20,
+        "2026-04": 15
+      }
     },
     "war:::yungblud": {
       "name": "War",
       "artist": "Yungblud",
       "album": "Idols",
       "plays": 100,
-      "years": { "2025": 40, "2026": 60 },
-      "months": { "2025-08": 20, "2025-11": 20, "2026-02": 20, "2026-03": 20, "2026-05": 20 }
+      "years": {
+        "2025": 40,
+        "2026": 60
+      },
+      "months": {
+        "2025-08": 20,
+        "2025-11": 20,
+        "2026-02": 20,
+        "2026-03": 20,
+        "2026-05": 20
+      }
     },
-    "blame (feat. corey taylor):::kid bookie": {
+    "blamefeatcoreytaylor:::kidbookie": {
       "name": "BLAME (feat. Corey Taylor)",
       "artist": "Kid Bookie",
       "album": "BLAME (feat. Corey Taylor)",
       "plays": 65,
-      "years": { "2025": 25, "2026": 40 },
-      "months": { "2025-08": 15, "2025-11": 10, "2026-02": 15, "2026-03": 15, "2026-05": 10 }
+      "years": {
+        "2025": 25,
+        "2026": 40
+      },
+      "months": {
+        "2025-08": 15,
+        "2025-11": 10,
+        "2026-02": 15,
+        "2026-03": 15,
+        "2026-05": 10
+      }
     },
-    "in waves:::three days grace": {
+    "inwaves:::threedaysgrace": {
       "name": "In Waves",
       "artist": "Three Days Grace",
       "album": "Alienation",
       "plays": 25,
-      "years": { "2025": 20, "2026": 5 },
-      "months": { "2025-08": 15, "2025-09": 5, "2026-02": 5 }
+      "years": {
+        "2025": 20,
+        "2026": 5
+      },
+      "months": {
+        "2025-08": 15,
+        "2025-09": 5,
+        "2026-02": 5
+      }
     }
   }
 }

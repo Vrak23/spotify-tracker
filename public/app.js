@@ -1824,6 +1824,26 @@ async function loadStats(silent = false) {
             topData = getRangeTopData(activeDb, '2026-09-23', '2026-10-21');
             isDateRange = true;
             dateRangeTo = '2026-10-21';
+        } else if (currentRange === 'era-tidal') {
+            const tidal = tidalEstimates || await loadTidalEstimates();
+            const tTracks = tidal ? Object.values(tidal.tracks).map(t => ({
+                name: t.name,
+                artist: t.artist,
+                album: t.album,
+                plays: t.plays,
+                uri: null
+            })).sort((a,b) => b.plays - a.plays) : [];
+            const tArtists = tidal ? Object.entries(tidal.artists).map(([name, obj]) => ({
+                name: name,
+                plays: obj.plays
+            })).sort((a,b) => b.plays - a.plays) : [];
+            topData = {
+                plays: 16000,
+                hours: '850',
+                tracks: tTracks,
+                artists: tArtists,
+                albums: []
+            };
         } else if (currentRange === 'era-spotify') {
             topData = getRangeTopData(activeDb, '2019-05-01', '2025-08-31');
         } else if (currentRange === 'era-lastfm') {
@@ -1863,6 +1883,52 @@ async function loadStats(silent = false) {
                 plays: t.plays,
                 uri: t.uri
             }));
+
+            // Integración de Tidal en Tops (Histórico Total, Años 2025/2026 o Meses de esa era)
+            if (currentSource === 'unified' && currentRange !== 'era-tidal') {
+                const tidal = tidalEstimates || await loadTidalEstimates();
+                if (tidal && tidal.tracks) {
+                    const trackMap = new Map();
+                    combinedTracks.forEach(t => {
+                        const key = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+                        trackMap.set(key, t);
+                    });
+
+                    Object.entries(tidal.tracks).forEach(([k, tEntry]) => {
+                        let addPlays = 0;
+                        if (currentRange === 'overall') {
+                            addPlays = tEntry.plays || 0;
+                        } else if (currentRange === 'year-2025') {
+                            addPlays = tEntry.years?.['2025'] || 0;
+                        } else if (currentRange === 'year-2026') {
+                            addPlays = tEntry.years?.['2026'] || 0;
+                        } else if (currentRange.startsWith('month-2025-') || currentRange.startsWith('month-2026-')) {
+                            const ym = currentRange.replace('month-', '');
+                            const [cy, cm] = ym.split('-');
+                            const paddedYm = `${cy}-${String(cm).padStart(2, '0')}`;
+                            addPlays = tEntry.months?.[paddedYm] || 0;
+                        }
+
+                        if (addPlays > 0) {
+                            const key = `${normalizeKey(tEntry.name)}:::${normalizeKey(tEntry.artist || '')}`;
+                            if (trackMap.has(key)) {
+                                trackMap.get(key).plays += addPlays;
+                            } else {
+                                const newEntry = {
+                                    name: tEntry.name,
+                                    artist: tEntry.artist,
+                                    album: tEntry.album || '',
+                                    plays: addPlays,
+                                    uri: null
+                                };
+                                trackMap.set(key, newEntry);
+                                combinedTracks.push(newEntry);
+                            }
+                        }
+                    });
+                    combinedTracks.sort((a, b) => b.plays - a.plays);
+                }
+            }
 
             if (appliesDelta) {
                 const trackMap = new Map();
@@ -1917,6 +1983,40 @@ async function loadStats(silent = false) {
                 name: a.name,
                 plays: a.plays
             }));
+
+            // Integración de Artistas de Tidal en Tops
+            if (currentSource === 'unified' && currentRange !== 'era-tidal') {
+                const tidal = tidalEstimates || await loadTidalEstimates();
+                if (tidal && tidal.artists) {
+                    const artistMap = new Map();
+                    combinedArtists.forEach(a => {
+                        artistMap.set(normalizeKey(a.name), a);
+                    });
+
+                    Object.entries(tidal.artists).forEach(([artName, aEntry]) => {
+                        let addPlays = 0;
+                        if (currentRange === 'overall') {
+                            addPlays = aEntry.plays || 0;
+                        } else if (currentRange === 'year-2025') {
+                            addPlays = aEntry.years?.['2025'] || 0;
+                        } else if (currentRange === 'year-2026') {
+                            addPlays = aEntry.years?.['2026'] || 0;
+                        }
+
+                        if (addPlays > 0) {
+                            const key = normalizeKey(artName);
+                            if (artistMap.has(key)) {
+                                artistMap.get(key).plays += addPlays;
+                            } else {
+                                const newEntry = { name: artName, plays: addPlays };
+                                artistMap.set(key, newEntry);
+                                combinedArtists.push(newEntry);
+                            }
+                        }
+                    });
+                    combinedArtists.sort((a, b) => b.plays - a.plays);
+                }
+            }
 
             if (appliesDelta) {
                 const artistMap = new Map();
@@ -2872,27 +2972,56 @@ async function showItemStats(type, name, artist, isBack = false) {
 
     // Top Canciones de este Artista (para artista)
     let artistTracksHtml = '';
-    if (type === 'artist' && data.tracks && data.tracks.length > 0) {
-        artistTracksHtml = `
-            <div class="mt-3 pt-2.5 border-top border-secondary border-opacity-15">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="fw-bold text-white" style="font-size: 0.78rem;"><i class="fa-solid fa-fire text-warning me-1.5"></i> Canciones Top de este Artista</span>
-                    <small class="text-secondary">${data.tracks.length} destacadas</small>
+    if (type === 'artist') {
+        const rawArtistTracks = (data && data.tracks) ? [...data.tracks] : [];
+        if (currentSource === 'unified') {
+            const tidal = tidalEstimates;
+            if (tidal && tidal.tracks) {
+                const normCurrentArt = normalizeKey(name);
+                const artTracksMap = new Map();
+                rawArtistTracks.forEach(t => artTracksMap.set(normalizeKey(t.name), { ...t }));
+                Object.entries(tidal.tracks).forEach(([k, tEntry]) => {
+                    if (normalizeKey(tEntry.artist) === normCurrentArt) {
+                        const tKey = normalizeKey(tEntry.name);
+                        if (artTracksMap.has(tKey)) {
+                            artTracksMap.get(tKey).plays = (artTracksMap.get(tKey).plays || 0) + (tEntry.plays || 0);
+                            artTracksMap.get(tKey).gap = (artTracksMap.get(tKey).gap || 0) + (tEntry.plays || 0);
+                        } else {
+                            artTracksMap.set(tKey, {
+                                name: tEntry.name,
+                                plays: tEntry.plays || 0,
+                                gap: tEntry.plays || 0
+                            });
+                        }
+                    }
+                });
+                rawArtistTracks.length = 0;
+                rawArtistTracks.push(...Array.from(artTracksMap.values()).sort((a,b) => b.plays - a.plays));
+            }
+        }
+
+        if (rawArtistTracks.length > 0) {
+            artistTracksHtml = `
+                <div class="mt-3 pt-2.5 border-top border-secondary border-opacity-15">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="fw-bold text-white" style="font-size: 0.78rem;"><i class="fa-solid fa-fire text-warning me-1.5"></i> Canciones Top de este Artista</span>
+                        <small class="text-secondary">${rawArtistTracks.length} destacadas</small>
+                    </div>
+                    <div class="d-flex flex-column gap-1.5" style="max-height: 200px; overflow-y: auto;">
+                        ${rawArtistTracks.map((t, idx) => `
+                            <div class="d-flex align-items-center justify-content-between py-1.5 px-2 rounded cursor-pointer" onclick="showItemStats('track', '${(t.name || '').replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}')" style="background-color: rgba(255, 255, 255, 0.03); font-size: 0.72rem; cursor: pointer; transition: background 0.15s ease;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.08)'" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.03)'">
+                                <span class="text-truncate me-2">
+                                    <strong class="text-secondary me-1.5">#${idx + 1}</strong>
+                                    <span class="text-white">${t.name}</span>
+                                    ${(currentSource === 'unified' && t.gap > 0) ? `<span class="badge border border-info border-opacity-30 text-info ms-1" style="font-size: 0.58rem; padding: 1px 4px;">+${formatNumber(t.gap)}</span>` : ''}
+                                </span>
+                                <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0">${formatNumber(t.plays)} reps</span>
+                            </div>
+                        `).join('')}
+                    </div>
                 </div>
-                <div class="d-flex flex-column gap-1.5" style="max-height: 200px; overflow-y: auto;">
-                    ${data.tracks.map((t, idx) => `
-                        <div class="d-flex align-items-center justify-content-between py-1.5 px-2 rounded cursor-pointer" onclick="showItemStats('track', '${(t.name || '').replace(/'/g, "\\'")}', '${name.replace(/'/g, "\\'")}')" style="background-color: rgba(255, 255, 255, 0.03); font-size: 0.72rem; cursor: pointer; transition: background 0.15s ease;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.08)'" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.03)'">
-                            <span class="text-truncate me-2">
-                                <strong class="text-secondary me-1.5">#${idx + 1}</strong>
-                                <span class="text-white">${t.name}</span>
-                                ${(currentSource === 'unified' && t.gap > 0) ? `<span class="badge border border-info border-opacity-30 text-info ms-1" style="font-size: 0.58rem; padding: 1px 4px;">+${formatNumber(t.gap)}</span>` : ''}
-                            </span>
-                            <span class="badge bg-secondary bg-opacity-25 text-white flex-shrink-0">${formatNumber(t.plays)} reps</span>
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-        `;
+            `;
+        }
     }
 
     modalBody.innerHTML = `
