@@ -1688,7 +1688,15 @@
                                         <small class="text-secondary d-block" style="font-size: 0.73rem;">Selección guiada ~18 temas</small>
                                     </div>
                                 </button>
-                                <button class="offcanvas-menu-item" id="menu-save-playlist" data-bs-dismiss="offcanvas">
+                                
+                                <button class="offcanvas-menu-item" id="menu-stream-manager" data-bs-dismiss="offcanvas" onclick="openStreamManagerModal()">
+                                    <i class="fa-solid fa-sliders text-info fs-5"></i>
+                                    <div>
+                                        <div class="menu-title">Ajustes de Streams (Tidal / Personalizado)</div>
+                                        <div class="menu-desc">Modificar reproducciones estimadas y añadir canciones</div>
+                                    </div>
+                                </button>
+<button class="offcanvas-menu-item" id="menu-save-playlist" data-bs-dismiss="offcanvas">
                                     <i class="fa-solid fa-plus text-success fs-5"></i>
                                     <div>
                                         <div class="fw-semibold">Guardar Top como Playlist</div>
@@ -2313,7 +2321,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js"></script>
     <!-- App Logic -->
-    <script src="/app.js?v=48"></script>
+    <script src="/app.js?v=49"></script>
 
     <!-- Barra de Navegación Inferior Móvil (Bottom Navigation Bar) -->
     <nav id="bottom-nav-bar" class="bottom-nav-bar d-none">
@@ -2393,6 +2401,212 @@
                 <div class="modal-footer border-top border-secondary border-opacity-10 py-2 px-3 justify-content-between">
                     <small class="text-secondary" style="font-size: 0.72rem;">Cálculo instantáneo sobre el catálogo unificado</small>
                     <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal" style="font-size: 0.76rem;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal: Ajuste Manual de Streams (Tidal / Personalizado) -->
+    <div class="modal fade" id="streamAdjustmentModal" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(6px); z-index: 1065;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 480px;">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 14px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-sliders text-info fs-6"></i>
+                        <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.90rem;">Modificar Streams Añadidos</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <!-- Item Header Summary -->
+                    <div class="p-2.5 rounded-3 mb-3 border border-secondary border-opacity-15 d-flex align-items-center justify-content-between" style="background: rgba(255, 255, 255, 0.03);">
+                        <div class="overflow-hidden me-2">
+                            <span class="badge border border-secondary text-secondary mb-1" id="adjust-stream-badge-type" style="font-size: 0.6rem; padding: 2px 6px;">Canción</span>
+                            <h6 class="fw-bold mb-0 text-white text-truncate" id="adjust-stream-title" style="font-size: 0.92rem;">Título</h6>
+                            <small class="text-secondary text-truncate d-block" id="adjust-stream-subtitle" style="font-size: 0.76rem;">Artista</small>
+                        </div>
+                        <div id="adjust-status-notice"></div>
+                    </div>
+
+                    <!-- Metrics Explanation Row -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-4">
+                            <div class="p-2 rounded text-center border border-secondary border-opacity-15" style="background: rgba(255, 255, 255, 0.02);">
+                                <small class="text-secondary d-block" style="font-size: 0.66rem;">Historial Base</small>
+                                <strong class="text-white" id="adjust-base-plays-display" style="font-size: 0.88rem;">0</strong>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 rounded text-center border border-info border-opacity-25" style="background: rgba(6, 182, 212, 0.08);">
+                                <small class="text-info d-block" style="font-size: 0.66rem;">Streams Añadidos</small>
+                                <strong class="text-info" id="adjust-added-badge-display" style="font-size: 0.88rem;">+0</strong>
+                            </div>
+                        </div>
+                        <div class="col-4">
+                            <div class="p-2 rounded text-center border border-success border-opacity-25" style="background: rgba(34, 197, 94, 0.08);">
+                                <small class="text-success d-block" style="font-size: 0.66rem;">Total Resultante</small>
+                                <strong class="text-success" id="adjust-total-badge-display" style="font-size: 0.88rem;">0</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Synchronized Inputs Card -->
+                    <div class="p-3 rounded-3 mb-3 border border-secondary border-opacity-20" style="background: rgba(255, 255, 255, 0.02);">
+                        <div class="mb-3">
+                            <label class="form-label text-white fw-semibold mb-1" style="font-size: 0.78rem;">
+                                <i class="fa-solid fa-plus-minus text-info me-1"></i> Streams a Añadir (Tidal / Personalizado)
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-dark border-secondary border-opacity-25 text-info fw-bold">+</span>
+                                <input type="number" id="adjust-added-input" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" placeholder="Ej: 142" oninput="onAdjustAddedInputChanged()">
+                            </div>
+                            <small class="text-secondary d-block mt-1" style="font-size: 0.68rem;">Cantidad que se sumará sobre tu historial oficial.</small>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="form-label text-white fw-semibold mb-1" style="font-size: 0.78rem;">
+                                <i class="fa-solid fa-flag-checkered text-success me-1"></i> O escribe el Total Final Deseado
+                            </label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-dark border-secondary border-opacity-25 text-success fw-bold">=</span>
+                                <input type="number" id="adjust-total-input" class="form-control bg-dark border-secondary border-opacity-25 text-white" min="0" placeholder="Ej: 250" oninput="onAdjustTotalInputChanged()">
+                            </div>
+                            <small class="text-secondary d-block mt-1" style="font-size: 0.68rem;">Calcula automáticamente los streams añadidos necesarios para alcanzar esta meta exacta.</small>
+                        </div>
+                    </div>
+
+                    <!-- Year Distribution (2025 / 2026) -->
+                    <div class="p-2.5 rounded-3 mb-2 border border-secondary border-opacity-15" style="background: rgba(255, 255, 255, 0.02);">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="text-white fw-semibold" style="font-size: 0.76rem;"><i class="fa-regular fa-calendar-days text-primary me-1"></i> Desglose por Años (Era Tidal)</span>
+                            <div class="form-check form-switch mb-0" style="font-size: 0.72rem;">
+                                <input class="form-check-input" type="checkbox" id="adjust-auto-split-check" checked onchange="toggleAutoSplitDistribution()">
+                                <label class="form-check-label text-secondary" for="adjust-auto-split-check">Automático</label>
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="text-secondary mb-1" style="font-size: 0.68rem;">Año 2025:</label>
+                                <input type="number" id="adjust-year-2025-input" class="form-control form-control-sm bg-dark border-secondary border-opacity-25 text-white" min="0" disabled>
+                            </div>
+                            <div class="col-6">
+                                <label class="text-secondary mb-1" style="font-size: 0.68rem;">Año 2026:</label>
+                                <input type="number" id="adjust-year-2026-input" class="form-control form-control-sm bg-dark border-secondary border-opacity-25 text-white" min="0" disabled>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2.5 px-3 d-flex justify-content-between">
+                    <button type="button" id="btn-adjust-reset-default" class="btn btn-sm btn-outline-danger rounded-pill px-3" style="font-size: 0.74rem;" onclick="handleResetStreamAdjustment()">
+                        <i class="fa-solid fa-rotate-left me-1"></i> Restablecer por Defecto
+                    </button>
+                    <div class="d-flex gap-2 ms-auto">
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal" style="font-size: 0.74rem;">Cancelar</button>
+                        <button type="button" class="btn btn-sm btn-brand rounded-pill px-3" style="font-size: 0.74rem;" onclick="handleSaveStreamAdjustment()">
+                            <i class="fa-solid fa-check me-1"></i> Guardar Ajuste
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Centro de Gestión de Streams Añadidos & Era Tidal -->
+    <div class="modal fade" id="streamManagerModal" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(6px);">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-stats-dialog" style="max-width: 680px;">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 14px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-sliders text-info fs-5"></i>
+                        <div>
+                            <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.92rem;">Gestor de Streams (Tidal / Personalizados)</h6>
+                            <small class="text-secondary" style="font-size: 0.68rem;">Visualiza, edita o añade reproducciones recuperadas de cualquier pista o artista</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <!-- Controls Bar -->
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                        <div class="input-group input-group-sm flex-grow-1" style="max-width: 320px;">
+                            <span class="input-group-text bg-dark border-secondary border-opacity-25 text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                            <input type="text" id="stream-manager-search" class="form-control bg-dark border-secondary border-opacity-25 text-white" placeholder="Filtrar por canción o artista..." oninput="onStreamManagerSearch(this.value)">
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-brand rounded-pill px-3 py-1 d-inline-flex align-items-center gap-1.5" style="font-size: 0.74rem;" onclick="openNewStreamOverrideModal()">
+                            <i class="fa-solid fa-plus"></i> Añadir Otro Ajuste
+                        </button>
+                    </div>
+
+                    <!-- Filter Pills -->
+                    <div class="d-flex align-items-center gap-1.5 mb-3" style="font-size: 0.74rem;">
+                        <button type="button" class="btn btn-sm btn-brand rounded-pill px-2.5 py-0.5 stream-mgr-tab-btn active" data-filter="all" onclick="setStreamManagerFilter('all', this)">Todos (<span id="count-mgr-all">0</span>)</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-0.5 stream-mgr-tab-btn text-white" data-filter="tracks" onclick="setStreamManagerFilter('tracks', this)">Canciones (<span id="count-mgr-tracks">0</span>)</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-0.5 stream-mgr-tab-btn text-white" data-filter="artists" onclick="setStreamManagerFilter('artists', this)">Artistas (<span id="count-mgr-artists">0</span>)</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-0.5 stream-mgr-tab-btn text-white" data-filter="custom" onclick="setStreamManagerFilter('custom', this)">Modificados (<span id="count-mgr-custom">0</span>)</button>
+                    </div>
+
+                    <!-- List Container -->
+                    <div id="stream-manager-items-list" class="d-flex flex-column gap-1.5" style="max-height: 380px; overflow-y: auto;">
+                        <!-- Injected dynamically -->
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2.5 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 text-white" style="font-size: 0.72rem;" onclick="exportStreamOverridesJson()" title="Descargar copia de seguridad en JSON">
+                            <i class="fa-solid fa-download me-1"></i> Exportar
+                        </button>
+                        <label class="btn btn-sm btn-outline-secondary rounded-pill px-2.5 py-1 text-white mb-0" style="font-size: 0.72rem; cursor: pointer;" title="Restaurar copia de seguridad en JSON">
+                            <i class="fa-solid fa-upload me-1"></i> Importar
+                            <input type="file" id="import-stream-overrides-file" accept=".json" class="d-none" onchange="importStreamOverridesJson(this)">
+                        </label>
+                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2.5 py-1" style="font-size: 0.72rem;" onclick="resetAllStreamOverrides()" title="Eliminar todos los ajustes personalizados">
+                            <i class="fa-solid fa-trash me-1"></i> Limpiar Todo
+                        </button>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-brand rounded-pill px-3 py-1" data-bs-dismiss="modal" style="font-size: 0.74rem;">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Añadir Nuevo Ajuste Manual -->
+    <div class="modal fade" id="newStreamOverrideModal" tabindex="-1" aria-hidden="true" style="backdrop-filter: blur(6px); z-index: 1070;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 440px;">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc; border-radius: 14px;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-plus-circle text-brand fs-6"></i>
+                        <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.90rem;">Añadir Streams a Canción o Artista</h6>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div class="mb-2.5">
+                        <label class="filter-label">Tipo de Elemento</label>
+                        <select id="new-override-type" class="form-select form-select-sm filter-select" onchange="onNewOverrideTypeChange(this.value)">
+                            <option value="track" selected>Canción</option>
+                            <option value="artist">Artista</option>
+                        </select>
+                    </div>
+                    <div class="mb-2.5">
+                        <label class="filter-label" id="new-override-name-label">Nombre de la Canción</label>
+                        <input type="text" id="new-override-name" class="form-control form-control-sm bg-dark border-secondary border-opacity-25 text-white" placeholder="Ej: Tipping Point">
+                    </div>
+                    <div class="mb-2.5" id="new-override-artist-group">
+                        <label class="filter-label">Nombre del Artista</label>
+                        <input type="text" id="new-override-artist" class="form-control form-control-sm bg-dark border-secondary border-opacity-25 text-white" placeholder="Ej: Megadeth">
+                    </div>
+                    <div class="mb-2.5">
+                        <label class="filter-label">Reproducciones a Añadir (+)</label>
+                        <input type="number" id="new-override-plays" class="form-control form-control-sm bg-dark border-secondary border-opacity-25 text-white" min="1" placeholder="Ej: 50">
+                    </div>
+                </div>
+                <div class="modal-footer border-top border-secondary border-opacity-10 py-2.5 px-3">
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal" style="font-size: 0.74rem;">Cancelar</button>
+                    <button type="button" class="btn btn-sm btn-brand rounded-pill px-3" style="font-size: 0.74rem;" onclick="handleCreateNewStreamOverrideSubmit()">
+                        <i class="fa-solid fa-check me-1"></i> Continuar y Ajustar
+                    </button>
                 </div>
             </div>
         </div>

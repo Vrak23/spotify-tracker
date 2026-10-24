@@ -37,10 +37,79 @@ async function initFirebase() {
 initFirebase();
 
 // ----------------------------------------------------
-// TIDAL ESTIMATES LOADER
+// ----------------------------------------------------
+// TIDAL ESTIMATES & CUSTOM STREAM OVERRIDES SYSTEM
 // ----------------------------------------------------
 let tidalEstimates = null;
+let rawDefaultTidalEstimates = null;
 let isTidalLoading = false;
+
+function getCustomStreamOverrides() {
+    try {
+        const raw = localStorage.getItem('spoti_stream_overrides');
+        if (raw) return JSON.parse(raw);
+    } catch (e) {
+        console.warn('Error reading spoti_stream_overrides:', e);
+    }
+    return { tracks: {}, artists: {} };
+}
+
+function saveCustomStreamOverridesToStorage(overrides) {
+    try {
+        localStorage.setItem('spoti_stream_overrides', JSON.stringify(overrides));
+    } catch (e) {
+        console.warn('Error saving spoti_stream_overrides:', e);
+    }
+}
+
+function applyCustomOverridesToTidal() {
+    if (!rawDefaultTidalEstimates) return;
+    tidalEstimates = JSON.parse(JSON.stringify(rawDefaultTidalEstimates));
+    const overrides = getCustomStreamOverrides();
+
+    // 1. Tracks overrides
+    if (overrides.tracks) {
+        tidalEstimates.tracks = tidalEstimates.tracks || {};
+        Object.entries(overrides.tracks).forEach(([k, ovr]) => {
+            const plays = Math.max(0, parseInt(ovr.plays, 10) || 0);
+            if (ovr.deleted) {
+                delete tidalEstimates.tracks[k];
+            } else {
+                const existing = tidalEstimates.tracks[k] || {};
+                const y25 = ovr.years?.['2025'] !== undefined ? ovr.years['2025'] : Math.round(plays * 0.35);
+                const y26 = ovr.years?.['2026'] !== undefined ? ovr.years['2026'] : (plays - y25);
+                tidalEstimates.tracks[k] = {
+                    name: ovr.name || existing.name || '',
+                    artist: ovr.artist || existing.artist || '',
+                    album: ovr.album || existing.album || '',
+                    plays: plays,
+                    years: { "2025": y25, "2026": y26 },
+                    months: ovr.months || existing.months || {}
+                };
+            }
+        });
+    }
+
+    // 2. Artists overrides
+    if (overrides.artists) {
+        tidalEstimates.artists = tidalEstimates.artists || {};
+        Object.entries(overrides.artists).forEach(([k, ovr]) => {
+            const plays = Math.max(0, parseInt(ovr.plays, 10) || 0);
+            if (ovr.deleted) {
+                delete tidalEstimates.artists[k];
+            } else {
+                const matchedKey = Object.keys(tidalEstimates.artists).find(ak => normalizeKey(ak) === normalizeKey(k)) || ovr.name || k;
+                const existing = tidalEstimates.artists[matchedKey] || {};
+                const y25 = ovr.years?.['2025'] !== undefined ? ovr.years['2025'] : Math.round(plays * 0.35);
+                const y26 = ovr.years?.['2026'] !== undefined ? ovr.years['2026'] : (plays - y25);
+                tidalEstimates.artists[matchedKey] = {
+                    plays: plays,
+                    years: { "2025": y25, "2026": y26 }
+                };
+            }
+        });
+    }
+}
 
 async function loadTidalEstimates() {
     if (tidalEstimates) return tidalEstimates;
@@ -54,8 +123,9 @@ async function loadTidalEstimates() {
     try {
         const res = await fetch('/data/tidal_estimates.json');
         if (res.ok) {
-            tidalEstimates = await res.json();
-            console.log('Era Tidal estimada cargada correctamente:', tidalEstimates.period);
+            rawDefaultTidalEstimates = await res.json();
+            applyCustomOverridesToTidal();
+            console.log('Era Tidal y ajustes cargados correctamente:', tidalEstimates.period);
         }
     } catch (e) {
         console.warn('No se pudo cargar tidal_estimates.json:', e);
@@ -63,6 +133,61 @@ async function loadTidalEstimates() {
         isTidalLoading = false;
     }
     return tidalEstimates;
+}
+
+function setCustomStreamOverride(type, name, artist, plays, year2025, year2026) {
+    const overrides = getCustomStreamOverrides();
+    const p = Math.max(0, parseInt(plays, 10) || 0);
+    const y25 = year2025 !== undefined ? parseInt(year2025, 10) : Math.round(p * 0.35);
+    const y26 = year2026 !== undefined ? parseInt(year2026, 10) : (p - y25);
+
+    if (type === 'track') {
+        const key = `${normalizeKey(name)}:::${normalizeKey(artist || '')}`;
+        overrides.tracks = overrides.tracks || {};
+        overrides.tracks[key] = {
+            name: name,
+            artist: artist || '',
+            plays: p,
+            years: { "2025": y25, "2026": y26 },
+            updatedAt: new Date().toISOString()
+        };
+    } else if (type === 'artist') {
+        const key = normalizeKey(name);
+        overrides.artists = overrides.artists || {};
+        overrides.artists[key] = {
+            name: name,
+            plays: p,
+            years: { "2025": y25, "2026": y26 },
+            updatedAt: new Date().toISOString()
+        };
+    }
+    saveCustomStreamOverridesToStorage(overrides);
+    applyCustomOverridesToTidal();
+}
+
+function removeCustomStreamOverride(type, name, artist) {
+    const overrides = getCustomStreamOverrides();
+    if (type === 'track') {
+        const key = `${normalizeKey(name)}:::${normalizeKey(artist || '')}`;
+        if (overrides.tracks) delete overrides.tracks[key];
+    } else if (type === 'artist') {
+        const key = normalizeKey(name);
+        if (overrides.artists) delete overrides.artists[key];
+    }
+    saveCustomStreamOverridesToStorage(overrides);
+    applyCustomOverridesToTidal();
+}
+
+function hasCustomStreamOverride(type, name, artist) {
+    const overrides = getCustomStreamOverrides();
+    if (type === 'track') {
+        const key = `${normalizeKey(name)}:::${normalizeKey(artist || '')}`;
+        return !!overrides.tracks?.[key];
+    } else if (type === 'artist') {
+        const key = normalizeKey(name);
+        return !!overrides.artists?.[key];
+    }
+    return false;
 }
 
 const CLIENT_ID = '78c1217f07404df7b95cceb3e7cc6657';
@@ -290,6 +415,12 @@ function escapeHtml(str) {
         .replace(/'/g, '&#039;');
 }
 window.escapeHtml = escapeHtml;
+
+function escapeJsStr(str) {
+    if (!str) return '';
+    return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+window.escapeJsStr = escapeJsStr;
 
 function formatNumber(num) {
     if (!num) return '0';
@@ -767,8 +898,7 @@ async function switchDataSource(source) {
                 </optgroup>
                 <optgroup label="⚙️ Avanzado">
                     <option value="era-spotify">Era Spotify (2019 - Ago 2025)</option>
-                    <option value="era-tidal">Era Tidal (Ago 2025 - Jul 2026 ≈)</option>
-                    <option value="era-tidal">Era Tidal (Ago 2025 - Jul 2026 ≈)</option>
+                    <option value="era-tidal">Era Tidal (Ago 2025 - Jul 2026 ≈ Estimado)</option>
                 <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
                     <option value="year-2025">Año 2025</option>
                     <option value="year-2024">Año 2024</option>
@@ -798,6 +928,7 @@ async function switchDataSource(source) {
             selectTimePeriod.innerHTML = `
                 <option value="overall" selected>Histórico Total</option>
                 <option value="era-spotify">Era Spotify (2019 - Ago 2025)</option>
+                <option value="era-tidal">Era Tidal (Ago 2025 - Jul 2026 ≈ Estimado)</option>
                 <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
                 <option value="custom">Rango de Fechas Personalizado...</option>
                 <option value="year-2026">Año 2026</option>
@@ -1907,6 +2038,17 @@ async function loadStats(silent = false) {
                             const [cy, cm] = ym.split('-');
                             const paddedYm = `${cy}-${String(cm).padStart(2, '0')}`;
                             addPlays = tEntry.months?.[paddedYm] || 0;
+                        } else if (currentRange.startsWith('dates_')) {
+                            const [fromD, toD] = currentRange.replace('dates_', '').split('_to_');
+                            if (tEntry.months) {
+                                Object.entries(tEntry.months).forEach(([ym, cnt]) => {
+                                    const mStart = `${ym}-01`;
+                                    const mEnd = `${ym}-31`;
+                                    if (mEnd >= fromD && mStart <= toD) {
+                                        addPlays += cnt;
+                                    }
+                                });
+                            }
                         }
 
                         if (addPlays > 0) {
@@ -2001,6 +2143,24 @@ async function loadStats(silent = false) {
                             addPlays = aEntry.years?.['2025'] || 0;
                         } else if (currentRange === 'year-2026') {
                             addPlays = aEntry.years?.['2026'] || 0;
+                        } else if (currentRange.startsWith('month-2025-') || currentRange.startsWith('month-2026-')) {
+                            const ym = currentRange.replace('month-', '');
+                            const [cy, cm] = ym.split('-');
+                            const paddedYm = `${cy}-${String(cm).padStart(2, '0')}`;
+                            if (tidal.months?.[paddedYm]?.artists?.[artName]) {
+                                addPlays = tidal.months[paddedYm].artists[artName] || 0;
+                            }
+                        } else if (currentRange.startsWith('dates_')) {
+                            const [fromD, toD] = currentRange.replace('dates_', '').split('_to_');
+                            if (tidal.months) {
+                                Object.entries(tidal.months).forEach(([ym, mObj]) => {
+                                    const mStart = `${ym}-01`;
+                                    const mEnd = `${ym}-31`;
+                                    if (mEnd >= fromD && mStart <= toD && mObj.artists?.[artName]) {
+                                        addPlays += mObj.artists[artName];
+                                    }
+                                });
+                            }
                         }
 
                         if (addPlays > 0) {
@@ -2860,6 +3020,10 @@ async function showItemStats(type, name, artist, isBack = false) {
                     <h6 class="fw-bold mb-0 text-white text-truncate">${name}</h6>
                     <small class="text-secondary text-truncate d-block">${artist || 'Artista'}</small>
                 </div>
+                <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-2.5 py-1 text-nowrap d-inline-flex align-items-center gap-1.5 flex-shrink-0" style="font-size: 0.72rem;" onclick="openStreamAdjustmentModal('${type}', '${escapeJsStr(name)}', '${escapeJsStr(artist || '')}')">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>+ Ajustar</span>
+                </button>
             </div>
             <div class="p-3 rounded border border-secondary border-opacity-20 text-center" style="background-color: rgba(255, 255, 255, 0.02);">
                 <i class="fa-solid fa-clock-rotate-left text-secondary mb-2" style="font-size: 1.8rem;"></i>
@@ -3038,6 +3202,10 @@ async function showItemStats(type, name, artist, isBack = false) {
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.76rem;">${artist || (type === 'artist' ? 'Artista' : '')}</small>
                 ${data.album && data.album !== name ? `<small class="text-muted text-truncate d-block" style="font-size: 0.68rem;"><i class="fa-solid fa-compact-disc me-1"></i>${data.album}</small>` : ''}
             </div>
+            <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-2.5 py-1 text-nowrap d-inline-flex align-items-center gap-1.5 flex-shrink-0 ms-auto" style="font-size: 0.72rem;" onclick="openStreamAdjustmentModal('${type}', '${escapeJsStr(name)}', '${escapeJsStr(artist || '')}')" title="Modificar o añadir streams a esta pista">
+                <i class="fa-solid fa-sliders"></i>
+                <span class="d-none d-sm-inline">${tidalContributionPlays > 0 ? 'Modificar' : '+ Ajustar'}</span>
+            </button>
         </div>
 
         ${(currentSource === 'unified' && data.gap > 0) ? `
@@ -7403,3 +7571,504 @@ async function openWrappedHint() {
 }
 window.openWrappedHint = openWrappedHint;
 window.renderWrappedTeaser = renderWrappedTeaser;
+
+
+// ----------------------------------------------------
+// MODAL DE AJUSTE MANUAL DE STREAMS (TIDAL / PERSONALIZADO)
+// ----------------------------------------------------
+let currentAdjustingItem = null;
+
+async function openStreamAdjustmentModal(type, name, artist) {
+    const activeDb = await getActiveDatabase();
+    await loadTidalEstimates();
+
+    const normN = normalizeKey(name);
+    const normA = normalizeKey(artist || '');
+
+    let basePlays = 0;
+    let albumName = '';
+    if (type === 'track') {
+        const lowerKey = `${(name||'').trim().toLowerCase()}:::${(artist||'').trim().toLowerCase()}`;
+        const trk = activeDb?.tracksLookup?.[lowerKey] || Object.entries(activeDb?.tracksLookup || {}).find(([k]) => {
+            const [kN, kA] = k.split(':::');
+            const nK = normalizeKey(kN);
+            const aK = normalizeKey(kA);
+            if (!nK || !normN) return false;
+            const matchArt = !normA || aK === normA || aK.includes(normA) || normA.includes(aK);
+            const matchName = nK === normN || nK.startsWith(normN) || normN.startsWith(nK);
+            return matchArt && matchName;
+        })?.[1];
+        if (trk) {
+            basePlays = trk.plays || 0;
+            albumName = trk.album || '';
+        }
+    } else if (type === 'artist') {
+        const art = activeDb?.artistsLookup?.[normN] || activeDb?.artistsLookup?.[normA];
+        if (art) {
+            basePlays = art.plays || 0;
+        }
+    }
+
+    let currentAddedPlays = 0;
+    let cur2025 = 0;
+    let cur2026 = 0;
+    if (type === 'track') {
+        const tEntry = tidalEstimates?.tracks?.[normN + ':::' + normA] || tidalEstimates?.tracks?.[normN + ':::'] || Object.entries(tidalEstimates?.tracks || {}).find(([k]) => k.startsWith(normN + ':::'))?.[1];
+        if (tEntry) {
+            currentAddedPlays = tEntry.plays || 0;
+            cur2025 = tEntry.years?.['2025'] || 0;
+            cur2026 = tEntry.years?.['2026'] || 0;
+            if (!albumName && tEntry.album) albumName = tEntry.album;
+        }
+    } else if (type === 'artist') {
+        const artKey = Object.keys(tidalEstimates?.artists || {}).find(k => normalizeKey(k) === normN || normalizeKey(k).includes(normN) || normN.includes(normalizeKey(k)));
+        if (artKey && tidalEstimates?.artists[artKey]) {
+            const aEntry = tidalEstimates.artists[artKey];
+            currentAddedPlays = aEntry.plays || 0;
+            cur2025 = aEntry.years?.['2025'] || 0;
+            cur2026 = aEntry.years?.['2026'] || 0;
+        }
+    }
+
+    if (currentAddedPlays > 0 && cur2025 === 0 && cur2026 === 0) {
+        cur2025 = Math.round(currentAddedPlays * 0.35);
+        cur2026 = currentAddedPlays - cur2025;
+    }
+
+    const isOverridden = hasCustomStreamOverride(type, name, artist);
+    const totalPlays = basePlays + currentAddedPlays;
+
+    currentAdjustingItem = {
+        type,
+        name,
+        artist,
+        album: albumName,
+        basePlays,
+        currentAddedPlays,
+        totalPlays,
+        cur2025,
+        cur2026,
+        isOverridden
+    };
+
+    const titleEl = document.getElementById('adjust-stream-title');
+    const subtitleEl = document.getElementById('adjust-stream-subtitle');
+    const badgeType = document.getElementById('adjust-stream-badge-type');
+    const baseDisplay = document.getElementById('adjust-base-plays-display');
+    const addedBadge = document.getElementById('adjust-added-badge-display');
+    const totalBadge = document.getElementById('adjust-total-badge-display');
+    const addedInput = document.getElementById('adjust-added-input');
+    const totalInput = document.getElementById('adjust-total-input');
+    const y25Input = document.getElementById('adjust-year-2025-input');
+    const y26Input = document.getElementById('adjust-year-2026-input');
+    const autoSplitCheck = document.getElementById('adjust-auto-split-check');
+    const btnReset = document.getElementById('btn-adjust-reset-default');
+    const statusNotice = document.getElementById('adjust-status-notice');
+
+    if (titleEl) titleEl.textContent = name;
+    if (subtitleEl) subtitleEl.textContent = artist || (type === 'artist' ? 'Artista' : '');
+    if (badgeType) badgeType.textContent = type === 'track' ? 'Canción' : 'Artista';
+    if (baseDisplay) baseDisplay.textContent = formatNumber(basePlays);
+    if (addedBadge) addedBadge.textContent = '+' + formatNumber(currentAddedPlays);
+    if (totalBadge) totalBadge.textContent = formatNumber(totalPlays);
+    if (addedInput) addedInput.value = currentAddedPlays;
+    if (totalInput) totalInput.value = totalPlays;
+    if (y25Input) y25Input.value = cur2025;
+    if (y26Input) y26Input.value = cur2026;
+    if (autoSplitCheck) autoSplitCheck.checked = true;
+    if (y25Input) y25Input.disabled = true;
+    if (y26Input) y26Input.disabled = true;
+
+    if (btnReset) {
+        btnReset.style.display = isOverridden ? 'inline-flex' : 'none';
+    }
+
+    if (statusNotice) {
+        if (isOverridden) {
+            statusNotice.className = 'badge bg-warning bg-opacity-20 text-warning border border-warning border-opacity-30 p-1 px-2';
+            statusNotice.innerHTML = '<i class="fa-solid fa-pen me-1"></i>Personalizado';
+        } else if (currentAddedPlays > 0) {
+            statusNotice.className = 'badge bg-info bg-opacity-20 text-info border border-info border-opacity-30 p-1 px-2';
+            statusNotice.innerHTML = '<i class="fa-solid fa-water me-1"></i>Estimado Tidal';
+        } else {
+            statusNotice.className = 'badge bg-secondary bg-opacity-20 text-secondary border border-secondary border-opacity-30 p-1 px-2';
+            statusNotice.innerHTML = '<i class="fa-solid fa-circle-info me-1"></i>Sin añadir';
+        }
+    }
+
+    const modalEl = document.getElementById('streamAdjustmentModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+}
+window.openStreamAdjustmentModal = openStreamAdjustmentModal;
+
+function onAdjustAddedInputChanged() {
+    if (!currentAdjustingItem) return;
+    const addedInput = document.getElementById('adjust-added-input');
+    const totalInput = document.getElementById('adjust-total-input');
+    const addedBadge = document.getElementById('adjust-added-badge-display');
+    const totalBadge = document.getElementById('adjust-total-badge-display');
+    const y25Input = document.getElementById('adjust-year-2025-input');
+    const y26Input = document.getElementById('adjust-year-2026-input');
+    const autoSplitCheck = document.getElementById('adjust-auto-split-check');
+
+    const added = Math.max(0, parseInt(addedInput?.value, 10) || 0);
+    const base = currentAdjustingItem.basePlays || 0;
+    const total = base + added;
+    if (totalInput) totalInput.value = total;
+    if (addedBadge) addedBadge.textContent = '+' + formatNumber(added);
+    if (totalBadge) totalBadge.textContent = formatNumber(total);
+
+    if (autoSplitCheck && autoSplitCheck.checked) {
+        const y25 = Math.round(added * 0.35);
+        const y26 = added - y25;
+        if (y25Input) y25Input.value = y25;
+        if (y26Input) y26Input.value = y26;
+    }
+}
+window.onAdjustAddedInputChanged = onAdjustAddedInputChanged;
+
+function onAdjustTotalInputChanged() {
+    if (!currentAdjustingItem) return;
+    const addedInput = document.getElementById('adjust-added-input');
+    const totalInput = document.getElementById('adjust-total-input');
+    const addedBadge = document.getElementById('adjust-added-badge-display');
+    const totalBadge = document.getElementById('adjust-total-badge-display');
+    const y25Input = document.getElementById('adjust-year-2025-input');
+    const y26Input = document.getElementById('adjust-year-2026-input');
+    const autoSplitCheck = document.getElementById('adjust-auto-split-check');
+
+    const total = Math.max(0, parseInt(totalInput?.value, 10) || 0);
+    const base = currentAdjustingItem.basePlays || 0;
+    const added = Math.max(0, total - base);
+    if (addedInput) addedInput.value = added;
+    if (addedBadge) addedBadge.textContent = '+' + formatNumber(added);
+    if (totalBadge) totalBadge.textContent = formatNumber(total);
+
+    if (autoSplitCheck && autoSplitCheck.checked) {
+        const y25 = Math.round(added * 0.35);
+        const y26 = added - y25;
+        if (y25Input) y25Input.value = y25;
+        if (y26Input) y26Input.value = y26;
+    }
+}
+window.onAdjustTotalInputChanged = onAdjustTotalInputChanged;
+
+function toggleAutoSplitDistribution() {
+    const autoSplitCheck = document.getElementById('adjust-auto-split-check');
+    const y25Input = document.getElementById('adjust-year-2025-input');
+    const y26Input = document.getElementById('adjust-year-2026-input');
+    const isAuto = autoSplitCheck?.checked ?? true;
+    if (y25Input) y25Input.disabled = isAuto;
+    if (y26Input) y26Input.disabled = isAuto;
+    if (isAuto) onAdjustAddedInputChanged();
+}
+window.toggleAutoSplitDistribution = toggleAutoSplitDistribution;
+
+async function handleSaveStreamAdjustment() {
+    if (!currentAdjustingItem) return;
+    const addedInput = document.getElementById('adjust-added-input');
+    const y25Input = document.getElementById('adjust-year-2025-input');
+    const y26Input = document.getElementById('adjust-year-2026-input');
+
+    const added = Math.max(0, parseInt(addedInput?.value, 10) || 0);
+    const y25 = Math.max(0, parseInt(y25Input?.value, 10) || 0);
+    const y26 = Math.max(0, parseInt(y26Input?.value, 10) || 0);
+
+    const { type, name, artist } = currentAdjustingItem;
+    setCustomStreamOverride(type, name, artist, added, y25, y26);
+
+    const modalEl = document.getElementById('streamAdjustmentModal');
+    bootstrap.Modal.getInstance(modalEl)?.hide();
+
+    const itemModalEl = document.getElementById('itemStatsModal');
+    if (itemModalEl && itemModalEl.classList.contains('show')) {
+        await showItemStats(type, name, artist, true);
+    }
+    const mgrModalEl = document.getElementById('streamManagerModal');
+    if (mgrModalEl && mgrModalEl.classList.contains('show')) {
+        renderStreamManagerList();
+    }
+
+    loadStats();
+    if (typeof showEngagementToast === 'function') {
+        showEngagementToast('<i class="fa-solid fa-sliders text-info"></i>', 'Streams Actualizados', `${name}: ${formatNumber((currentAdjustingItem.basePlays || 0) + added)} streams totales`);
+    }
+}
+window.handleSaveStreamAdjustment = handleSaveStreamAdjustment;
+
+async function handleResetStreamAdjustment() {
+    if (!currentAdjustingItem) return;
+    const { type, name, artist } = currentAdjustingItem;
+    removeCustomStreamOverride(type, name, artist);
+
+    const modalEl = document.getElementById('streamAdjustmentModal');
+    bootstrap.Modal.getInstance(modalEl)?.hide();
+
+    const itemModalEl = document.getElementById('itemStatsModal');
+    if (itemModalEl && itemModalEl.classList.contains('show')) {
+        await showItemStats(type, name, artist, true);
+    }
+    const mgrModalEl = document.getElementById('streamManagerModal');
+    if (mgrModalEl && mgrModalEl.classList.contains('show')) {
+        renderStreamManagerList();
+    }
+
+    loadStats();
+    if (typeof showEngagementToast === 'function') {
+        showEngagementToast('<i class="fa-solid fa-rotate-left text-warning"></i>', 'Valor Restablecido', `Se restauró el valor predeterminado para ${name}`);
+    }
+}
+window.handleResetStreamAdjustment = handleResetStreamAdjustment;
+
+// ----------------------------------------------------
+// GESTOR CENTRAL DE STREAMS (TIDAL / PERSONALIZADOS)
+// ----------------------------------------------------
+let currentStreamManagerFilter = 'all';
+let currentStreamManagerQuery = '';
+
+async function openStreamManagerModal() {
+    await loadTidalEstimates();
+    const modalEl = document.getElementById('streamManagerModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    modal.show();
+    renderStreamManagerList(currentStreamManagerFilter, currentStreamManagerQuery);
+}
+window.openStreamManagerModal = openStreamManagerModal;
+
+function setStreamManagerFilter(filter, btn) {
+    currentStreamManagerFilter = filter;
+    document.querySelectorAll('.stream-mgr-tab-btn').forEach(b => {
+        b.classList.remove('active', 'btn-brand');
+        b.classList.add('btn-outline-secondary', 'text-white');
+    });
+    if (btn) {
+        btn.classList.add('active', 'btn-brand');
+        btn.classList.remove('btn-outline-secondary', 'text-white');
+    }
+    renderStreamManagerList(currentStreamManagerFilter, currentStreamManagerQuery);
+}
+window.setStreamManagerFilter = setStreamManagerFilter;
+
+function onStreamManagerSearch(q) {
+    currentStreamManagerQuery = (q || '').trim().toLowerCase();
+    renderStreamManagerList(currentStreamManagerFilter, currentStreamManagerQuery);
+}
+window.onStreamManagerSearch = onStreamManagerSearch;
+
+async function renderStreamManagerList(filter = currentStreamManagerFilter, query = currentStreamManagerQuery) {
+    const container = document.getElementById('stream-manager-items-list');
+    if (!container) return;
+
+    const activeDb = await getActiveDatabase();
+    const overrides = getCustomStreamOverrides();
+    const items = [];
+
+    // Tracks in tidalEstimates
+    if (tidalEstimates && tidalEstimates.tracks) {
+        Object.entries(tidalEstimates.tracks).forEach(([k, t]) => {
+            const isOvr = !!overrides.tracks?.[k];
+            const normN = normalizeKey(t.name);
+            const normA = normalizeKey(t.artist || '');
+            const lowerKey = `${(t.name||'').trim().toLowerCase()}:::${(t.artist||'').trim().toLowerCase()}`;
+            const baseTrack = activeDb?.tracksLookup?.[lowerKey] || Object.entries(activeDb?.tracksLookup || {}).find(([k]) => {
+                const [kN, kA] = k.split(':::');
+                const nK = normalizeKey(kN);
+                const aK = normalizeKey(kA);
+                if (!nK || !normN) return false;
+                const matchArt = !normA || aK === normA || aK.includes(normA) || normA.includes(aK);
+                const matchName = nK === normN || nK.startsWith(normN) || normN.startsWith(nK);
+                return matchArt && matchName;
+            })?.[1];
+            const basePlays = baseTrack ? baseTrack.plays : 0;
+            items.push({
+                type: 'track',
+                key: k,
+                name: t.name,
+                artist: t.artist || '',
+                album: t.album || '',
+                addedPlays: t.plays || 0,
+                basePlays: basePlays,
+                totalPlays: basePlays + (t.plays || 0),
+                isOverridden: isOvr
+            });
+        });
+    }
+
+    // Artists in tidalEstimates
+    if (tidalEstimates && tidalEstimates.artists) {
+        Object.entries(tidalEstimates.artists).forEach(([artName, a]) => {
+            const isOvr = !!overrides.artists?.[normalizeKey(artName)];
+            const baseArt = activeDb?.artistsLookup?.[normalizeKey(artName)];
+            const basePlays = baseArt ? baseArt.plays : 0;
+            items.push({
+                type: 'artist',
+                key: normalizeKey(artName),
+                name: artName,
+                artist: '',
+                album: '',
+                addedPlays: a.plays || 0,
+                basePlays: basePlays,
+                totalPlays: basePlays + (a.plays || 0),
+                isOverridden: isOvr
+            });
+        });
+    }
+
+    const countAll = document.getElementById('count-mgr-all');
+    const countTracks = document.getElementById('count-mgr-tracks');
+    const countArtists = document.getElementById('count-mgr-artists');
+    const countCustom = document.getElementById('count-mgr-custom');
+
+    if (countAll) countAll.textContent = items.length;
+    if (countTracks) countTracks.textContent = items.filter(i => i.type === 'track').length;
+    if (countArtists) countArtists.textContent = items.filter(i => i.type === 'artist').length;
+    if (countCustom) countCustom.textContent = items.filter(i => i.isOverridden).length;
+
+    let filtered = items;
+    if (filter === 'tracks') filtered = filtered.filter(i => i.type === 'track');
+    else if (filter === 'artists') filtered = filtered.filter(i => i.type === 'artist');
+    else if (filter === 'custom') filtered = filtered.filter(i => i.isOverridden);
+
+    if (query) {
+        filtered = filtered.filter(i => 
+            i.name.toLowerCase().includes(query) || 
+            (i.artist && i.artist.toLowerCase().includes(query))
+        );
+    }
+
+    filtered.sort((a, b) => b.totalPlays - a.totalPlays);
+
+    if (filtered.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-secondary py-4">
+                <i class="fa-solid fa-filter-circle-xmark fs-3 mb-2 opacity-50"></i>
+                <p class="mb-0 small">No se encontraron pistas o artistas para este filtro.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = filtered.map(item => `
+        <div class="d-flex align-items-center justify-content-between p-2 rounded-3 border border-secondary border-opacity-15" style="background: rgba(255, 255, 255, 0.02); transition: background 0.15s ease;" onmouseover="this.style.backgroundColor='rgba(255,255,255,0.05)'" onmouseout="this.style.backgroundColor='rgba(255,255,255,0.02)'">
+            <div class="d-flex align-items-center gap-2 overflow-hidden me-2">
+                <div class="d-flex align-items-center justify-content-center rounded flex-shrink-0" style="width: 32px; height: 32px; background: rgba(168, 85, 247, 0.12); color: #c084fc;">
+                    <i class="fa-solid ${item.type === 'track' ? 'fa-music' : 'fa-user-group'}"></i>
+                </div>
+                <div class="overflow-hidden">
+                    <div class="d-flex align-items-center gap-1.5">
+                        <span class="text-white fw-semibold text-truncate" style="font-size: 0.80rem;" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+                        ${item.isOverridden ? '<span class="badge bg-warning bg-opacity-20 text-warning border border-warning border-opacity-40" style="font-size: 0.58rem; padding: 1px 4px;">Editado</span>' : ''}
+                    </div>
+                    <small class="text-secondary text-truncate d-block" style="font-size: 0.70rem;">${escapeHtml(item.artist || (item.type === 'artist' ? 'Artista' : ''))}</small>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                <div class="text-end" style="font-size: 0.72rem;">
+                    <strong class="text-white d-block">${formatNumber(item.totalPlays)} reps</strong>
+                    <span class="text-info" style="font-size: 0.65rem;">+${formatNumber(item.addedPlays)} añadidos</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-2.5 py-1" style="font-size: 0.70rem;" onclick="openStreamAdjustmentModal('${item.type}', '${escapeJsStr(item.name)}', '${escapeJsStr(item.artist || '')}')" title="Modificar">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+window.renderStreamManagerList = renderStreamManagerList;
+
+function exportStreamOverridesJson() {
+    const overrides = getCustomStreamOverrides();
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(overrides, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `spotitracker_stream_ajustes_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+}
+window.exportStreamOverridesJson = exportStreamOverridesJson;
+
+function importStreamOverridesJson(fileInput) {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const parsed = JSON.parse(e.target.result);
+            if (parsed && (parsed.tracks || parsed.artists)) {
+                saveCustomStreamOverridesToStorage(parsed);
+                applyCustomOverridesToTidal();
+                renderStreamManagerList();
+                loadStats();
+                if (typeof showEngagementToast === 'function') {
+                    showEngagementToast('<i class="fa-solid fa-check-circle text-success"></i>', 'Ajustes Importados', 'Tus streams personalizados se han restaurado con éxito.');
+                }
+            } else {
+                alert('El archivo no contiene un formato de ajustes válido.');
+            }
+        } catch (err) {
+            alert('Error al leer el archivo JSON: ' + err.message);
+        }
+        fileInput.value = '';
+    };
+    reader.readAsText(file);
+}
+window.importStreamOverridesJson = importStreamOverridesJson;
+
+function resetAllStreamOverrides() {
+    if (!confirm('¿Estás seguro de que deseas restablecer todos tus ajustes personalizados a los valores predeterminados?')) return;
+    localStorage.removeItem('spoti_stream_overrides');
+    applyCustomOverridesToTidal();
+    renderStreamManagerList();
+    loadStats();
+    if (typeof showEngagementToast === 'function') {
+        showEngagementToast('<i class="fa-solid fa-trash-can text-warning"></i>', 'Ajustes Limpiados', 'Se han restablecido todos los streams a los datos predeterminados.');
+    }
+}
+window.resetAllStreamOverrides = resetAllStreamOverrides;
+
+function openNewStreamOverrideModal() {
+    const modalEl = document.getElementById('newStreamOverrideModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    const nameInp = document.getElementById('new-override-name');
+    const artistInp = document.getElementById('new-override-artist');
+    const playsInp = document.getElementById('new-override-plays');
+    if (nameInp) nameInp.value = '';
+    if (artistInp) artistInp.value = '';
+    if (playsInp) playsInp.value = '';
+    modal.show();
+}
+window.openNewStreamOverrideModal = openNewStreamOverrideModal;
+
+function onNewOverrideTypeChange(val) {
+    const artistGroup = document.getElementById('new-override-artist-group');
+    const nameLabel = document.getElementById('new-override-name-label');
+    if (artistGroup) {
+        artistGroup.style.display = val === 'artist' ? 'none' : 'block';
+    }
+    if (nameLabel) {
+        nameLabel.textContent = val === 'artist' ? 'Nombre del Artista' : 'Nombre de la Canción';
+    }
+}
+window.onNewOverrideTypeChange = onNewOverrideTypeChange;
+
+function handleCreateNewStreamOverrideSubmit() {
+    const type = document.getElementById('new-override-type')?.value || 'track';
+    const name = document.getElementById('new-override-name')?.value.trim();
+    const artist = document.getElementById('new-override-artist')?.value.trim() || '';
+    const plays = parseInt(document.getElementById('new-override-plays')?.value, 10) || 0;
+
+    if (!name) {
+        alert('Por favor escribe el nombre de la canción o artista.');
+        return;
+    }
+    const modalEl = document.getElementById('newStreamOverrideModal');
+    bootstrap.Modal.getInstance(modalEl)?.hide();
+
+    if (plays > 0) {
+        setCustomStreamOverride(type, name, artist, plays);
+    }
+    openStreamAdjustmentModal(type, name, artist);
+}
+window.handleCreateNewStreamOverrideSubmit = handleCreateNewStreamOverrideSubmit;
