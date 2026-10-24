@@ -1,3 +1,63 @@
+
+// ----------------------------------------------------
+// FIREBASE CLOUD CONFIGURATION & INIT
+// ----------------------------------------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyAOpwrpf4CUZ9mbQv75xkqDO5DFvqaw4QE",
+  authDomain: "spotitracker-87628.firebaseapp.com",
+  projectId: "spotitracker-87628",
+  storageBucket: "spotitracker-87628.firebasestorage.app",
+  messagingSenderId: "238554343121",
+  appId: "1:238554343121:web:9e79d1dbb285826ce287f0",
+  measurementId: "G-FGECCQ5YVV"
+};
+
+let firebaseApp = null;
+let firestoreDb = null;
+let firebaseMessaging = null;
+
+try {
+    if (typeof firebase !== 'undefined') {
+        firebaseApp = firebase.initializeApp(firebaseConfig);
+        if (firebase.firestore) firestoreDb = firebase.firestore();
+        if (firebase.messaging && firebase.messaging.isSupported()) {
+            firebaseMessaging = firebase.messaging();
+        }
+        console.log('Firebase conectado correctamente a spotitracker-87628');
+    }
+} catch (e) {
+    console.warn('Firebase init warning:', e);
+}
+
+// ----------------------------------------------------
+// TIDAL ESTIMATES LOADER
+// ----------------------------------------------------
+let tidalEstimates = null;
+let isTidalLoading = false;
+
+async function loadTidalEstimates() {
+    if (tidalEstimates) return tidalEstimates;
+    if (isTidalLoading) {
+        while (isTidalLoading) {
+            await new Promise(r => setTimeout(r, 100));
+        }
+        return tidalEstimates;
+    }
+    isTidalLoading = true;
+    try {
+        const res = await fetch('/data/tidal_estimates.json');
+        if (res.ok) {
+            tidalEstimates = await res.json();
+            console.log('Era Tidal estimada cargada correctamente:', tidalEstimates.period);
+        }
+    } catch (e) {
+        console.warn('No se pudo cargar tidal_estimates.json:', e);
+    } finally {
+        isTidalLoading = false;
+    }
+    return tidalEstimates;
+}
+
 const CLIENT_ID = '78c1217f07404df7b95cceb3e7cc6657';
 const REDIRECT_URI = window.location.origin + '/callback';
 
@@ -262,6 +322,7 @@ function getRangeLabel(range) {
     if (range === 'current-month') return 'Este Mes';
     if (range === '4weeks') return 'Últimas 4 Semanas';
     if (range === 'era-spotify') return 'Era Spotify (2019 - Ago 2025)';
+    if (range === 'era-tidal') return 'Era Tidal (Ago 2025 - Jul 2026 ≈ Estimado)';
     if (range === 'era-lastfm') return 'Nueva Era / Streaming (Ago 2025 - Actualidad)';
     if (range && range.startsWith('dates_')) {
         const [fromD, toD] = range.replace('dates_', '').split('_to_');
@@ -607,6 +668,7 @@ async function loadUnifiedDatabase() {
         const res = await fetch('/data/unified_history.json');
         if (res.ok) {
             unifiedDb = await res.json();
+            await loadTidalEstimates();
             console.log('Base de datos Unificada (Spotify + Last.fm) cargada:', unifiedDb.summary);
         }
     } catch (e) {
@@ -698,7 +760,9 @@ async function switchDataSource(source) {
                 </optgroup>
                 <optgroup label="⚙️ Avanzado">
                     <option value="era-spotify">Era Spotify (2019 - Ago 2025)</option>
-                    <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
+                    <option value="era-tidal">Era Tidal (Ago 2025 - Jul 2026 ≈)</option>
+                    <option value="era-tidal">Era Tidal (Ago 2025 - Jul 2026 ≈)</option>
+                <option value="era-lastfm">Nueva Era Last.fm (Ago 2025 - Hoy)</option>
                     <option value="year-2025">Año 2025</option>
                     <option value="year-2024">Año 2024</option>
                     <option value="year-2023">Año 2023</option>
@@ -782,6 +846,12 @@ function handleTimePeriodChange(val) {
             selectMonth.innerHTML = '<option value="all" selected>Todo el año</option>';
         }
         currentRange = '4weeks';
+    } else if (val === 'era-tidal') {
+        if (selectMonth) {
+            selectMonth.disabled = true;
+            selectMonth.innerHTML = '<option value="all" selected>Todo el periodo</option>';
+        }
+        currentRange = 'era-tidal';
     } else if (val === 'era-spotify') {
         if (selectMonth) {
             selectMonth.disabled = true;
@@ -1002,6 +1072,14 @@ function updateStatStrip() {
         }
     }
 
+    // Periodo: Era Tidal (Ago 2025 - Jul 2026)
+    if (currentRange === 'era-tidal') {
+        if (stripPlaycount) stripPlaycount.textContent = '~16K';
+        if (stripHours) stripHours.textContent = '~850';
+        if (stripArtists) stripArtists.textContent = '15+';
+        if (stripAlbums) stripAlbums.textContent = '35+';
+        return;
+    }
     // Periodo: Era Spotify (2019 - Ago 2025)
     if (currentRange === 'era-spotify') {
         const rData = getRangeTopData(activeDb, '2019-05-01', '2025-08-31');
@@ -2550,11 +2628,46 @@ async function showItemStats(type, name, artist, isBack = false) {
         }
     }
 
-    // Integración de escuchas en vivo de Last.fm en modo unificado
+    // Integración de escuchas estimadas de la Era Tidal + En vivo Last.fm en modo unificado
     let deltaItemPlays = 0;
     let lastDeltaIso = null;
     const deltaMonths = {};
     const deltaYears = {};
+    let isTidalEstimatedItem = false;
+    let tidalContributionPlays = 0;
+
+    if (currentSource === 'unified') {
+        const tidal = tidalEstimates || await loadTidalEstimates();
+        if (tidal) {
+            const normN = normalizeKey(name);
+            const normA = normalizeKey(artist || '');
+            if (type === 'track') {
+                const trackEntry = tidal.tracks?.[normN + ':::' + normA] || tidal.tracks?.[normN + ':::'] || Object.entries(tidal.tracks || {}).find(([k]) => k.startsWith(normN + ':::'))?.[1];
+                if (trackEntry) {
+                    isTidalEstimatedItem = true;
+                    tidalContributionPlays = trackEntry.plays || 0;
+                    deltaItemPlays += tidalContributionPlays;
+                    Object.entries(trackEntry.months || {}).forEach(([mk, cnt]) => {
+                        deltaMonths[mk] = (deltaMonths[mk] || 0) + cnt;
+                    });
+                    Object.entries(trackEntry.years || {}).forEach(([yk, cnt]) => {
+                        deltaYears[yk] = (deltaYears[yk] || 0) + cnt;
+                    });
+                }
+            } else if (type === 'artist') {
+                const artKey = Object.keys(tidal.artists || {}).find(k => normalizeKey(k) === normN || normalizeKey(k).includes(normN) || normN.includes(normalizeKey(k)));
+                if (artKey && tidal.artists[artKey]) {
+                    const artEntry = tidal.artists[artKey];
+                    isTidalEstimatedItem = true;
+                    tidalContributionPlays = artEntry.plays || 0;
+                    deltaItemPlays += tidalContributionPlays;
+                    Object.entries(artEntry.years || {}).forEach(([yk, cnt]) => {
+                        deltaYears[yk] = (deltaYears[yk] || 0) + cnt;
+                    });
+                }
+            }
+        }
+    }
     if (currentSource === 'unified' && lastFmRecentDelta.length > 0) {
         const normN = normalizeKey(name);
         const normA = normalizeKey(artist || '');
@@ -2784,6 +2897,7 @@ async function showItemStats(type, name, artist, isBack = false) {
                 <div class="d-flex align-items-center gap-1.5 mb-0.5">
                     <h6 class="fw-bold mb-0 text-white text-truncate" style="font-size: 0.95rem;" title="${name}">${name}</h6>
                     ${currentSource === 'unified' ? `<span class="badge border border-success border-opacity-30 text-success flex-shrink-0" style="background-color: rgba(34, 197, 94, 0.12); font-size: 0.62rem; padding: 2px 6px;"><i class="fa-solid fa-sparkles me-1"></i>Unificado</span>` : ''}
+                    ${isTidalEstimatedItem ? `<span class="badge border border-info border-opacity-40 text-info flex-shrink-0" style="background-color: rgba(6, 182, 212, 0.15); font-size: 0.62rem; padding: 2px 6px;" title="Incluye +${formatNumber(tidalContributionPlays)} reproducciones recuperadas de la Era Tidal (Ago 2025 - Jul 2026)"><i class="fa-solid fa-water me-1"></i>≈ Tidal (+${formatNumber(tidalContributionPlays)})</span>` : ''}
                 </div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.76rem;">${artist || (type === 'artist' ? 'Artista' : '')}</small>
                 ${data.album && data.album !== name ? `<small class="text-muted text-truncate d-block" style="font-size: 0.68rem;"><i class="fa-solid fa-compact-disc me-1"></i>${data.album}</small>` : ''}
