@@ -1,33 +1,40 @@
 
 // ----------------------------------------------------
-// FIREBASE CLOUD CONFIGURATION & INIT
+// FIREBASE CLOUD CONFIGURATION & INIT (Seguro sin keys en crudo)
 // ----------------------------------------------------
-const firebaseConfig = {
-  apiKey: "AIzaSyAOpwrpf4CUZ9mbQv75xkqDO5DFvqaw4QE",
-  authDomain: "spotitracker-87628.firebaseapp.com",
-  projectId: "spotitracker-87628",
-  storageBucket: "spotitracker-87628.firebasestorage.app",
-  messagingSenderId: "238554343121",
-  appId: "1:238554343121:web:9e79d1dbb285826ce287f0",
-  measurementId: "G-FGECCQ5YVV"
-};
-
 let firebaseApp = null;
 let firestoreDb = null;
 let firebaseMessaging = null;
 
-try {
-    if (typeof firebase !== 'undefined') {
-        firebaseApp = firebase.initializeApp(firebaseConfig);
+async function initFirebase() {
+    if (typeof firebase === 'undefined' || firebaseApp) return;
+    try {
+        let cfg = null;
+        try {
+            const res = await fetch('/api/firebase-config');
+            if (res.ok) cfg = await res.json();
+        } catch (_) {}
+        if (!cfg) {
+            cfg = {
+                authDomain: 'spotitracker-87628.firebaseapp.com',
+                projectId: 'spotitracker-87628',
+                storageBucket: 'spotitracker-87628.firebasestorage.app',
+                messagingSenderId: '238554343121',
+                appId: '1:238554343121:web:9e79d1dbb285826ce287f0',
+                measurementId: 'G-FGECCQ5YVV'
+            };
+        }
+        firebaseApp = firebase.initializeApp(cfg);
         if (firebase.firestore) firestoreDb = firebase.firestore();
         if (firebase.messaging && firebase.messaging.isSupported()) {
             firebaseMessaging = firebase.messaging();
         }
-        console.log('Firebase conectado correctamente a spotitracker-87628');
+        console.log('Firebase inicializado correctamente');
+    } catch (e) {
+        console.warn('Firebase init:', e);
     }
-} catch (e) {
-    console.warn('Firebase init warning:', e);
 }
+initFirebase();
 
 // ----------------------------------------------------
 // TIDAL ESTIMATES LOADER
