@@ -63,7 +63,13 @@ function saveCustomStreamOverridesToStorage(overrides) {
 }
 
 function applyCustomOverridesToTidal() {
-    if (!rawDefaultTidalEstimates) return;
+    if (!rawDefaultTidalEstimates) {
+        if (tidalEstimates) {
+            rawDefaultTidalEstimates = JSON.parse(JSON.stringify(tidalEstimates));
+        } else {
+            return;
+        }
+    }
     tidalEstimates = JSON.parse(JSON.stringify(rawDefaultTidalEstimates));
     const overrides = getCustomStreamOverrides();
 
@@ -7675,9 +7681,22 @@ async function openStreamAdjustmentModal(type, name, artist) {
     if (totalInput) totalInput.value = totalPlays;
     if (y25Input) y25Input.value = cur2025;
     if (y26Input) y26Input.value = cur2026;
-    if (autoSplitCheck) autoSplitCheck.checked = true;
-    if (y25Input) y25Input.disabled = true;
-    if (y26Input) y26Input.disabled = true;
+    const overrides = getCustomStreamOverrides();
+    let isCustomSplit = false;
+    if (type === 'track') {
+        const key = `${normN}:::${normA}`;
+        if (overrides.tracks?.[key]?.years) isCustomSplit = true;
+    } else if (type === 'artist') {
+        const key = normN;
+        if (overrides.artists?.[key]?.years) isCustomSplit = true;
+    }
+    if (currentAddedPlays > 0 && cur2025 !== Math.round(currentAddedPlays * 0.35)) {
+        isCustomSplit = true;
+    }
+
+    if (autoSplitCheck) autoSplitCheck.checked = !isCustomSplit;
+    if (y25Input) y25Input.disabled = !isCustomSplit;
+    if (y26Input) y26Input.disabled = !isCustomSplit;
 
     if (btnReset) {
         btnReset.style.display = isOverridden ? 'inline-flex' : 'none';
@@ -7754,6 +7773,28 @@ function onAdjustTotalInputChanged() {
 }
 window.onAdjustTotalInputChanged = onAdjustTotalInputChanged;
 
+function onAdjustYearsInputChanged() {
+    if (!currentAdjustingItem) return;
+    const addedInput = document.getElementById('adjust-added-input');
+    const totalInput = document.getElementById('adjust-total-input');
+    const addedBadge = document.getElementById('adjust-added-badge-display');
+    const totalBadge = document.getElementById('adjust-total-badge-display');
+    const y25Input = document.getElementById('adjust-year-2025-input');
+    const y26Input = document.getElementById('adjust-year-2026-input');
+
+    const y25 = Math.max(0, parseInt(y25Input?.value, 10) || 0);
+    const y26 = Math.max(0, parseInt(y26Input?.value, 10) || 0);
+    const added = y25 + y26;
+    const base = currentAdjustingItem.basePlays || 0;
+    const total = base + added;
+
+    if (addedInput) addedInput.value = added;
+    if (totalInput) totalInput.value = total;
+    if (addedBadge) addedBadge.textContent = '+' + formatNumber(added);
+    if (totalBadge) totalBadge.textContent = formatNumber(total);
+}
+window.onAdjustYearsInputChanged = onAdjustYearsInputChanged;
+
 function toggleAutoSplitDistribution() {
     const autoSplitCheck = document.getElementById('adjust-auto-split-check');
     const y25Input = document.getElementById('adjust-year-2025-input');
@@ -7770,10 +7811,18 @@ async function handleSaveStreamAdjustment() {
     const addedInput = document.getElementById('adjust-added-input');
     const y25Input = document.getElementById('adjust-year-2025-input');
     const y26Input = document.getElementById('adjust-year-2026-input');
+    const autoSplitCheck = document.getElementById('adjust-auto-split-check');
 
-    const added = Math.max(0, parseInt(addedInput?.value, 10) || 0);
-    const y25 = Math.max(0, parseInt(y25Input?.value, 10) || 0);
-    const y26 = Math.max(0, parseInt(y26Input?.value, 10) || 0);
+    let y25 = Math.max(0, parseInt(y25Input?.value, 10) || 0);
+    let y26 = Math.max(0, parseInt(y26Input?.value, 10) || 0);
+    let added = Math.max(0, parseInt(addedInput?.value, 10) || 0);
+
+    if (autoSplitCheck && !autoSplitCheck.checked) {
+        added = y25 + y26;
+    } else {
+        y25 = Math.round(added * 0.35);
+        y26 = added - y25;
+    }
 
     const { type, name, artist } = currentAdjustingItem;
     setCustomStreamOverride(type, name, artist, added, y25, y26);
@@ -7790,6 +7839,7 @@ async function handleSaveStreamAdjustment() {
         renderStreamManagerList();
     }
 
+    if (typeof updateStatStrip === 'function') updateStatStrip();
     loadStats();
     if (typeof showEngagementToast === 'function') {
         showEngagementToast('<i class="fa-solid fa-sliders text-info"></i>', 'Streams Actualizados', `${name}: ${formatNumber((currentAdjustingItem.basePlays || 0) + added)} streams totales`);
