@@ -54,12 +54,30 @@ function getCustomStreamOverrides() {
     return { tracks: {}, artists: {} };
 }
 
-function saveCustomStreamOverridesToStorage(overrides) {
+function saveCustomStreamOverridesToStorage(overrides, skipCloudPush = false) {
     try {
         localStorage.setItem('spoti_stream_overrides', JSON.stringify(overrides));
+        if (!skipCloudPush && typeof saveProfileState === 'function') {
+            const st = getProfileState();
+            st.streamOverrides = overrides;
+            saveProfileState();
+        }
     } catch (e) {
         console.warn('Error saving spoti_stream_overrides:', e);
     }
+}
+
+function getCustomOverrideDeltaPlays(yearFilter = null) {
+    if (!tidalEstimates || !rawDefaultTidalEstimates) return 0;
+    let curSum = 0;
+    let defSum = 0;
+    Object.values(tidalEstimates.tracks || {}).forEach(t => {
+        curSum += yearFilter ? (t.years?.[yearFilter] || 0) : (t.plays || 0);
+    });
+    Object.values(rawDefaultTidalEstimates.tracks || {}).forEach(t => {
+        defSum += yearFilter ? (t.years?.[yearFilter] || 0) : (t.plays || 0);
+    });
+    return curSum - defSum;
 }
 
 function applyCustomOverridesToTidal() {
@@ -824,34 +842,11 @@ async function loadUnifiedDatabase() {
 }
 
 async function loadSpotifyDatabase() {
-    if (spotifyDb) return spotifyDb;
-    if (isSpotifyDbLoading) {
-        while (isSpotifyDbLoading) {
-            await new Promise(r => setTimeout(r, 100));
-        }
-        return spotifyDb;
-    }
-    isSpotifyDbLoading = true;
-    try {
-        const res = await fetch('/data/spotify_history.json');
-        if (res.ok) {
-            spotifyDb = await res.json();
-            console.log('Base de datos Spotify extendida cargada:', spotifyDb.summary);
-        }
-    } catch (e) {
-        console.warn('Error al cargar spotify_history.json:', e);
-    } finally {
-        isSpotifyDbLoading = false;
-    }
-    return spotifyDb;
+    return await loadUnifiedDatabase();
 }
 
 async function getActiveDatabase() {
-    if (currentSource === 'unified') {
-        const u = await loadUnifiedDatabase();
-        if (u) return u;
-    }
-    return await loadSpotifyDatabase();
+    return await loadUnifiedDatabase();
 }
 
 async function fetchLastFmDelta(force = false) {
@@ -1270,7 +1265,7 @@ function updateStatStrip() {
         const y = currentRange.replace('year-', '');
         const yData = activeDb.yearlyTops?.[y];
         if (yData) {
-            const extra = (y === '2026') ? deltaCount : 0;
+            const extra = ((y === '2026') ? deltaCount : 0) + ((y === '2025' || y === '2026') ? getCustomOverrideDeltaPlays(y) : 0);
             const extraH = (y === '2026') ? deltaHours : 0;
             if (stripPlaycount) stripPlaycount.textContent = formatNumber(yData.plays + extra);
             if (stripHours) stripHours.textContent = Math.round(parseFloat(yData.hours || 0) + extraH).toLocaleString();
@@ -1299,7 +1294,9 @@ function updateStatStrip() {
 
     // Apartado General / Histórico Total Unificado o Spotify
     const s = activeDb.summary;
-    const totalStreams = s.validStreams + deltaCount;
+    const totalStreams = s.validStreams + deltaCount + getCustomOverrideDeltaPlays(null);
+    const homeBentoTotal = document.getElementById('home-bento-total-plays');
+    if (homeBentoTotal) homeBentoTotal.textContent = formatNumber(totalStreams);
     const totalH = Math.round(parseFloat(s.totalHours) + deltaHours);
 
     if (stripPlaycount) stripPlaycount.textContent = formatNumber(totalStreams);
@@ -1719,58 +1716,61 @@ let currentlyPlayingTimer = null;
 let lastPlayingTrackKey = null;
 
 async function fetchCurrentlyPlaying() {
-    if (!navigator.onLine) return; // Si no hay internet, no consultar Last.fm
+    if (!navigator.onLine) return;
     const { user, key } = getLastFmCredentials();
     if (user && key) {
         try {
             const lfRes = await fetch(`https://ws.audioscrobbler.com/2.0/?method=user.getRecentTracks&user=${encodeURIComponent(user)}&api_key=${encodeURIComponent(key)}&limit=2&format=json`);
             const lfData = await lfRes.json();
-            const firstTrack = lfData?.recenttracks?.track?.[0];
-            handleLiveScrobbleCheck(lfData?.recenttracks?.track);
+            const tracksArr = Array.isArray(lfData?.recenttracks?.track) ? lfData.recenttracks.track : (lfData?.recenttracks?.track ? [lfData.recenttracks.track] : []);
+            const firstTrack = tracksArr[0];
+            handleLiveScrobbleCheck(tracksArr);
             const isPlaying = firstTrack && firstTrack['@attr']?.nowplaying === 'true';
 
-            if (isPlaying) {
+            if (firstTrack) {
                 const trackName = firstTrack.name || '';
                 const artistName = firstTrack.artist ? (firstTrack.artist['#text'] || firstTrack.artist.name) : '';
-                const trackKey = `${trackName}:::${artistName}`;
+                const trackKey = `${trackName}:::${artistName}:::${isPlaying ? 'live' : 'recent'}`;
 
                 if (trackKey === lastPlayingTrackKey && currentlyPlayingContainer && currentlyPlayingContainer.innerHTML.trim() !== '') {
                     return;
                 }
                 lastPlayingTrackKey = trackKey;
 
-                const cover = firstTrack.image?.[1]?.['#text'] || FALLBACK_ART_SVG;
-                const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(trackName + ' ' + artistName)}`;
+                const artKey = `track::${normalizeKey(trackName)}::${normalizeKey(artistName)}`;
+                const cover = artCache[artKey] || firstTrack.image?.[2]?.['#text'] || firstTrack.image?.[1]?.['#text'] || FALLBACK_ART_SVG;
 
                 if (currentlyPlayingContainer) {
                     currentlyPlayingContainer.innerHTML = `
-                        <div class="card-uniform border-primary border-opacity-40" style="background: linear-gradient(90deg, rgba(20, 16, 30, 0.95) 0%, rgba(38, 22, 60, 0.85) 100%);">
-                            <img src="${cover}" class="img-thumb" alt="Cover" onerror="safeImgError(this)">
-                            <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                        <div class="dynamic-island" onclick="showItemStats('track', '${escapeJsStr(trackName)}', '${escapeJsStr(artistName)}')" title="Toca para ver las estadísticas e historial de esta canción">
+                            <img id="dynamic-island-cover" src="${cover}" class="dynamic-island-art" style="${isPlaying ? '' : 'animation-play-state: paused;'}" alt="Cover" onerror="safeImgError(this)">
+                            <div class="overflow-hidden text-start" style="max-width: 240px;">
                                 <div class="d-flex align-items-center gap-1.5">
-                                    <span class="badge bg-primary bg-opacity-25 text-white border border-primary border-opacity-30" style="font-size: 0.65rem;">
-                                        <i class="fa-solid fa-volume-high me-1 text-primary"></i> En vivo
+                                    <span style="font-size: 0.60rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: ${isPlaying ? '#30d158' : '#a1a1aa'};">
+                                        ${isPlaying ? '● EN REPRODUCCIÓN' : 'ÚLTIMA ESCUCHA'}
                                     </span>
                                 </div>
-                                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;">${trackName}</div>
-                                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
+                                <div class="fw-bold text-truncate text-white" style="font-size: 0.80rem; line-height: 1.2;">${escapeHtml(trackName)}</div>
+                                <small class="text-secondary text-truncate d-block" style="font-size: 0.68rem;">${escapeHtml(artistName)}</small>
                             </div>
-                            <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Escuchar en Spotify">
-                                <i class="fa-brands fa-spotify" style="color: #1ed760; font-size: 0.85rem;"></i>
-                            </a>
+                            ${isPlaying ? `
+                                <div class="island-eq ms-1" title="Sonando en vivo">
+                                    <span></span><span></span><span></span><span></span>
+                                </div>
+                            ` : `
+                                <span class="badge rounded-pill" style="background: rgba(255,255,255,0.08); color: #a1a1aa; font-size: 0.64rem;">
+                                    <i class="fa-solid fa-chart-simple me-1 text-info"></i>Stats
+                                </span>
+                            `}
                         </div>
                     `;
+                    if (!artCache[artKey]) {
+                        resolveSpotifyArtwork(trackName, artistName, 'track', 'dynamic-island-cover');
+                    }
                 }
                 return;
             }
-        } catch (e) {
-            // Ignorar errores temporales
-        }
-    }
-
-    if (lastPlayingTrackKey !== null) {
-        lastPlayingTrackKey = null;
-        if (currentlyPlayingContainer) currentlyPlayingContainer.innerHTML = '';
+        } catch (e) {}
     }
 }
 
@@ -2669,9 +2669,52 @@ function getImageFromItem(item) {
     return getInitialImage(item, item.name, artistName, itemType);
 }
 
+function buildPodiumCardHtml(type, index, name, subtitle, playcount, imgId, initialImg, isCircle = false) {
+    const rankNum = index + 1;
+    const medalIcon = rankNum === 1 ? '<i class="fa-solid fa-crown text-warning"></i> #1' : (rankNum === 2 ? '<i class="fa-solid fa-medal text-info"></i> #2' : '<i class="fa-solid fa-award" style="color:#c084fc;"></i> #3');
+    const badgeColor = rankNum === 1 ? 'rgba(251, 191, 36, 0.2)' : (rankNum === 2 ? 'rgba(56, 189, 248, 0.2)' : 'rgba(192, 132, 252, 0.2)');
+    const textColor = rankNum === 1 ? '#fbbf24' : (rankNum === 2 ? '#38bdf8' : '#c084fc');
+    return `
+        <div class="podium-card podium-${rankNum}" onclick="showItemStats('${type}', '${escapeJsStr(name)}', '${escapeJsStr(type === 'artist' ? '' : subtitle)}')">
+            <img id="${imgId}" src="${initialImg}" class="podium-cover ${isCircle ? 'rounded-circle' : ''}" alt="Cover" onerror="safeImgError(this)">
+            <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
+                <div class="d-flex align-items-center justify-content-between gap-1 mb-1">
+                    <span class="badge rounded-pill fw-bold" style="background: ${badgeColor}; color: ${textColor}; font-size: 0.65rem;">${medalIcon}</span>
+                    <span class="badge-scrobble" style="font-size: 0.66rem;"><i class="fa-solid fa-headphones"></i>${playcount}</span>
+                </div>
+                <div class="fw-bold text-truncate text-white" style="font-size: 0.90rem;" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.74rem;">${escapeHtml(subtitle)}</small>
+            </div>
+        </div>
+    `;
+}
+
 function renderTracks(tracks) {
     statsList.innerHTML = '';
+    const isSearching = !!(filterSearchInput && filterSearchInput.value.trim());
+    const showPodium = !isSearching && tracks.length >= 3;
+
+    if (showPodium) {
+        const podiumRow = document.createElement('div');
+        podiumRow.className = 'catalog-podium-grid';
+        podiumRow.innerHTML = tracks.slice(0, 3).map((track, idx) => {
+            const artistName = track.artist ? (track.artist.name || track.artist['#text'] || track.artist) : '';
+            const playcount = formatNumber(track.playcount);
+            const imgId = `art-track-${idx}`;
+            const initialImg = getInitialImage(track, track.name, artistName, 'track');
+            return buildPodiumCardHtml('track', idx, track.name, artistName, playcount, imgId, initialImg, false);
+        }).join('');
+        statsList.appendChild(podiumRow);
+
+        tracks.slice(0, 3).forEach((track, idx) => {
+            const artistName = track.artist ? (track.artist.name || track.artist['#text'] || track.artist) : '';
+            const key = `track::${normalizeKey(track.name)}::${normalizeKey(artistName)}`;
+            if (!artCache[key]) resolveSpotifyArtwork(track.name, artistName, 'track', `art-track-${idx}`);
+        });
+    }
+
     tracks.forEach((track, index) => {
+        if (showPodium && index < 3) return;
         const item = document.createElement('div');
         item.className = 'card-uniform';
         const artistName = track.artist ? (track.artist.name || track.artist['#text'] || track.artist) : '';
@@ -2684,8 +2727,8 @@ function renderTracks(tracks) {
             <span class="card-rank ${index === 0 ? 'top-1' : (index === 1 ? 'top-2' : (index === 2 ? 'top-3' : ''))}">#${String(index + 1).padStart(2, '0')}</span>
             <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Cover" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
-                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${track.name}">${track.name}</div>
-                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
+                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${escapeHtml(track.name)}">${escapeHtml(track.name)}</div>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${escapeHtml(artistName)}</small>
             </div>
             <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${playcount}</span>
             <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Escuchar en Spotify">
@@ -2693,33 +2736,50 @@ function renderTracks(tracks) {
             </a>
         `;
 
-        // Click en la tarjeta para ver el apartado de estadísticas
         item.addEventListener('click', () => {
             showItemStats('track', track.name, artistName);
         });
 
-        // Prevenir que el click en el enlace de Spotify abra el modal
         const spLink = item.querySelector('.btn-card-action');
-        if (spLink) {
-            spLink.addEventListener('click', (e) => e.stopPropagation());
-        }
+        if (spLink) spLink.addEventListener('click', (e) => e.stopPropagation());
 
         statsList.appendChild(item);
 
         const key = `track::${normalizeKey(track.name)}::${normalizeKey(artistName)}`;
-        if (!artCache[key]) {
-            resolveSpotifyArtwork(track.name, artistName, 'track', imgId);
-        }
+        if (!artCache[key]) resolveSpotifyArtwork(track.name, artistName, 'track', imgId);
     });
 }
 
 function renderArtists(artists) {
     statsList.innerHTML = '';
+    const isSearching = !!(filterSearchInput && filterSearchInput.value.trim());
+    const showPodium = !isSearching && artists.length >= 3;
+
+    if (showPodium) {
+        const podiumRow = document.createElement('div');
+        podiumRow.className = 'catalog-podium-grid';
+        podiumRow.innerHTML = artists.slice(0, 3).map((artist, idx) => {
+            const artistName = artist.name || '';
+            const playcount = formatNumber(artist.playcount || artist.plays);
+            const imgId = `art-artist-${idx}`;
+            const initialImg = getInitialImage(artist, artistName, '', 'artist');
+            return buildPodiumCardHtml('artist', idx, artistName, 'Artista Top', playcount, imgId, initialImg, true);
+        }).join('');
+        statsList.appendChild(podiumRow);
+
+        artists.slice(0, 3).forEach((artist, idx) => {
+            const artistName = artist.name || '';
+            const key = `artist::${normalizeKey(artistName)}::`;
+            if (!artCache[key]) resolveSpotifyArtwork(artistName, '', 'artist', `art-artist-${idx}`);
+        });
+    }
+
     artists.forEach((artist, index) => {
+        if (showPodium && index < 3) return;
         const item = document.createElement('div');
         item.className = 'card-uniform';
         const artistName = artist.name || '';
-        const playcount = formatNumber(artist.playcount);
+        const playcount = formatNumber(artist.playcount || artist.plays);
         const imgId = `art-artist-${index}`;
         const initialImg = getInitialImage(artist, artistName, '', 'artist');
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(artistName)}`;
@@ -2728,7 +2788,7 @@ function renderArtists(artists) {
             <span class="card-rank ${index === 0 ? 'top-1' : (index === 1 ? 'top-2' : (index === 2 ? 'top-3' : ''))}">#${String(index + 1).padStart(2, '0')}</span>
             <img id="${imgId}" src="${initialImg}" class="img-thumb rounded-circle" alt="Artist" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
-                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${artistName}">${artistName}</div>
+                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${escapeHtml(artistName)}">${escapeHtml(artistName)}</div>
                 <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">Artista</small>
             </div>
             <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${playcount}</span>
@@ -2737,32 +2797,50 @@ function renderArtists(artists) {
             </a>
         `;
 
-        // Click en la tarjeta para ver estadísticas
         item.addEventListener('click', () => {
             showItemStats('artist', artistName, '');
         });
 
         const spLink = item.querySelector('.btn-card-action');
-        if (spLink) {
-            spLink.addEventListener('click', (e) => e.stopPropagation());
-        }
+        if (spLink) spLink.addEventListener('click', (e) => e.stopPropagation());
 
         statsList.appendChild(item);
 
         const key = `artist::${normalizeKey(artistName)}::`;
-        if (!artCache[key]) {
-            resolveSpotifyArtwork(artistName, '', 'artist', imgId);
-        }
+        if (!artCache[key]) resolveSpotifyArtwork(artistName, '', 'artist', imgId);
     });
 }
 
 function renderAlbums(albums) {
     statsList.innerHTML = '';
+    const isSearching = !!(filterSearchInput && filterSearchInput.value.trim());
+    const showPodium = !isSearching && albums.length >= 3;
+
+    if (showPodium) {
+        const podiumRow = document.createElement('div');
+        podiumRow.className = 'catalog-podium-grid';
+        podiumRow.innerHTML = albums.slice(0, 3).map((album, idx) => {
+            const artistName = album.artist ? (album.artist.name || album.artist['#text'] || album.artist) : '';
+            const playcount = formatNumber(album.playcount || album.plays);
+            const imgId = `art-album-${idx}`;
+            const initialImg = getInitialImage(album, album.name, artistName, 'album');
+            return buildPodiumCardHtml('album', idx, album.name, artistName, playcount, imgId, initialImg, false);
+        }).join('');
+        statsList.appendChild(podiumRow);
+
+        albums.slice(0, 3).forEach((album, idx) => {
+            const artistName = album.artist ? (album.artist.name || album.artist['#text'] || album.artist) : '';
+            const key = `album::${normalizeKey(album.name)}::${normalizeKey(artistName)}`;
+            if (!artCache[key]) resolveSpotifyArtwork(album.name, artistName, 'album', `art-album-${idx}`);
+        });
+    }
+
     albums.forEach((album, index) => {
+        if (showPodium && index < 3) return;
         const item = document.createElement('div');
         item.className = 'card-uniform';
         const artistName = album.artist ? (album.artist.name || album.artist['#text'] || album.artist) : '';
-        const playcount = formatNumber(album.playcount);
+        const playcount = formatNumber(album.playcount || album.plays);
         const imgId = `art-album-${index}`;
         const initialImg = getInitialImage(album, album.name, artistName, 'album');
         const spotifySearch = `https://open.spotify.com/search/${encodeURIComponent(album.name + ' ' + artistName)}`;
@@ -2771,8 +2849,8 @@ function renderAlbums(albums) {
             <span class="card-rank ${index === 0 ? 'top-1' : (index === 1 ? 'top-2' : (index === 2 ? 'top-3' : ''))}">#${String(index + 1).padStart(2, '0')}</span>
             <img id="${imgId}" src="${initialImg}" class="img-thumb" alt="Album" onerror="safeImgError(this)">
             <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
-                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${album.name}">${album.name}</div>
-                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${artistName}</small>
+                <div class="fw-bold text-truncate text-white" style="font-size: 0.84rem;" title="${escapeHtml(album.name)}">${escapeHtml(album.name)}</div>
+                <small class="text-secondary text-truncate d-block" style="font-size: 0.72rem;">${escapeHtml(artistName)}</small>
             </div>
             <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${playcount}</span>
             <a href="${spotifySearch}" target="_blank" rel="noopener noreferrer" class="btn-card-action" title="Escuchar en Spotify">
@@ -2780,22 +2858,17 @@ function renderAlbums(albums) {
             </a>
         `;
 
-        // Click en la tarjeta para ver estadísticas del álbum
         item.addEventListener('click', () => {
             showItemStats('album', album.name, artistName);
         });
 
         const spLink = item.querySelector('.btn-card-action');
-        if (spLink) {
-            spLink.addEventListener('click', (e) => e.stopPropagation());
-        }
+        if (spLink) spLink.addEventListener('click', (e) => e.stopPropagation());
 
         statsList.appendChild(item);
 
         const key = `album::${normalizeKey(album.name)}::${normalizeKey(artistName)}`;
-        if (!artCache[key]) {
-            resolveSpotifyArtwork(album.name, artistName, 'album', imgId);
-        }
+        if (!artCache[key]) resolveSpotifyArtwork(album.name, artistName, 'album', imgId);
     });
 }
 
@@ -3480,37 +3553,120 @@ async function handleSavePlaylist() {
 // ----------------------------------------------------
 // ACCIÓN: TARJETA PARA COMPARTIR
 // ----------------------------------------------------
+let currentShareCardTheme = 'apple';
+
+function setShareCardTheme(theme, btn) {
+    currentShareCardTheme = theme;
+    document.querySelectorAll('.share-theme-btn').forEach(b => {
+        b.classList.remove('active', 'btn-brand');
+        b.classList.add('btn-outline-secondary', 'text-white');
+    });
+    if (btn) {
+        btn.classList.add('active', 'btn-brand');
+        btn.classList.remove('btn-outline-secondary', 'text-white');
+    }
+    const wrapper = document.getElementById('share-card-canvas-wrapper');
+    if (wrapper) {
+        wrapper.classList.remove('theme-apple', 'theme-receipt', 'theme-neon');
+        wrapper.classList.add('theme-' + theme);
+    }
+    renderShareCardContent();
+}
+window.setShareCardTheme = setShareCardTheme;
+
+function renderShareCardContent() {
+    const wrapper = document.getElementById('share-card-canvas-wrapper');
+    if (!wrapper) return;
+    const { user } = getLastFmCredentials();
+    const userName = userProfileData?.display_name || user || 'Vrak_23';
+    const dateStr = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+    const periodLabel = getRangeLabel(currentRange);
+    const items = (currentLoadedItems || []).slice(0, 8);
+
+    if (currentShareCardTheme === 'receipt') {
+        const totalPlays = items.reduce((acc, it) => acc + (parseInt(it.playcount || it.plays, 10) || 0), 0);
+        wrapper.innerHTML = `
+            <div class="text-center pb-2 mb-2" style="border-bottom: 1.5px dashed #52525b;">
+                <div class="fw-bold" style="font-size: 1.15rem; letter-spacing: 0.08em;">SPOTITRACKER RECEIPT</div>
+                <div style="font-size: 0.68rem;">CLIENTE: ${escapeHtml(userName.toUpperCase())}</div>
+                <div style="font-size: 0.65rem;">PERIODO: ${escapeHtml(periodLabel.toUpperCase())} · ${dateStr}</div>
+            </div>
+            <div class="d-flex justify-content-between fw-bold pb-1 mb-1" style="font-size: 0.66rem; border-bottom: 1px dashed #71717a;">
+                <span>CANT. / TEMA</span>
+                <span>STREAMS</span>
+            </div>
+            <div class="d-flex flex-column gap-1.5 mb-2 text-start">
+                ${items.map((item, idx) => {
+                    const name = item.name || '';
+                    const sub = item.artist ? (item.artist.name || item.artist['#text'] || item.artist) : '';
+                    const plays = formatNumber(item.playcount || item.plays || 0);
+                    return `
+                        <div class="d-flex justify-content-between align-items-start" style="font-size: 0.72rem; line-height: 1.25;">
+                            <div class="pe-2 overflow-hidden">
+                                <strong>0${idx + 1} ${escapeHtml(name.toUpperCase())}</strong>
+                                ${sub ? `<div style="font-size: 0.62rem; opacity: 0.75;">${escapeHtml(sub)}</div>` : ''}
+                            </div>
+                            <strong class="flex-shrink-0">${plays}</strong>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+            <div class="pt-2 mt-2 d-flex justify-content-between fw-bold" style="border-top: 1.5px dashed #52525b; font-size: 0.78rem;">
+                <span>TOTAL TOP ${items.length}</span>
+                <span>${formatNumber(totalPlays)} REPS</span>
+            </div>
+            <div class="text-center mt-3 pt-1" style="font-size: 0.62rem;">
+                <div style="letter-spacing: 3px; font-weight: 900; font-size: 0.95rem;">||| |||| || ||||| ||| ||||</div>
+                <div>spotify-tracker-delta.vercel.app</div>
+            </div>
+        `;
+        return;
+    }
+
+    const top5 = items.slice(0, 5);
+    wrapper.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between mb-3 border-bottom border-secondary border-opacity-25 pb-2">
+            <div class="d-flex align-items-center gap-2">
+                <img src="/logo.png" style="width: 30px; height: 30px; object-fit: contain;">
+                <div class="text-start leading-tight">
+                    <div class="fw-bold small" style="color: #f5f5f7;">${currentShareCardTheme === 'apple' ? 'Replay Pro' : 'SpotiTracker'}</div>
+                    <small id="card-period-label" class="text-secondary" style="font-size: 0.68rem;">${escapeHtml(periodLabel)}</small>
+                </div>
+            </div>
+            <div class="text-end">
+                <div id="card-user-name" class="fw-bold small text-truncate text-white" style="max-width: 120px;">${escapeHtml(userName)}</div>
+                <small id="card-date" class="text-secondary" style="font-size: 0.65rem;">${dateStr}</small>
+            </div>
+        </div>
+        <div id="card-items-list" class="text-start d-flex flex-column gap-2 mb-3">
+            ${top5.map((item, idx) => {
+                const name = item.name;
+                const sub = item.artist ? (item.artist.name || item.artist['#text'] || item.artist) : '';
+                const img = getImageFromItem(item);
+                return `
+                    <div class="d-flex align-items-center gap-2.5 py-1">
+                        <span class="fw-bold" style="width: 22px; font-size: 0.82rem; color: ${idx === 0 ? '#fbbf24' : '#c084fc'};">#${idx + 1}</span>
+                        <img src="${img}" class="rounded-3" style="width: 36px; height: 36px; object-fit: cover;" alt="cover" onerror="safeImgError(this)">
+                        <div class="overflow-hidden flex-grow-1 text-start">
+                            <div class="fw-bold text-truncate text-white" style="font-size: 0.82rem;">${escapeHtml(name)}</div>
+                            <small class="text-secondary text-truncate d-block" style="font-size: 0.70rem;">${escapeHtml(sub)}</small>
+                        </div>
+                        <span class="badge-scrobble" style="font-size: 0.66rem;">${formatNumber(item.playcount || item.plays)}</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+        <div class="border-top border-secondary border-opacity-25 pt-2 d-flex justify-content-between align-items-center text-secondary" style="font-size: 0.68rem;">
+            <span>spotify-tracker-delta.vercel.app</span>
+            <span class="badge rounded-pill" style="background: rgba(191,90,242,0.25); color: #e9d5ff;">Top 5 Pro</span>
+        </div>
+    `;
+}
+
 async function prepareShareCard() {
     const modalEl = bootstrap.Modal.getOrCreateInstance(shareCardModal);
     modalEl.show();
-
-    const { user } = getLastFmCredentials();
-    document.getElementById('card-user-name').textContent = userProfileData?.display_name || user || 'Usuario';
-    document.getElementById('card-date').textContent = new Date().toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
-    document.getElementById('card-period-label').textContent = getRangeLabel(currentRange);
-
-    const listContainer = document.getElementById('card-items-list');
-    listContainer.innerHTML = '';
-
-    const items = (currentLoadedItems || []).slice(0, 5);
-    items.forEach((item, idx) => {
-        const name = item.name;
-        const sub = item.artist ? (item.artist.name || item.artist['#text']) : (item.playcount ? `${formatNumber(item.playcount)} scrobbles` : '');
-        const img = getImageFromItem(item);
-
-        const row = document.createElement('div');
-        row.className = 'd-flex align-items-center gap-2 py-1';
-        row.innerHTML = `
-            <span class="fw-bold" style="width: 20px; font-size: 0.8rem; color: var(--brand-primary);">#${idx + 1}</span>
-            <img src="${img}" class="rounded" style="width: 32px; height: 32px; object-fit: cover;" alt="cover" onerror="safeImgError(this)">
-            <div class="overflow-hidden flex-grow-1 text-start">
-                <div class="fw-bold text-truncate" style="font-size: 0.8rem;">${name}</div>
-                <small class="text-secondary text-truncate d-block" style="font-size: 0.7rem;">${sub}</small>
-            </div>
-            <span class="badge-scrobble" style="font-size: 0.65rem;">${formatNumber(item.playcount)}</span>
-        `;
-        listContainer.appendChild(row);
-    });
+    renderShareCardContent();
 }
 
 async function handleDownloadCard() {
@@ -3519,19 +3675,22 @@ async function handleDownloadCard() {
     btnDownloadCard.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Generando...';
 
     try {
+        const bg = currentShareCardTheme === 'receipt' ? '#f4f1ea' : '#09090b';
         const canvas = await html2canvas(cardWrapper, {
-            backgroundColor: '#0c0a12',
+            backgroundColor: bg,
             scale: 2,
             useCORS: true
         });
 
         const link = document.createElement('a');
-        link.download = `SpotiTracker-${currentRange}-${Date.now()}.png`;
+        link.download = `SpotiTracker-${currentShareCardTheme}-${currentRange}-${Date.now()}.png`;
         link.href = canvas.toDataURL('image/png');
         link.click();
     } catch (err) {
         console.error('Error al generar tarjeta:', err);
-        alert('No se pudo generar la imagen para descargar.');
+        if (typeof showEngagementToast === 'function') {
+            showEngagementToast('<i class="fa-solid fa-triangle-exclamation text-danger"></i>', 'Error de Imagen', 'No se pudo generar la tarjeta descargable.');
+        }
     } finally {
         btnDownloadCard.disabled = false;
         btnDownloadCard.innerHTML = '<i class="fa-solid fa-download me-1"></i> Descargar Imagen';
@@ -5339,7 +5498,7 @@ async function saveToCloudDatabase(isSilent = false) {
             updateCloudUI('active', 'Nube Sincronizada');
             if (!isSilent) {
                 showCloudAlert(`¡Guardado exitoso en Supabase! (${payload.selected_tracks.length} canciones sincronizadas)`, 'success');
-                alert(`¡Éxito! Tu selección curada (${payload.selected_tracks.length} canciones) ha sido respaldada en tu base de datos Supabase (Central-de-estudio).`);
+                if (typeof showEngagementToast === 'function') showEngagementToast('<i class="fa-solid fa-cloud-arrow-up text-success"></i>', 'Nube Sincronizada', `Se respaldaron ${payload.selected_tracks.length} canciones y tus ajustes de streams.`);
             }
             return true;
         } else {
@@ -5402,11 +5561,11 @@ async function loadFromCloudDatabase() {
                 localStorage.setItem(CLOUD_LAST_SYNC_KEY, nowIso);
                 updateCloudUI('active', 'Nube Sincronizada');
                 showCloudAlert(`¡Restauradas ${curatorSelectedTracks.length} canciones desde Supabase!`, 'success');
-                alert(`¡Éxito! Se restauraron ${curatorSelectedTracks.length} canciones desde tu base de datos Supabase (Ciclo: ${row.cycle_year || 'N/A'} - ${row.cycle_half === '1' ? '1ra Mitad' : (row.cycle_half === '2' ? '2da Mitad' : 'N/A')}).`);
+                if (typeof showEngagementToast === 'function') showEngagementToast('<i class="fa-solid fa-cloud-arrow-down text-info"></i>', 'Datos Restaurados', `Se restauraron ${curatorSelectedTracks.length} canciones y tus ajustes desde la nube.`);
                 return true;
             } else {
                 showCloudAlert('No hay canciones guardadas aún en la base de datos.', 'warning');
-                alert('No se encontró ninguna selección previa guardada en la base de datos.');
+                if (typeof showEngagementToast === 'function') showEngagementToast('<i class="fa-solid fa-circle-info text-warning"></i>', 'Sin Selección Previa', 'No se encontró selección curada previa en la nube.');
             }
         } else {
             showCloudAlert('Error al consultar datos en Supabase.', 'danger');
@@ -6085,20 +6244,54 @@ function getProfileState() {
         completed: s.completed || {},
         rerolls: s.rerolls || {},
         lastLevel: s.lastLevel || 0,
-        bestStreak: s.bestStreak || 0
+        bestStreak: s.bestStreak || 0,
+        streamOverrides: s.streamOverrides || getCustomStreamOverrides()
     };
     return profileState;
 }
 
 function saveProfileState() {
     try {
-        localStorage.setItem(PROFILE_KEY, JSON.stringify(getProfileState()));
+        const st = getProfileState();
+        st.streamOverrides = getCustomStreamOverrides();
+        localStorage.setItem(PROFILE_KEY, JSON.stringify(st));
     } catch (e) {}
     clearTimeout(profileSyncTimer);
-    profileSyncTimer = setTimeout(pushProfileToCloud, 2500);
+    profileSyncTimer = setTimeout(pushProfileToCloud, 1800);
+}
+
+function mergeStreamOverridesObjects(localOvr, remoteOvr) {
+    const merged = { tracks: { ...(localOvr?.tracks || {}) }, artists: { ...(localOvr?.artists || {}) } };
+    if (remoteOvr?.tracks) {
+        Object.entries(remoteOvr.tracks).forEach(([k, rVal]) => {
+            const lVal = merged.tracks[k];
+            if (!lVal || (rVal.updatedAt && (!lVal.updatedAt || rVal.updatedAt > lVal.updatedAt))) {
+                merged.tracks[k] = rVal;
+            }
+        });
+    }
+    if (remoteOvr?.artists) {
+        Object.entries(remoteOvr.artists).forEach(([k, rVal]) => {
+            const lVal = merged.artists[k];
+            if (!lVal || (rVal.updatedAt && (!lVal.updatedAt || rVal.updatedAt > lVal.updatedAt))) {
+                merged.artists[k] = rVal;
+            }
+        });
+    }
+    return merged;
 }
 
 async function pushProfileToCloud() {
+    const st = getProfileState();
+    st.streamOverrides = getCustomStreamOverrides();
+    const payload = {
+        id: 'default',
+        user_id: 'Vrak_23',
+        state: st,
+        updated_at: new Date().toISOString()
+    };
+
+    // 1. Push to Supabase
     try {
         await fetch(PROFILE_CLOUD_URL, {
             method: 'POST',
@@ -6108,19 +6301,26 @@ async function pushProfileToCloud() {
                 'Content-Type': 'application/json',
                 'Prefer': 'resolution=merge-duplicates'
             },
-            body: JSON.stringify({
-                id: 'default',
-                user_id: 'Vrak_23',
-                state: getProfileState(),
-                updated_at: new Date().toISOString()
-            })
+            body: JSON.stringify(payload)
         });
     } catch (e) {
         console.warn('No se pudo respaldar el perfil en Supabase:', e);
     }
+
+    // 2. Push to Firebase Firestore (spotitracker-87628) if initialized
+    try {
+        if (firestoreDb) {
+            await firestoreDb.collection('spotitracker_profile').doc('default').set(payload, { merge: true });
+        }
+    } catch (e) {
+        console.warn('Firebase Firestore push warning:', e);
+    }
 }
 
 async function pullProfileFromCloud() {
+    let remote = null;
+
+    // 1. Try pulling from Supabase
     try {
         const res = await fetch(`${PROFILE_CLOUD_URL}?id=eq.default&select=state`, {
             headers: {
@@ -6128,22 +6328,51 @@ async function pullProfileFromCloud() {
                 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
             }
         });
-        if (!res.ok) return;
-        const rows = await res.json();
-        const remote = rows?.[0]?.state;
-        if (!remote || typeof remote !== 'object') return;
-
-        const local = getProfileState();
-        const days = new Set([...(local.visitDays || []), ...(remote.visitDays || [])]);
-        local.visitDays = Array.from(days).sort();
-        local.completed = { ...(remote.completed || {}), ...local.completed };
-        local.rerolls = { ...(remote.rerolls || {}), ...local.rerolls };
-        local.lastLevel = Math.max(local.lastLevel || 0, remote.lastLevel || 0);
-        local.bestStreak = Math.max(local.bestStreak || 0, remote.bestStreak || 0);
-        saveProfileState();
+        if (res.ok) {
+            const rows = await res.json();
+            if (rows?.[0]?.state) remote = rows[0].state;
+        }
     } catch (e) {
         console.warn('No se pudo leer el perfil desde Supabase:', e);
     }
+
+    // 2. Also check Firebase Firestore
+    try {
+        if (firestoreDb) {
+            const docSnap = await firestoreDb.collection('spotitracker_profile').doc('default').get();
+            if (docSnap.exists) {
+                const fbState = docSnap.data()?.state;
+                if (fbState && typeof fbState === 'object') {
+                    if (!remote) {
+                        remote = fbState;
+                    } else if (fbState.streamOverrides) {
+                        remote.streamOverrides = mergeStreamOverridesObjects(remote.streamOverrides, fbState.streamOverrides);
+                    }
+                }
+            }
+        }
+    } catch (e) {}
+
+    if (!remote || typeof remote !== 'object') return;
+
+    const local = getProfileState();
+    const days = new Set([...(local.visitDays || []), ...(remote.visitDays || [])]);
+    local.visitDays = Array.from(days).sort();
+    local.completed = { ...(remote.completed || {}), ...local.completed };
+    local.rerolls = { ...(remote.rerolls || {}), ...local.rerolls };
+    local.lastLevel = Math.max(local.lastLevel || 0, remote.lastLevel || 0);
+    local.bestStreak = Math.max(local.bestStreak || 0, remote.bestStreak || 0);
+
+    if (remote.streamOverrides && (remote.streamOverrides.tracks || remote.streamOverrides.artists)) {
+        const localOvr = getCustomStreamOverrides();
+        const mergedOvr = mergeStreamOverridesObjects(localOvr, remote.streamOverrides);
+        local.streamOverrides = mergedOvr;
+        saveCustomStreamOverridesToStorage(mergedOvr, true);
+        applyCustomOverridesToTidal();
+        if (typeof updateStatStrip === 'function') updateStatStrip();
+    }
+
+    saveProfileState();
 }
 
 function registerVisitToday() {
@@ -6818,14 +7047,22 @@ async function renderHomeHighlights(db) {
 
         if (spotlightEl) {
             spotlightEl.innerHTML = `
-                <img id="home-spotlight-img" src="${top1Cover}" class="rounded-3 shadow-sm border border-secondary border-opacity-10" style="width: 58px; height: 58px; object-fit: cover;" alt="Cover" onerror="safeImgError(this)">
+                <div class="position-relative flex-shrink-0">
+                    <img id="home-spotlight-img" src="${top1Cover}" class="rounded-4 shadow-lg border border-white border-opacity-15" style="width: 84px; height: 84px; object-fit: cover;" alt="Cover" onerror="safeImgError(this)">
+                </div>
                 <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
-                    <div class="fw-bold text-white text-truncate" style="font-size: 0.92rem;" title="${escapeHtml(top1.name)}">${escapeHtml(top1.name)}</div>
-                    <div class="text-secondary text-truncate" style="font-size: 0.78rem;">${escapeHtml(top1.artist)}</div>
-                    <div class="d-flex align-items-center gap-2 mt-1">
-                        <span class="badge" style="background: rgba(168,85,247,0.15); color: #c084fc; font-size: 0.68rem; border: 1px solid rgba(168,85,247,0.3);">
-                            ${formatNumber(top1.plays)} reproducciones
+                    <div class="fw-bold text-white text-truncate" style="font-size: 1.18rem; letter-spacing: -0.02em;" title="${escapeHtml(top1.name)}">${escapeHtml(top1.name)}</div>
+                    <div class="text-secondary text-truncate mb-2" style="font-size: 0.85rem;">${escapeHtml(top1.artist)}</div>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <span class="badge rounded-pill px-2.5 py-1" style="background: rgba(191,90,242,0.18); color: #e9d5ff; font-size: 0.72rem; border: 1px solid rgba(191,90,242,0.35);">
+                            <i class="fa-solid fa-headphones me-1"></i>${formatNumber(top1.plays)} streams
                         </span>
+                        <button type="button" class="btn btn-sm btn-outline-light rounded-pill px-2.5 py-0.5" style="font-size: 0.70rem; border-color: rgba(255,255,255,0.18);" onclick="showItemStats('track', '${escapeJsStr(top1.name)}', '${escapeJsStr(top1.artist)}')">
+                            <i class="fa-solid fa-chart-simple me-1 text-info"></i>Detalles
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-info rounded-pill px-2.5 py-0.5" style="font-size: 0.70rem;" onclick="openStreamAdjustmentModal('track', '${escapeJsStr(top1.name)}', '${escapeJsStr(top1.artist)}')">
+                            <i class="fa-solid fa-sliders me-1"></i>Ajustar
+                        </button>
                     </div>
                 </div>
             `;
@@ -6960,6 +7197,38 @@ async function openPeriodComparisonModal() {
 
     const selectA = document.getElementById('compare-period-a');
     const selectB = document.getElementById('compare-period-b');
+    const db = await getActiveDatabase();
+
+    if (db && db.yearlyTops && selectA && selectB && !selectA.dataset.populated) {
+        selectA.dataset.populated = 'true';
+        const years = Object.keys(db.yearlyTops).filter(y => /^\d{4}$/.test(y)).sort((a, b) => b.localeCompare(a));
+        const monthOpts = [];
+        const yearOpts = [];
+
+        years.forEach(y => {
+            yearOpts.push(`<option value="year-${y}">Año ${y} completo</option>`);
+            const mObj = db.yearlyTops[y]?.months || {};
+            const mKeys = Object.keys(mObj).map(Number).sort((a, b) => b - a);
+            mKeys.forEach(m => {
+                if ((mObj[m]?.plays || 0) > 0) {
+                    monthOpts.push(`<option value="month-${y}-${m}">${MONTH_NAMES[m - 1]} ${y}</option>`);
+                }
+            });
+        });
+
+        const optionsHtml = `
+            <optgroup label="📅 Años Completos">
+                ${yearOpts.join('')}
+            </optgroup>
+            <optgroup label="🗓️ Meses Registrados">
+                ${monthOpts.join('')}
+            </optgroup>
+        `;
+        selectA.innerHTML = optionsHtml;
+        selectB.innerHTML = optionsHtml;
+        if (selectA.options.length > 0) selectA.selectedIndex = 0;
+        if (selectB.options.length > 1) selectB.selectedIndex = 1;
+    }
 
     if (selectA && !selectA.dataset.bound) {
         selectA.dataset.bound = 'true';
@@ -8122,3 +8391,335 @@ function handleCreateNewStreamOverrideSubmit() {
     openStreamAdjustmentModal(type, name, artist);
 }
 window.handleCreateNewStreamOverrideSubmit = handleCreateNewStreamOverrideSubmit;
+
+
+// ====================================================
+// FASE 3: TORNEO MUNDIAL (BRACKET 16) & HIGHER OR LOWER
+// ====================================================
+let bracketState = {
+    mode: 'tracks-overall',
+    roundName: 'Octavos de Final',
+    currentRoundItems: [],
+    nextRoundItems: [],
+    matchIndex: 0
+};
+
+async function openBracketModal() {
+    const modalEl = document.getElementById('bracketModal');
+    if (!modalEl) return;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    await initBracketTournament(bracketState.mode || 'tracks-overall');
+}
+window.openBracketModal = openBracketModal;
+
+async function initBracketTournament(mode = 'tracks-overall', btn = null) {
+    bracketState.mode = mode;
+    if (btn) {
+        document.querySelectorAll('.bracket-mode-btn').forEach(b => {
+            b.classList.remove('active', 'btn-brand');
+            b.classList.add('btn-outline-secondary', 'text-white');
+        });
+        btn.classList.add('active', 'btn-brand');
+        btn.classList.remove('btn-outline-secondary', 'text-white');
+    }
+
+    const db = await getActiveDatabase();
+    const tidal = tidalEstimates || await loadTidalEstimates();
+    let pool = [];
+
+    if (mode === 'tracks-tidal' && tidal?.tracks) {
+        pool = Object.values(tidal.tracks).map(t => {
+            const lowerKey = `${(t.name||'').trim().toLowerCase()}:::${(t.artist||'').trim().toLowerCase()}`;
+            const base = db?.tracksLookup?.[lowerKey]?.plays || 0;
+            return {
+                type: 'track',
+                name: t.name,
+                subtitle: t.artist || '',
+                plays: base + (t.plays || 0)
+            };
+        });
+    } else if (mode === 'artists') {
+        const rawA = db?.yearlyTops?.overall?.artists || [];
+        const mapA = new Map();
+        rawA.forEach(a => mapA.set(normalizeKey(a.name), { type: 'artist', name: a.name, subtitle: 'Artista', plays: a.plays || 0 }));
+        if (tidal?.artists) {
+            Object.entries(tidal.artists).forEach(([name, obj]) => {
+                const k = normalizeKey(name);
+                if (mapA.has(k)) mapA.get(k).plays += (obj.plays || 0);
+                else mapA.set(k, { type: 'artist', name, subtitle: 'Artista', plays: obj.plays || 0 });
+            });
+        }
+        pool = Array.from(mapA.values());
+    } else {
+        const rawT = db?.yearlyTops?.overall?.tracks || [];
+        const mapT = new Map();
+        rawT.slice(0, 60).forEach(t => {
+            const art = t.artist?.name || t.artist || '';
+            const k = `${normalizeKey(t.name)}:::${normalizeKey(art)}`;
+            mapT.set(k, { type: 'track', name: t.name, subtitle: art, plays: t.plays || 0 });
+        });
+        if (tidal?.tracks) {
+            Object.values(tidal.tracks).forEach(t => {
+                const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+                if (mapT.has(k)) mapT.get(k).plays += (t.plays || 0);
+                else mapT.set(k, { type: 'track', name: t.name, subtitle: t.artist || '', plays: t.plays || 0 });
+            });
+        }
+        pool = Array.from(mapT.values());
+    }
+
+    pool.sort((a, b) => b.plays - a.plays);
+    const top24 = pool.slice(0, 24).sort(() => 0.5 - Math.random()).slice(0, 16);
+
+    bracketState.currentRoundItems = top24;
+    bracketState.nextRoundItems = [];
+    bracketState.matchIndex = 0;
+    renderBracketMatch();
+}
+window.initBracketTournament = initBracketTournament;
+
+function renderBracketMatch() {
+    const body = document.getElementById('bracket-arena-body');
+    const badge = document.getElementById('bracket-round-badge');
+    if (!body) return;
+
+    const totalMatches = Math.floor(bracketState.currentRoundItems.length / 2);
+    const roundTitle = totalMatches === 8 ? 'Octavos de Final' : (totalMatches === 4 ? 'Cuartos de Final' : (totalMatches === 2 ? 'Semifinal' : 'Gran Final'));
+
+    if (bracketState.currentRoundItems.length === 1) {
+        const champ = bracketState.currentRoundItems[0];
+        if (badge) badge.textContent = '🏆 ¡Campeón Coronado!';
+        const cKey = `${champ.type}::${normalizeKey(champ.name)}::${normalizeKey(champ.type === 'artist' ? '' : champ.subtitle)}`;
+        const cImg = artCache[cKey] || FALLBACK_ART_SVG;
+        if (typeof confetti === 'function') confetti({ particleCount: 90, spread: 80, origin: { y: 0.4 } });
+
+        body.innerHTML = `
+            <div class="text-center py-4 px-3 rounded-4" style="background: radial-gradient(circle at top, rgba(251, 191, 36, 0.22), rgba(20, 20, 24, 0.96) 70%); border: 1px solid rgba(251, 191, 36, 0.4);">
+                <div class="mb-2"><i class="fa-solid fa-crown text-warning" style="font-size: 2.4rem;"></i></div>
+                <div class="apple-eyebrow text-warning mb-1">CAMPEÓN ABSOLUTO DEL TORNEO</div>
+                <div class="my-3">
+                    <img id="bracket-champ-img" src="${cImg}" class="rounded-4 shadow-lg border border-2 border-warning" style="width: 120px; height: 120px; object-fit: cover;" onerror="safeImgError(this)">
+                </div>
+                <h4 class="fw-bold text-white mb-1">${escapeHtml(champ.name)}</h4>
+                <div class="text-secondary mb-2">${escapeHtml(champ.subtitle)}</div>
+                <span class="badge rounded-pill px-3 py-1.5 mb-3" style="background: rgba(251,191,36,0.2); color: #fbbf24; font-size: 0.80rem;">
+                    <i class="fa-solid fa-headphones me-1"></i>${formatNumber(champ.plays)} reproducciones totales
+                </span>
+                <div class="d-flex justify-content-center gap-2 mt-2">
+                    <button type="button" class="btn btn-sm btn-brand rounded-pill px-4 py-1.5 fw-semibold" onclick="initBracketTournament(bracketState.mode)">
+                        <i class="fa-solid fa-rotate-right me-1"></i> Nuevo Torneo
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-light rounded-pill px-3 py-1.5" onclick="showItemStats('${champ.type}', '${escapeJsStr(champ.name)}', '${escapeJsStr(champ.type === 'artist' ? '' : champ.subtitle)}')">
+                        <i class="fa-solid fa-chart-simple me-1"></i> Ver Estadísticas
+                    </button>
+                </div>
+            </div>
+        `;
+        if (!artCache[cKey]) resolveSpotifyArtwork(champ.name, champ.type === 'artist' ? '' : champ.subtitle, champ.type, 'bracket-champ-img');
+        return;
+    }
+
+    if (badge) badge.textContent = `${roundTitle} (${bracketState.matchIndex + 1}/${totalMatches})`;
+
+    const itemA = bracketState.currentRoundItems[bracketState.matchIndex * 2];
+    const itemB = bracketState.currentRoundItems[bracketState.matchIndex * 2 + 1];
+    if (!itemA || !itemB) return;
+
+    const keyA = `${itemA.type}::${normalizeKey(itemA.name)}::${normalizeKey(itemA.type === 'artist' ? '' : itemA.subtitle)}`;
+    const keyB = `${itemB.type}::${normalizeKey(itemB.name)}::${normalizeKey(itemB.type === 'artist' ? '' : itemB.subtitle)}`;
+    const imgA = artCache[keyA] || FALLBACK_ART_SVG;
+    const imgB = artCache[keyB] || FALLBACK_ART_SVG;
+
+    body.innerHTML = `
+        <div class="text-center mb-3">
+            <small class="text-secondary">Haz clic en tu preferida para que avance a la siguiente ronda:</small>
+        </div>
+        <div class="row g-3 align-items-stretch">
+            <div class="col-12 col-sm-5">
+                <div class="apple-bento-card interactive h-100 text-center d-flex flex-column align-items-center justify-content-between p-4" style="cursor: pointer; border-color: rgba(191, 90, 242, 0.3);" onclick="pickBracketWinner(0)">
+                    <img id="bracket-img-a" src="${imgA}" class="rounded-4 shadow mb-3 ${itemA.type === 'artist' ? 'rounded-circle' : ''}" style="width: 104px; height: 104px; object-fit: cover;" onerror="safeImgError(this)">
+                    <div>
+                        <div class="fw-bold text-white mb-1" style="font-size: 1rem;">${escapeHtml(itemA.name)}</div>
+                        <div class="text-secondary small mb-2">${escapeHtml(itemA.subtitle)}</div>
+                        <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${formatNumber(itemA.plays)} streams</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-brand rounded-pill w-100 mt-3 py-1.5 fw-semibold">Elegir #1</button>
+                </div>
+            </div>
+            <div class="col-12 col-sm-2 d-flex align-items-center justify-content-center">
+                <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 44px; height: 44px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #fbbf24;">VS</div>
+            </div>
+            <div class="col-12 col-sm-5">
+                <div class="apple-bento-card interactive h-100 text-center d-flex flex-column align-items-center justify-content-between p-4" style="cursor: pointer; border-color: rgba(56, 189, 248, 0.3);" onclick="pickBracketWinner(1)">
+                    <img id="bracket-img-b" src="${imgB}" class="rounded-4 shadow mb-3 ${itemB.type === 'artist' ? 'rounded-circle' : ''}" style="width: 104px; height: 104px; object-fit: cover;" onerror="safeImgError(this)">
+                    <div>
+                        <div class="fw-bold text-white mb-1" style="font-size: 1rem;">${escapeHtml(itemB.name)}</div>
+                        <div class="text-secondary small mb-2">${escapeHtml(itemB.subtitle)}</div>
+                        <span class="badge-scrobble"><i class="fa-solid fa-headphones"></i>${formatNumber(itemB.plays)} streams</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-info rounded-pill w-100 mt-3 py-1.5 fw-semibold">Elegir #2</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (!artCache[keyA]) resolveSpotifyArtwork(itemA.name, itemA.type === 'artist' ? '' : itemA.subtitle, itemA.type, 'bracket-img-a');
+    if (!artCache[keyB]) resolveSpotifyArtwork(itemB.name, itemB.type === 'artist' ? '' : itemB.subtitle, itemB.type, 'bracket-img-b');
+}
+
+function pickBracketWinner(choiceIdx) {
+    const winner = bracketState.currentRoundItems[bracketState.matchIndex * 2 + choiceIdx];
+    if (!winner) return;
+    bracketState.nextRoundItems.push(winner);
+    bracketState.matchIndex++;
+
+    const totalMatches = Math.floor(bracketState.currentRoundItems.length / 2);
+    if (bracketState.matchIndex >= totalMatches) {
+        bracketState.currentRoundItems = bracketState.nextRoundItems;
+        bracketState.nextRoundItems = [];
+        bracketState.matchIndex = 0;
+    }
+    renderBracketMatch();
+}
+window.pickBracketWinner = pickBracketWinner;
+
+// ---------- Minijuego: Higher or Lower ----------
+const HL_BEST_KEY = 'spoti_hl_best_score';
+let hlState = {
+    pool: [],
+    itemA: null,
+    itemB: null,
+    streak: 0,
+    best: parseInt(localStorage.getItem(HL_BEST_KEY) || '0', 10) || 0,
+    locked: false
+};
+
+async function openHigherLowerModal() {
+    const modalEl = document.getElementById('higherLowerModal');
+    if (!modalEl) return;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+    const db = await getActiveDatabase();
+    const tidal = tidalEstimates || await loadTidalEstimates();
+    const mapT = new Map();
+
+    (db?.yearlyTops?.overall?.tracks || []).slice(0, 120).forEach(t => {
+        const art = t.artist?.name || t.artist || '';
+        const k = `${normalizeKey(t.name)}:::${normalizeKey(art)}`;
+        mapT.set(k, { type: 'track', name: t.name, subtitle: art, plays: t.plays || 0 });
+    });
+    if (tidal?.tracks) {
+        Object.values(tidal.tracks).forEach(t => {
+            const k = `${normalizeKey(t.name)}:::${normalizeKey(t.artist || '')}`;
+            if (mapT.has(k)) mapT.get(k).plays += (t.plays || 0);
+            else mapT.set(k, { type: 'track', name: t.name, subtitle: t.artist || '', plays: t.plays || 0 });
+        });
+    }
+
+    hlState.pool = Array.from(mapT.values()).filter(x => x.plays >= 15);
+    hlState.streak = 0;
+    hlState.locked = false;
+    updateHlScoreBadges();
+
+    const shuffled = [...hlState.pool].sort(() => 0.5 - Math.random());
+    hlState.itemA = shuffled[0];
+    hlState.itemB = shuffled.find(x => x.name !== hlState.itemA.name && x.plays !== hlState.itemA.plays) || shuffled[1];
+    renderHigherLowerArena();
+}
+window.openHigherLowerModal = openHigherLowerModal;
+
+function updateHlScoreBadges() {
+    const curEl = document.getElementById('hl-current-streak');
+    const bestEl = document.getElementById('hl-best-streak');
+    if (curEl) curEl.textContent = hlState.streak;
+    if (bestEl) bestEl.textContent = hlState.best;
+}
+
+function renderHigherLowerArena(revealedResult = null) {
+    const body = document.getElementById('higher-lower-body');
+    if (!body || !hlState.itemA || !hlState.itemB) return;
+
+    const a = hlState.itemA;
+    const b = hlState.itemB;
+    const keyA = `track::${normalizeKey(a.name)}::${normalizeKey(a.subtitle)}`;
+    const keyB = `track::${normalizeKey(b.name)}::${normalizeKey(b.subtitle)}`;
+    const imgA = artCache[keyA] || FALLBACK_ART_SVG;
+    const imgB = artCache[keyB] || FALLBACK_ART_SVG;
+
+    body.innerHTML = `
+        <div class="row g-3 align-items-stretch">
+            <div class="col-12 col-sm-5">
+                <div class="apple-bento-card h-100 text-center d-flex flex-column align-items-center justify-content-center p-4">
+                    <img id="hl-img-a" src="${imgA}" class="rounded-4 shadow mb-3" style="width: 96px; height: 96px; object-fit: cover;" onerror="safeImgError(this)">
+                    <div class="fw-bold text-white mb-0.5" style="font-size: 0.98rem;">${escapeHtml(a.name)}</div>
+                    <div class="text-secondary small mb-3">${escapeHtml(a.subtitle)}</div>
+                    <div class="apple-violet-gradient display-6 mb-0" style="font-size: 2rem;">${formatNumber(a.plays)}</div>
+                    <small class="text-secondary text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.08em;">streams registrados</small>
+                </div>
+            </div>
+            <div class="col-12 col-sm-2 d-flex align-items-center justify-content-center">
+                <div class="rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width: 44px; height: 44px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #38bdf8;">VS</div>
+            </div>
+            <div class="col-12 col-sm-5">
+                <div class="apple-bento-card h-100 text-center d-flex flex-column align-items-center justify-content-center p-4" style="border-color: rgba(56, 189, 248, 0.35);">
+                    <img id="hl-img-b" src="${imgB}" class="rounded-4 shadow mb-3" style="width: 96px; height: 96px; object-fit: cover;" onerror="safeImgError(this)">
+                    <div class="fw-bold text-white mb-0.5" style="font-size: 0.98rem;">${escapeHtml(b.name)}</div>
+                    <div class="text-secondary small mb-3">${escapeHtml(b.subtitle)}</div>
+                    ${revealedResult === null ? `
+                        <div class="d-flex flex-column gap-2 w-100 mt-1">
+                            <button type="button" class="btn btn-sm btn-brand rounded-pill py-2 fw-semibold" onclick="guessHigherLower('higher')">
+                                <i class="fa-solid fa-arrow-trend-up me-1.5"></i> MÁS streams que ${formatNumber(a.plays)}
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-info rounded-pill py-2 fw-semibold" onclick="guessHigherLower('lower')">
+                                <i class="fa-solid fa-arrow-trend-down me-1.5"></i> MENOS streams que ${formatNumber(a.plays)}
+                            </button>
+                        </div>
+                    ` : `
+                        <div class="display-6 fw-bold ${revealedResult ? 'text-success' : 'text-danger'} mb-1" style="font-size: 2rem;">${formatNumber(b.plays)}</div>
+                        <div class="badge rounded-pill ${revealedResult ? 'bg-success' : 'bg-danger'} px-3 py-1 mb-2">
+                            ${revealedResult ? '¡Correcto! 🔥' : '¡Fallaste! 💥'}
+                        </div>
+                        ${!revealedResult ? `
+                            <button type="button" class="btn btn-sm btn-brand rounded-pill px-4 py-1.5 mt-1 fw-semibold" onclick="openHigherLowerModal()">
+                                <i class="fa-solid fa-rotate-right me-1"></i> Jugar de nuevo
+                            </button>
+                        ` : ''}
+                    `}
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (!artCache[keyA]) resolveSpotifyArtwork(a.name, a.subtitle, 'track', 'hl-img-a');
+    if (!artCache[keyB]) resolveSpotifyArtwork(b.name, b.subtitle, 'track', 'hl-img-b');
+}
+
+function guessHigherLower(choice) {
+    if (hlState.locked || !hlState.itemA || !hlState.itemB) return;
+    hlState.locked = true;
+
+    const aPlays = hlState.itemA.plays;
+    const bPlays = hlState.itemB.plays;
+    const isCorrect = (choice === 'higher' && bPlays >= aPlays) || (choice === 'lower' && bPlays <= aPlays);
+
+    if (isCorrect) {
+        hlState.streak++;
+        if (hlState.streak > hlState.best) {
+            hlState.best = hlState.streak;
+            try { localStorage.setItem(HL_BEST_KEY, String(hlState.best)); } catch (e) {}
+        }
+        updateHlScoreBadges();
+        renderHigherLowerArena(true);
+
+        setTimeout(() => {
+            hlState.itemA = hlState.itemB;
+            const candidates = hlState.pool.filter(x => x.name !== hlState.itemA.name && x.plays !== hlState.itemA.plays);
+            hlState.itemB = candidates[Math.floor(Math.random() * candidates.length)];
+            hlState.locked = false;
+            renderHigherLowerArena(null);
+        }, 1150);
+    } else {
+        renderHigherLowerArena(false);
+    }
+}
+window.guessHigherLower = guessHigherLower;

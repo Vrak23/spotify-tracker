@@ -930,6 +930,216 @@
             gap: 10px;
         }
 
+
+        /* =========================================================
+           APPLE iPHONE PRO BENTO GRID, DYNAMIC ISLAND & PODIUM CSS
+           ========================================================= */
+        .apple-bento-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+        .bento-span-12 { grid-column: span 12; }
+        .bento-span-7 { grid-column: span 12; }
+        .bento-span-6 { grid-column: span 12; }
+        .bento-span-5 { grid-column: span 12; }
+        .bento-span-3 { grid-column: span 6; }
+
+        @media (min-width: 768px) {
+            .bento-span-7 { grid-column: span 7; }
+            .bento-span-6 { grid-column: span 6; }
+            .bento-span-5 { grid-column: span 5; }
+            .bento-span-3 { grid-column: span 3; }
+        }
+
+        .apple-bento-card {
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(165deg, rgba(28, 28, 32, 0.88) 0%, rgba(14, 14, 17, 0.96) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            border-radius: 26px;
+            padding: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+            transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.28s ease, box-shadow 0.28s ease;
+        }
+        .apple-bento-card:hover {
+            border-color: rgba(255, 255, 255, 0.18);
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.78), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+        }
+        .apple-bento-card.interactive:hover {
+            transform: translateY(-2px);
+        }
+
+        .apple-eyebrow {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #86868b;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .apple-headline-gradient {
+            background: linear-gradient(180deg, #ffffff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.03em;
+            font-weight: 800;
+        }
+
+        .apple-violet-gradient {
+            background: linear-gradient(135deg, #f3e8ff 0%, #c084fc 50%, #38bdf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.03em;
+            font-weight: 800;
+        }
+
+        /* Dynamic Island Live Player */
+        .dynamic-island-wrapper {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 14px;
+        }
+        .dynamic-island {
+            background: #000000;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 980px;
+            padding: 7px 14px 7px 9px;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            max-width: 100%;
+            box-shadow: 0 14px 40px rgba(0, 0, 0, 0.9), 0 0 28px rgba(191, 90, 242, 0.24);
+            cursor: pointer;
+            transition: all 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .dynamic-island:hover {
+            transform: scale(1.02);
+            border-color: rgba(191, 90, 242, 0.45);
+            box-shadow: 0 18px 46px rgba(0, 0, 0, 0.95), 0 0 36px rgba(191, 90, 242, 0.35);
+        }
+        .dynamic-island-art {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            object-fit: cover;
+            animation: spinSlow 14s linear infinite;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            flex-shrink: 0;
+        }
+        @keyframes spinSlow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .island-eq {
+            display: inline-flex;
+            align-items: flex-end;
+            gap: 2.5px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+        .island-eq span {
+            width: 3px;
+            background: linear-gradient(180deg, #bf5af2, #38bdf8);
+            border-radius: 2px;
+            animation: eqPulse 0.9s ease-in-out infinite alternate;
+        }
+        .island-eq span:nth-child(1) { height: 6px; animation-delay: 0s; }
+        .island-eq span:nth-child(2) { height: 13px; animation-delay: 0.2s; }
+        .island-eq span:nth-child(3) { height: 8px; animation-delay: 0.4s; }
+        .island-eq span:nth-child(4) { height: 11px; animation-delay: 0.15s; }
+        @keyframes eqPulse {
+            0% { transform: scaleY(0.45); }
+            100% { transform: scaleY(1.05); }
+        }
+
+        /* Catalog Podium Top 1 - 2 - 3 */
+        .catalog-podium-grid {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        @media (max-width: 576px) {
+            .catalog-podium-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+        }
+        .podium-card {
+            position: relative;
+            overflow: hidden;
+            border-radius: 20px;
+            padding: 14px;
+            background: linear-gradient(160deg, rgba(30, 30, 36, 0.9) 0%, rgba(16, 16, 20, 0.95) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: all 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+        }
+        .podium-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(255, 255, 255, 0.22);
+        }
+        .podium-card.podium-1 {
+            background: radial-gradient(circle at top right, rgba(251, 191, 36, 0.16), rgba(20, 20, 24, 0.96) 70%);
+            border-color: rgba(251, 191, 36, 0.32);
+        }
+        .podium-card.podium-2 {
+            background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.14), rgba(20, 20, 24, 0.96) 70%);
+            border-color: rgba(56, 189, 248, 0.26);
+        }
+        .podium-card.podium-3 {
+            background: radial-gradient(circle at top right, rgba(192, 132, 252, 0.14), rgba(20, 20, 24, 0.96) 70%);
+            border-color: rgba(192, 132, 252, 0.26);
+        }
+        .podium-cover {
+            width: 58px;
+            height: 58px;
+            border-radius: 14px;
+            object-fit: cover;
+            flex-shrink: 0;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        /* Receiptify & Apple Replay Share Card Styles */
+        #share-card-canvas-wrapper.theme-apple {
+            background: radial-gradient(circle at top right, #26163a 0%, #09090b 65%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.16) !important;
+            border-radius: 26px !important;
+            font-family: var(--font-main) !important;
+        }
+        #share-card-canvas-wrapper.theme-receipt {
+            background: #f4f1ea !important;
+            color: #18181b !important;
+            border: 1px dashed #a1a1aa !important;
+            border-radius: 6px !important;
+            font-family: 'JetBrains Mono', monospace !important;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.75) !important;
+        }
+        #share-card-canvas-wrapper.theme-receipt .text-white,
+        #share-card-canvas-wrapper.theme-receipt .fw-bold,
+        #share-card-canvas-wrapper.theme-receipt small,
+        #share-card-canvas-wrapper.theme-receipt span {
+            color: #18181b !important;
+        }
+        #share-card-canvas-wrapper.theme-receipt .badge-scrobble {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            color: #18181b !important;
+            font-weight: 700 !important;
+        }
+
     </style>
 </head>
 <body>
@@ -1024,113 +1234,144 @@
             </div>
 
             <!-- ============================================== -->
-            <!-- VISTA 1: INICIO (HOME HUB - Limpio, Portada)    -->
+            <!-- VISTA 1: INICIO (APPLE iPHONE PRO BENTO GRID)  -->
             <!-- ============================================== -->
             <div id="section-home" class="dashboard-section">
-                <!-- Saludo personalizado dinámico -->
-                <div class="d-flex align-items-center justify-content-between mb-3 pt-1">
+                <!-- Dynamic Island Live Player -->
+                <div id="currently-playing-container" class="dynamic-island-wrapper"></div>
+
+                <!-- Header Pro Titanium -->
+                <div class="d-flex align-items-end justify-content-between mb-3 pt-1 px-1 flex-wrap gap-2">
                     <div>
-                        <div id="home-greeting" class="fw-bold text-white fs-5" style="letter-spacing: -0.3px;">¡Hola de nuevo!</div>
-                        <small class="text-secondary" style="font-size: 0.76rem;">Aquí tienes el pulso de tu música y tus metas de hoy</small>
+                        <div class="apple-eyebrow mb-0.5"><i class="fa-brands fa-apple text-white"></i> SpotiTracker Pro</div>
+                        <div id="home-greeting" class="apple-headline-gradient fs-3" style="line-height: 1.15;">¡Hola de nuevo!</div>
                     </div>
-                    <div id="home-streak-pill" class="badge rounded-pill px-2.5 py-1.5 d-flex align-items-center gap-1.5" style="background: rgba(234, 179, 8, 0.12); color: #fbbf24; border: 1px solid rgba(234, 179, 8, 0.3); font-size: 0.74rem; cursor: pointer;" onclick="switchAppView('profile')">
-                        <i class="fa-solid fa-fire me-1 text-warning"></i><strong id="home-streak-count">0</strong> días
+                    <div class="d-flex align-items-center gap-2">
+                        <div id="home-streak-pill" class="badge rounded-pill px-3 py-1.5 d-flex align-items-center gap-1.5" style="background: rgba(255, 255, 255, 0.06); color: #f5f5f7; border: 1px solid rgba(255, 255, 255, 0.12); font-size: 0.76rem; cursor: pointer; backdrop-filter: blur(16px);" onclick="switchAppView('profile')">
+                            <i class="fa-solid fa-fire text-warning"></i><strong id="home-streak-count">0</strong> días en racha
+                        </div>
                     </div>
                 </div>
 
-                <!-- Currently Playing Bar flotante -->
-                <div id="currently-playing-container" class="mb-2.5"></div>
-
-                                <!-- Widget Interactivo / Gancho: Blind Test Diario -->
-                <div id="home-interactive-hook" class="home-card p-3 mb-3" style="background: radial-gradient(circle at top right, rgba(168, 85, 247, 0.12), rgba(15, 15, 20, 0.95)); border: 1px solid rgba(168, 85, 247, 0.35);">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="badge rounded-pill px-2.5 py-1 fw-bold" style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-size: 0.70rem;">
-                                <i class="fa-solid fa-gamepad me-1"></i> MINI RETO MUSICAL
+                <!-- APPLE BENTO GRID PRINCIPAL -->
+                <div class="apple-bento-grid">
+                    <!-- Bento 1 (7 cols): Hero Spotlight #1 -->
+                    <div id="home-top-spotlight" class="apple-bento-card bento-span-7 d-flex flex-column justify-content-between" style="background: radial-gradient(circle at 85% 15%, rgba(191, 90, 242, 0.22), rgba(20, 20, 24, 0.94) 65%);">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <span class="apple-eyebrow text-warning">
+                                <i class="fa-solid fa-crown"></i> #1 EN ROTACIÓN
                             </span>
-                            <span class="text-secondary small" style="font-size: 0.72rem;">¿Qué tanto conoces tus gustos?</span>
+                            <button class="btn btn-sm btn-link text-info p-0 text-decoration-none fw-semibold" style="font-size: 0.76rem;" onclick="switchAppView('catalog')">
+                                Catálogo Pro <i class="fa-solid fa-chevron-right ms-1" style="font-size: 0.65rem;"></i>
+                            </button>
                         </div>
-                        <button type="button" class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" style="font-size: 0.75rem;" onclick="generateHomeHookGame()">
-                            <i class="fa-solid fa-rotate-right me-1"></i> Otra pregunta
-                        </button>
-                    </div>
-                    <div id="home-hook-body">
-                        <div class="text-center py-2 text-secondary" style="font-size: 0.78rem;">
-                            <div class="spinner-border spinner-border-sm text-primary me-2"></div>Preparando tu desafío...
+                        <div id="home-spotlight-content" class="d-flex align-items-center gap-3 my-auto py-1">
+                            <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+                            <span class="text-secondary" style="font-size: 0.80rem;">Sincronizando tu canción #1...</span>
                         </div>
                     </div>
-                </div>
-                <!-- Tu Número 1 Actual del Mes -->
-                <div id="home-top-spotlight" class="home-card p-3 mb-3">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="text-secondary" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <i class="fa-solid fa-crown text-warning me-1"></i> Tu #1 de este mes
-                        </span>
-                        <button class="btn btn-sm btn-link text-primary p-0 text-decoration-none fw-semibold" style="font-size: 0.74rem;" onclick="switchAppView('catalog')">
-                            Ver catálogo completo →
-                        </button>
-                    </div>
-                    <div id="home-spotlight-content" class="d-flex align-items-center gap-3">
-                        <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                        <span class="text-secondary" style="font-size: 0.78rem;">Cargando tu canción favorita...</span>
-                    </div>
-                </div>
 
-                <!-- Atajos Rápidos a Experiencias -->
-                <div class="mb-3">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="text-secondary" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <i class="fa-solid fa-wand-magic-sparkles text-primary me-1"></i> Experiencias para ti
-                        </span>
-                        <button class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" style="font-size: 0.74rem;" onclick="switchAppView('hub')">
-                            Ver todas →
-                        </button>
-                    </div>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <div class="home-quick-pill" onclick="openTriviaModal()">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <i class="fa-solid fa-brain text-primary"></i>
-                                    <strong style="font-size: 0.80rem;">Trivia Musical</strong>
-                                </div>
-                                <small class="text-secondary d-block" style="font-size: 0.68rem;">¿Cuánto conoces tus números?</small>
+                    <!-- Bento 2 (5 cols): Pulso de Biblioteca & Nivel -->
+                    <div class="apple-bento-card bento-span-5 d-flex flex-column justify-content-between" style="background: radial-gradient(circle at 15% 85%, rgba(41, 151, 255, 0.16), rgba(20, 20, 24, 0.95) 70%);">
+                        <div>
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <span class="apple-eyebrow"><i class="fa-solid fa-wave-square text-info"></i> ADN & PROGRESO</span>
+                                <button class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" style="font-size: 0.72rem;" onclick="openStreamManagerModal()">
+                                    <i class="fa-solid fa-sliders me-1 text-info"></i>Era Tidal
+                                </button>
                             </div>
+                            <div class="apple-violet-gradient display-6 mb-0" id="home-bento-total-plays" style="font-size: 2.1rem;">71.7K</div>
+                            <small class="text-secondary d-block mb-3" style="font-size: 0.74rem;">Reproducciones totales unificadas (2019 — 2026)</small>
                         </div>
-                        <div class="col-6">
-                            <div class="home-quick-pill" onclick="switchAppView('curator')">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <i class="fa-solid fa-wand-magic-sparkles text-info"></i>
-                                    <strong style="font-size: 0.80rem;">Curador Semestral</strong>
-                                </div>
-                                <small class="text-secondary d-block" style="font-size: 0.68rem;">Playlists de ~18 canciones</small>
+                        <div class="d-flex flex-column gap-2 pt-2 border-top border-secondary border-opacity-15">
+                            <div class="d-flex align-items-center justify-content-between" style="font-size: 0.75rem;">
+                                <span class="text-secondary"><i class="fa-solid fa-bolt text-warning me-1.5"></i>Reto y Nivel XP</span>
+                                <a href="javascript:void(0)" class="text-white fw-semibold text-decoration-none" onclick="switchAppView('profile')">Ver Mi Progreso →</a>
                             </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="home-quick-pill" onclick="openTrophiesModal()">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <i class="fa-solid fa-award text-warning"></i>
-                                    <strong style="font-size: 0.80rem;">Hitos +100</strong>
-                                </div>
-                                <small class="text-secondary d-block" style="font-size: 0.68rem;">Artistas cerca del centenar</small>
+                            <div class="d-flex align-items-center justify-content-between" style="font-size: 0.75rem;">
+                                <span class="text-secondary"><i class="fa-solid fa-clock-rotate-left text-info me-1.5"></i>Este mes en la historia</span>
+                                <a href="javascript:void(0)" class="text-info fw-semibold text-decoration-none" onclick="openCapsuleModal()">Abrir Cápsula →</a>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Mini Top 5 de Canciones -->
-                <div class="home-card p-3 mb-2">
-                    <div class="d-flex align-items-center justify-content-between mb-2">
-                        <span class="text-secondary" style="font-size: 0.70rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <i class="fa-solid fa-fire text-danger me-1"></i> Top 5 Canciones de hoy
-                        </span>
-                        <button class="btn btn-sm btn-link text-primary p-0 text-decoration-none fw-semibold" style="font-size: 0.74rem;" onclick="switchAppView('catalog')">
-                            Ver todo el Top →
-                        </button>
-                    </div>
-                    <div id="home-top-mini-list" class="d-flex flex-column gap-2">
-                        <div class="text-center py-3 text-secondary" style="font-size: 0.76rem;">
-                            <span class="spinner-border spinner-border-sm me-1.5 text-secondary"></span>Cargando tus temas...
+                    <!-- Bento 3 (6 cols): Mini Reto Interactivo -->
+                    <div id="home-interactive-hook" class="apple-bento-card bento-span-6 d-flex flex-column justify-content-between">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <span class="apple-eyebrow" style="color: #c084fc;">
+                                <i class="fa-solid fa-gamepad"></i> DESAFÍO RÁPIDO
+                            </span>
+                            <button type="button" class="btn btn-sm btn-link text-secondary p-0 text-decoration-none" style="font-size: 0.74rem;" onclick="generateHomeHookGame()">
+                                <i class="fa-solid fa-rotate-right me-1"></i> Otra
+                            </button>
                         </div>
+                        <div id="home-hook-body" class="my-auto">
+                            <div class="text-center py-3 text-secondary" style="font-size: 0.78rem;">
+                                <div class="spinner-border spinner-border-sm text-primary me-2"></div>Preparando desafío...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bento 4 (6 cols): Top 5 en Rotación -->
+                    <div class="apple-bento-card bento-span-6">
+                        <div class="d-flex align-items-center justify-content-between mb-2.5">
+                            <span class="apple-eyebrow text-danger">
+                                <i class="fa-solid fa-fire"></i> TOP 5 EN ROTACIÓN
+                            </span>
+                            <button class="btn btn-sm btn-link text-info p-0 text-decoration-none fw-semibold" style="font-size: 0.74rem;" onclick="switchAppView('catalog')">
+                                Ver Top 50 →
+                            </button>
+                        </div>
+                        <div id="home-top-mini-list" class="d-flex flex-column gap-1.5">
+                            <div class="text-center py-3 text-secondary" style="font-size: 0.76rem;">
+                                <span class="spinner-border spinner-border-sm me-1.5 text-secondary"></span>Cargando temas...
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bento 5 (3 cols x 4): Apple Arcade / Experiencias Destacadas -->
+                    <div class="apple-bento-card interactive bento-span-3 p-3" style="cursor: pointer; background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.16), rgba(20, 20, 24, 0.95));" onclick="openBracketModal()">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 34px; height: 34px; background: rgba(245, 158, 11, 0.18); color: #fbbf24;">
+                                <i class="fa-solid fa-trophy"></i>
+                            </div>
+                            <span class="badge rounded-pill" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; font-size: 0.60rem;">NUEVO</span>
+                        </div>
+                        <div class="fw-bold text-white" style="font-size: 0.86rem;">Torneo Mundial 16</div>
+                        <small class="text-secondary d-block" style="font-size: 0.70rem;">Duelos 1v1 hasta coronar tu canción campeona</small>
+                    </div>
+
+                    <div class="apple-bento-card interactive bento-span-3 p-3" style="cursor: pointer; background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.16), rgba(20, 20, 24, 0.95));" onclick="openHigherLowerModal()">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 34px; height: 34px; background: rgba(56, 189, 248, 0.18); color: #38bdf8;">
+                                <i class="fa-solid fa-arrow-up-wide-short"></i>
+                            </div>
+                            <span class="badge rounded-pill" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; font-size: 0.60rem;">JUEGO</span>
+                        </div>
+                        <div class="fw-bold text-white" style="font-size: 0.86rem;">Higher or Lower</div>
+                        <small class="text-secondary d-block" style="font-size: 0.70rem;">¿Cuál tiene más streams en tu cuenta?</small>
+                    </div>
+
+                    <div class="apple-bento-card interactive bento-span-3 p-3" style="cursor: pointer;" onclick="switchAppView('curator')">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 34px; height: 34px; background: rgba(191, 90, 242, 0.18); color: #c084fc;">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </div>
+                            <span class="badge rounded-pill" style="background: rgba(255, 255, 255, 0.08); color: #a1a1aa; font-size: 0.60rem;">CURADOR</span>
+                        </div>
+                        <div class="fw-bold text-white" style="font-size: 0.86rem;">Playlists Semestrales</div>
+                        <small class="text-secondary d-block" style="font-size: 0.70rem;">Selección inteligente de ~18 temas por ciclo</small>
+                    </div>
+
+                    <div class="apple-bento-card interactive bento-span-3 p-3" style="cursor: pointer;" onclick="openStreamManagerModal()">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center" style="width: 34px; height: 34px; background: rgba(48, 209, 88, 0.18); color: #30d158;">
+                                <i class="fa-solid fa-sliders"></i>
+                            </div>
+                            <span class="badge rounded-pill" style="background: rgba(48, 209, 88, 0.18); color: #30d158; font-size: 0.60rem;">TIDAL / PRO</span>
+                        </div>
+                        <div class="fw-bold text-white" style="font-size: 0.86rem;">Gestor de Streams</div>
+                        <small class="text-secondary d-block" style="font-size: 0.70rem;">Edita o añade streams personalizados en nube</small>
                     </div>
                 </div>
             </div>
@@ -1170,9 +1411,8 @@
                         <div class="col-6 col-sm-3">
                             <label class="filter-label"><i class="fa-solid fa-database me-1 text-muted"></i> Datos</label>
                             <select id="select-data-source" class="form-select form-select-sm filter-select">
-                                <option value="unified" selected>Unificado</option>
-                                <option value="spotify">Spotify</option>
-                                <option value="lastfm">Last.fm</option>
+                                <option value="unified" selected>Unificado (Total)</option>
+                                <option value="lastfm">Last.fm (En Vivo)</option>
                             </select>
                         </div>
 
@@ -1282,99 +1522,162 @@
             <!-- VISTA 3: EXPERIENCIAS & JUEGOS HUB             -->
             <!-- ============================================== -->
             <div id="section-hub" class="dashboard-section d-none">
-                <div class="mb-3">
-                    <h5 class="fw-bold text-white mb-1"><i class="fa-solid fa-gamepad text-primary me-2"></i>Experiencias Musicales</h5>
-                    <p class="text-secondary mb-0" style="font-size: 0.76rem;">Descubre facetas únicas de tu biblioteca musical a través de juegos y análisis interactivos.</p>
+                <div class="d-flex align-items-end justify-content-between mb-3 flex-wrap gap-2">
+                    <div>
+                        <div class="apple-eyebrow"><i class="fa-solid fa-gamepad text-primary"></i> Arcade & Análisis</div>
+                        <h4 class="apple-headline-gradient mb-0">Experiencias Musicales</h4>
+                    </div>
+                    <button class="btn btn-sm btn-outline-info rounded-pill px-3 py-1" style="font-size: 0.75rem;" onclick="openStreamManagerModal()">
+                        <i class="fa-solid fa-sliders me-1"></i> Gestor de Streams (Era Tidal)
+                    </button>
                 </div>
 
-                <div class="row g-2.5">
+                <div class="row g-3">
+                    <!-- NUEVO 1: Torneo Mundial / Bracket 16 -->
                     <div class="col-12 col-sm-6">
-                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openTriviaModal()">
+                        <div class="apple-bento-card interactive h-100 d-flex flex-column justify-content-between" style="cursor: pointer; background: radial-gradient(circle at top right, rgba(245, 158, 11, 0.18), rgba(18, 18, 22, 0.96));" onclick="openBracketModal()">
                             <div>
-                                <div class="d-flex align-items-center gap-2 mb-2">
-                                    <div class="rounded-3 p-2" style="background: rgba(168,85,247,0.15); color: #c084fc;">
-                                        <i class="fa-solid fa-brain fs-5"></i>
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <div class="d-flex align-items-center gap-2.5">
+                                        <div class="rounded-3 p-2.5" style="background: rgba(245,158,11,0.18); color: #fbbf24;">
+                                            <i class="fa-solid fa-trophy fs-5"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-white" style="font-size: 0.96rem;">Torneo Mundial (Bracket 16)</div>
+                                            <small class="text-warning" style="font-size: 0.68rem; font-weight: 600;">ELIMINATORIA DIRECTA</small>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Trivia Musical Personal</div>
-                                        
-                                    </div>
+                                    <span class="badge rounded-pill bg-warning text-dark fw-bold" style="font-size: 0.62rem;">NUEVO</span>
                                 </div>
-                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Preguntas generadas en tiempo real a partir de tus canciones y hábitos reales.</p>
+                                <p class="text-secondary mb-3" style="font-size: 0.76rem;">16 canciones o artistas de tu biblioteca se enfrentan en octavos, cuartos, semifinal y final. Tú decides quién avanza.</p>
                             </div>
-                            <button class="btn btn-sm btn-outline-brand rounded-pill w-100 py-1" style="font-size: 0.76rem;">Jugar ahora</button>
+                            <button class="btn btn-sm btn-brand rounded-pill w-100 py-1.5 fw-semibold" style="font-size: 0.78rem;">Iniciar Torneo</button>
                         </div>
                     </div>
 
+                    <!-- NUEVO 2: Higher or Lower Musical -->
                     <div class="col-12 col-sm-6">
-                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openCapsuleModal()">
+                        <div class="apple-bento-card interactive h-100 d-flex flex-column justify-content-between" style="cursor: pointer; background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.18), rgba(18, 18, 22, 0.96));" onclick="openHigherLowerModal()">
                             <div>
-                                <div class="d-flex align-items-center gap-2 mb-2">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <div class="d-flex align-items-center gap-2.5">
+                                        <div class="rounded-3 p-2.5" style="background: rgba(56,189,248,0.18); color: #38bdf8;">
+                                            <i class="fa-solid fa-arrow-up-wide-short fs-5"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-white" style="font-size: 0.96rem;">¿Cuál tiene más streams?</div>
+                                            <small class="text-info" style="font-size: 0.68rem; font-weight: 600;">HIGHER OR LOWER</small>
+                                        </div>
+                                    </div>
+                                    <span class="badge rounded-pill bg-info text-dark fw-bold" style="font-size: 0.62rem;">ADICTIVO</span>
+                                </div>
+                                <p class="text-secondary mb-3" style="font-size: 0.76rem;">Pon a prueba tu intuición con tus propios datos: adivina si la siguiente canción o artista tiene más o menos reproducciones.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-info rounded-pill w-100 py-1.5 fw-semibold" style="font-size: 0.78rem;">Jugar Higher or Lower</button>
+                        </div>
+                    </div>
+
+                    <!-- 3: Trivia Musical -->
+                    <div class="col-12 col-sm-6 col-lg-4">
+                        <div class="apple-bento-card interactive h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openTriviaModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2.5 mb-2">
+                                    <div class="rounded-3 p-2" style="background: rgba(168,85,247,0.15); color: #c084fc;">
+                                        <i class="fa-solid fa-brain fs-5"></i>
+                                    </div>
+                                    <div class="fw-bold text-white" style="font-size: 0.90rem;">Trivia Musical Personal</div>
+                                </div>
+                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">5 preguntas generadas en vivo sobre tus años, picos y artistas favoritos.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-brand rounded-pill w-100 py-1" style="font-size: 0.76rem;">Jugar Trivia</button>
+                        </div>
+                    </div>
+
+                    <!-- 4: Cápsula del Tiempo -->
+                    <div class="col-12 col-sm-6 col-lg-4">
+                        <div class="apple-bento-card interactive h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openCapsuleModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2.5 mb-2">
                                     <div class="rounded-3 p-2" style="background: rgba(6,182,212,0.15); color: #22d3ee;">
                                         <i class="fa-solid fa-clock-rotate-left fs-5"></i>
                                     </div>
-                                    <div>
-                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Cápsula del Tiempo</div>
-                                        
-                                    </div>
+                                    <div class="fw-bold text-white" style="font-size: 0.90rem;">Cápsula del Tiempo</div>
                                 </div>
-                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Revive exactamente qué canciones sonaban en este mismo mes en 2020, 2021, 2022, etc.</p>
+                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Revive qué canciones dominaban este mismo mes desde 2019 hasta hoy.</p>
                             </div>
                             <button class="btn btn-sm btn-outline-info rounded-pill w-100 py-1" style="font-size: 0.76rem;">Abrir Cápsula</button>
                         </div>
                     </div>
 
-                    <div class="col-12 col-sm-6">
-                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openIcebergModal()">
+                    <!-- 5: Carrera de Eras -->
+                    <div class="col-12 col-sm-6 col-lg-4">
+                        <div class="apple-bento-card interactive h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openErasModal()">
                             <div>
-                                <div class="d-flex align-items-center gap-2 mb-2">
-                                    <div class="rounded-3 p-2" style="background: rgba(56,189,248,0.15); color: #38bdf8;">
-                                        <i class="fa-solid fa-mountain fs-5"></i>
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Iceberg Musical</div>
-                                        
-                                    </div>
-                                </div>
-                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Desde tus artistas más comerciales hasta las joyas ocultas en las profundidades.</p>
-                            </div>
-                            <button class="btn btn-sm btn-outline-secondary rounded-pill w-100 py-1 text-white" style="font-size: 0.76rem;">Explorar Iceberg</button>
-                        </div>
-                    </div>
-
-                    <div class="col-12 col-sm-6">
-                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openErasModal()">
-                            <div>
-                                <div class="d-flex align-items-center gap-2 mb-2">
+                                <div class="d-flex align-items-center gap-2.5 mb-2">
                                     <div class="rounded-3 p-2" style="background: rgba(34,197,94,0.15); color: #4ade80;">
                                         <i class="fa-solid fa-chart-line fs-5"></i>
                                     </div>
-                                    <div>
-                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Carrera de Eras</div>
-                                        
-                                    </div>
+                                    <div class="fw-bold text-white" style="font-size: 0.90rem;">Carrera de Eras</div>
                                 </div>
-                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Observa cómo fue variando tu artista #1 mes a mes a lo largo de los años.</p>
+                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Animación año por año de cómo evolucionaron tus artistas más escuchados.</p>
                             </div>
                             <button class="btn btn-sm btn-outline-success rounded-pill w-100 py-1" style="font-size: 0.76rem;">Ver Carrera</button>
                         </div>
                     </div>
 
-                    <div class="col-12 col-sm-6">
-                        <div class="home-card p-3 h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openHabitsModal()">
+                    <!-- 6: Iceberg Musical -->
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <div class="apple-bento-card interactive h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openIcebergModal()">
                             <div>
                                 <div class="d-flex align-items-center gap-2 mb-2">
-                                    <div class="rounded-3 p-2" style="background: rgba(234,179,8,0.15); color: #fbbf24;">
-                                        <i class="fa-solid fa-chart-column fs-5"></i>
-                                    </div>
-                                    <div>
-                                        <div class="fw-bold text-white" style="font-size: 0.90rem;">Hábitos de Escucha</div>
-                                        
-                                    </div>
+                                    <i class="fa-solid fa-mountain text-info"></i>
+                                    <div class="fw-bold text-white" style="font-size: 0.86rem;">Iceberg Musical</div>
                                 </div>
-                                <p class="text-secondary mb-3" style="font-size: 0.74rem;">Horas pico del día y qué días de la semana reproduces más música.</p>
+                                <p class="text-secondary mb-2" style="font-size: 0.72rem;">De la élite (+400 reps) a las fosas abisales.</p>
                             </div>
-                            <button class="btn btn-sm btn-outline-warning rounded-pill w-100 py-1" style="font-size: 0.76rem;">Ver Hábitos</button>
+                            <button class="btn btn-sm btn-outline-secondary rounded-pill w-100 py-1 text-white" style="font-size: 0.74rem;">Explorar</button>
+                        </div>
+                    </div>
+
+                    <!-- 7: Comparador Versus 1v1 -->
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <div class="apple-bento-card interactive h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openVersusModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="fa-solid fa-scale-balanced text-primary"></i>
+                                    <div class="fw-bold text-white" style="font-size: 0.86rem;">Duelo Versus 1v1</div>
+                                </div>
+                                <p class="text-secondary mb-2" style="font-size: 0.72rem;">Compara cara a cara las cifras de 2 artistas.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary rounded-pill w-100 py-1 text-white" style="font-size: 0.74rem;">Comparar</button>
+                        </div>
+                    </div>
+
+                    <!-- 8: Hábitos de Escucha -->
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <div class="apple-bento-card interactive h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openHabitsModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="fa-solid fa-chart-column text-warning"></i>
+                                    <div class="fw-bold text-white" style="font-size: 0.86rem;">Hábitos y Horarios</div>
+                                </div>
+                                <p class="text-secondary mb-2" style="font-size: 0.72rem;">Tus horas pico del día y días más activos.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary rounded-pill w-100 py-1 text-white" style="font-size: 0.74rem;">Ver Hábitos</button>
+                        </div>
+                    </div>
+
+                    <!-- 9: Artistas Olvidados -->
+                    <div class="col-12 col-sm-6 col-lg-3">
+                        <div class="apple-bento-card interactive h-100 d-flex flex-column justify-content-between" style="cursor: pointer;" onclick="openForgottenModal()">
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="fa-solid fa-ghost text-danger"></i>
+                                    <div class="fw-bold text-white" style="font-size: 0.86rem;">Artistas Olvidados</div>
+                                </div>
+                                <p class="text-secondary mb-2" style="font-size: 0.72rem;">Joyas que amabas y llevas meses sin poner.</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary rounded-pill w-100 py-1 text-white" style="font-size: 0.74rem;">Descubrir</button>
                         </div>
                     </div>
                 </div>
@@ -1395,9 +1698,17 @@
                                 <small class="text-secondary d-block" style="font-size: 0.74rem;">Selección inteligente (~18 temas): 1 Ene — 20 May / 1 Jun — 20 Nov</small>
                             </div>
                         </div>
-                        <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 text-white" style="font-size: 0.74rem;" onclick="switchAppView('home')">
-                            <i class="fa-solid fa-arrow-left me-1"></i> Volver al Inicio
-                        </button>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <button class="btn btn-sm btn-outline-warning rounded-pill px-2.5 py-1 fw-semibold" style="font-size: 0.74rem;" onclick="openTrophiesModal()">
+                                <i class="fa-solid fa-trophy me-1"></i> Sala de Trofeos (+100)
+                            </button>
+                            <button class="btn btn-sm btn-outline-info rounded-pill px-2.5 py-1 fw-semibold" style="font-size: 0.74rem;" onclick="openRecordsModal()">
+                                <i class="fa-solid fa-medal me-1"></i> Récords Históricos
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 text-white" style="font-size: 0.74rem;" onclick="switchAppView('home')">
+                                <i class="fa-solid fa-arrow-left me-1"></i> Inicio
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Barra de Controles y Configuración -->
@@ -1462,7 +1773,7 @@
                             <span id="curator-counter-badge" class="curator-badge-counter">
                                 0 / 18 seleccionadas
                             </span>
-                            <button type="button" id="curator-btn-cloud" class="curator-badge-period border-0" style="cursor: pointer; background: rgba(16, 185, 129, 0.12) !important; color: #10b981 !important; border: 1px solid rgba(16, 185, 129, 0.28) !important;" title="Base de Datos en la Nube (Supabase)">
+                            <button type="button" id="curator-btn-cloud" class="curator-badge-period border-0" style="cursor: pointer; background: rgba(16, 185, 129, 0.12) !important; color: #10b981 !important; border: 1px solid rgba(16, 185, 129, 0.28) !important;" title="SpotiTracker Cloud Sync (Firebase + Supabase)">
                                 <i class="fa-solid fa-cloud me-1 text-success"></i> <span id="curator-cloud-label">Nube Activa</span>
                             </button>
                         </div>
@@ -1762,7 +2073,7 @@
                                     <i class="fa-solid fa-cloud text-success fs-5"></i>
                                     <div>
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="fw-semibold">Nube Supabase</span>
+                                            <span class="fw-semibold">SpotiTracker Cloud</span>
                                             <span id="drawer-gdrive-status" class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.65rem;">Activo</span>
                                         </div>
                                         <small class="text-secondary d-block" style="font-size: 0.73rem;">Sincronizado con Central-de-estudio</small>
@@ -1840,7 +2151,7 @@
                         <i class="fa-solid fa-cloud text-success fs-5"></i>
                         <div>
                             <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.92rem;">Base de Datos en la Nube (Supabase)</h6>
-                            <small class="text-secondary d-block" style="font-size: 0.72rem;">Respaldos y persistencia automática vinculada a Central-de-estudio</small>
+                            <small class="text-secondary d-block" style="font-size: 0.72rem;">Sincroniza tus Playlists Semestrales, Racha y Ajustes de Streams (Era Tidal)</small>
                         </div>
                     </div>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -1922,7 +2233,18 @@
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body p-3 text-center">
-                    <div id="share-card-canvas-wrapper">
+                    <div class="d-flex justify-content-center gap-1.5 mb-3">
+                        <button type="button" class="btn btn-sm btn-brand rounded-pill px-3 py-1 share-theme-btn active" data-theme="apple" style="font-size: 0.72rem;" onclick="setShareCardTheme('apple', this)">
+                            <i class="fa-brands fa-apple me-1"></i>Apple Replay
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 text-white share-theme-btn" data-theme="receipt" style="font-size: 0.72rem;" onclick="setShareCardTheme('receipt', this)">
+                            <i class="fa-solid fa-receipt me-1"></i>Receiptify
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 text-white share-theme-btn" data-theme="neon" style="font-size: 0.72rem;" onclick="setShareCardTheme('neon', this)">
+                            <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Clásico
+                        </button>
+                    </div>
+                    <div id="share-card-canvas-wrapper" class="theme-apple">
                         <div class="d-flex align-items-center justify-content-between mb-3 border-bottom border-secondary border-opacity-25 pb-2">
                             <div class="d-flex align-items-center gap-2">
                                 <img src="/logo.png" style="width: 30px; height: 30px; object-fit: contain;">
@@ -2148,11 +2470,6 @@
                         </p>
                     </div>
 
-                    <div id="milestone-push-prompt" class="d-none p-2 rounded mb-3 text-start d-flex align-items-center justify-content-between gap-2" style="background: rgba(6, 182, 212, 0.1); border: 1px solid rgba(6, 182, 212, 0.25); font-size: 0.72rem;">
-                        <span class="text-info"><i class="fa-solid fa-bell me-1"></i> Recibe notificaciones push en cada nuevo centenar</span>
-                        <button type="button" id="btn-enable-milestone-push" class="btn btn-sm btn-info py-0 px-2 fw-semibold text-nowrap" style="font-size: 0.7rem;">Activar</button>
-                    </div>
-
                     <div class="d-flex align-items-center justify-content-center gap-2">
                         <button type="button" id="btn-milestone-view-stats" class="btn btn-sm btn-brand rounded-pill px-3 py-1.5 fw-semibold" style="font-size: 0.78rem;">
                             <i class="fa-solid fa-chart-simple me-1"></i> Ver Estadísticas
@@ -2195,17 +2512,6 @@
                     <div class="tab-content" id="trophiesTabContent">
                         <!-- Tab 1: Hitos de 100 Streams -->
                         <div class="tab-pane fade show active" id="pills-milestones" role="tabpanel">
-                            <!-- Banner de Notificaciones Push -->
-                            <div class="d-flex align-items-center justify-content-between p-2.5 mb-3 rounded border border-warning border-opacity-25" style="background: rgba(234, 179, 8, 0.08); font-size: 0.76rem;">
-                                <div>
-                                    <strong class="text-white d-block"><i class="fa-solid fa-bell text-warning me-1"></i> Alertas Push al Alcanzar Hitos</strong>
-                                    <span class="text-secondary" style="font-size: 0.7rem;">Te notificamos en segundo plano cada vez que un artista consiga un nuevo centenar (+100, +200, +500).</span>
-                                </div>
-                                <button type="button" id="btn-toggle-milestone-push" class="btn btn-sm btn-outline-warning rounded-pill px-3 py-1 fw-semibold text-nowrap" style="font-size: 0.72rem;">
-                                    Activar Alertas
-                                </button>
-                            </div>
-
                             <!-- Artistas cerca del próximo centenar -->
                             <div class="mb-3">
                                 <div class="d-flex align-items-center justify-content-between mb-2">
@@ -2343,9 +2649,8 @@
     <!-- Firebase SDK (Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js"></script>
-    <!-- App Logic -->
-    <script src="/app.js?v=50"></script>
+        <!-- App Logic -->
+    <script src="/app.js?v=51"></script>
 
     <!-- Barra de Navegación Inferior Móvil (Bottom Navigation Bar) -->
     <nav id="bottom-nav-bar" class="bottom-nav-bar d-none">
@@ -2632,6 +2937,69 @@
                         <i class="fa-solid fa-check me-1"></i> Continuar y Ajustar
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal: Torneo Mundial / Bracket 16 -->
+    <div class="modal fade" id="bracketModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-trophy text-warning fs-5"></i>
+                        <div>
+                            <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.95rem;">Torneo Mundial (Bracket 16)</h6>
+                            <small class="text-secondary" style="font-size: 0.70rem;">Elige tu favorita en cada duelo hasta coronar a tu campeona absoluta</small>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3 pb-2 border-bottom border-secondary border-opacity-15">
+                        <div class="d-flex align-items-center gap-1.5 flex-wrap">
+                            <button type="button" class="btn btn-sm btn-brand rounded-pill px-3 py-1 bracket-mode-btn active" style="font-size: 0.73rem;" onclick="initBracketTournament('tracks-overall', this)">
+                                <i class="fa-solid fa-music me-1"></i>Top 16 Canciones
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 text-white bracket-mode-btn" style="font-size: 0.73rem;" onclick="initBracketTournament('tracks-tidal', this)">
+                                <i class="fa-solid fa-water me-1 text-info"></i>Era Tidal / Recientes
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 text-white bracket-mode-btn" style="font-size: 0.73rem;" onclick="initBracketTournament('artists', this)">
+                                <i class="fa-solid fa-users me-1 text-warning"></i>Top 16 Artistas
+                            </button>
+                        </div>
+                        <span id="bracket-round-badge" class="badge rounded-pill px-3 py-1.5" style="background: rgba(245, 158, 11, 0.16); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); font-size: 0.72rem;">Octavos de Final (1/8)</span>
+                    </div>
+                    <div id="bracket-arena-body" class="py-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Minijuego Higher or Lower Musical -->
+    <div class="modal fade" id="higherLowerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content border" style="background-color: var(--bg-surface); border-color: var(--border-subtle) !important; color: #f8fafc;">
+                <div class="modal-header border-bottom border-secondary border-opacity-10 py-2.5 px-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="fa-solid fa-arrow-up-wide-short text-info fs-5"></i>
+                        <div>
+                            <h6 class="modal-title fw-bold mb-0 text-white" style="font-size: 0.95rem;">Higher or Lower · Tus Streams</h6>
+                            <small class="text-secondary" style="font-size: 0.70rem;">¿Tiene más o menos reproducciones en tu historial unificado?</small>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 ms-auto me-2">
+                        <span class="badge rounded-pill px-2.5 py-1" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 0.72rem;">
+                            Racha: <strong id="hl-current-streak">0</strong>
+                        </span>
+                        <span class="badge rounded-pill px-2.5 py-1" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); font-size: 0.72rem;">
+                            Récord: <strong id="hl-best-streak">0</strong>
+                        </span>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3" id="higher-lower-body"></div>
             </div>
         </div>
     </div>
